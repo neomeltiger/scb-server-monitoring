@@ -16,6 +16,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import io.swagger.v3.oas.annotations.Hidden;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.scb.monitoring.auth.dto.UserView;
 import com.scb.monitoring.auth.service.UserAdminService;
 
@@ -32,6 +36,7 @@ import com.scb.monitoring.auth.service.UserAdminService;
  *  DELETE /api/admin/users/{id}
  * </pre>
  */
+@Tag(name = "6. 사용자 관리", description = "가입 승인·잠금 해제·권한 (ADMIN 전용)")
 @Controller
 public class UserAdminController {
 
@@ -41,12 +46,14 @@ public class UserAdminController {
         this.service = service;
     }
 
+    @Hidden
     @GetMapping("/admin/users")
     public String page(Model model) {
         model.addAttribute("menu", "users");
         return "admin_users";
     }
 
+    @Operation(summary = "사용자 목록")
     @GetMapping("/api/admin/users")
     @ResponseBody
     public Map<String, Object> list(@RequestParam(value = "status", required = false) String status, Authentication auth) {
@@ -57,6 +64,7 @@ public class UserAdminController {
         return body;
     }
 
+    @Operation(summary = "가입 승인")
     @PostMapping("/api/admin/users/{userId}/approve")
     @ResponseBody
     public Map<String, Object> approve(@PathVariable String userId, @RequestBody(required = false) Map<String, Object> req,
@@ -65,6 +73,7 @@ public class UserAdminController {
         return ok("승인되었습니다.");
     }
 
+    @Operation(summary = "가입 반려")
     @PostMapping("/api/admin/users/{userId}/reject")
     @ResponseBody
     public Map<String, Object> reject(@PathVariable String userId, @RequestBody(required = false) Map<String, Object> req,
@@ -73,6 +82,7 @@ public class UserAdminController {
         return ok("반려되었습니다.");
     }
 
+    @Operation(summary = "잠금 해제")
     @PostMapping("/api/admin/users/{userId}/unlock")
     @ResponseBody
     public Map<String, Object> unlock(@PathVariable String userId, Authentication auth) {
@@ -80,6 +90,7 @@ public class UserAdminController {
         return ok("잠금이 해제되었습니다.");
     }
 
+    @Operation(summary = "사용 / 중지")
     @PutMapping("/api/admin/users/{userId}/use")
     @ResponseBody
     public Map<String, Object> use(@PathVariable String userId, @RequestBody Map<String, Object> req, Authentication auth) {
@@ -88,6 +99,7 @@ public class UserAdminController {
         return ok(use ? "사용으로 변경되었습니다." : "사용 중지되었습니다.");
     }
 
+    @Operation(summary = "권한 변경 (ADMIN/USER)")
     @PutMapping("/api/admin/users/{userId}/role")
     @ResponseBody
     public Map<String, Object> role(@PathVariable String userId, @RequestBody Map<String, Object> req, Authentication auth) {
@@ -95,6 +107,7 @@ public class UserAdminController {
         return ok("권한이 변경되었습니다.");
     }
 
+    @Operation(summary = "사용자 삭제")
     @DeleteMapping("/api/admin/users/{userId}")
     @ResponseBody
     public Map<String, Object> delete(@PathVariable String userId, Authentication auth) {

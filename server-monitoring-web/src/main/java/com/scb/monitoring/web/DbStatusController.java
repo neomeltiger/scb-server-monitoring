@@ -10,12 +10,16 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.scb.monitoring.config.SybaseJdbc;
 
 /**
  * Sybase 연결 상태 확인 API (로그인 필요).
  * sybase 프로필이 아니면 enabled=false 를 돌려줍니다.
  */
+@Tag(name = "7. 기타", description = "웹 콘솔·DB 상태")
 @RestController
 public class DbStatusController {
 
@@ -25,6 +29,7 @@ public class DbStatusController {
         this.sybase = sybase;
     }
 
+    @Operation(summary = "Sybase 연결 상태")
     @GetMapping("/api/db/status")
     public ResponseEntity<Map<String, Object>> status() {
         Map<String, Object> body = new LinkedHashMap<>();

@@ -20,6 +20,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.scb.monitoring.agent.AgentProperties;
 import com.scb.monitoring.agent.service.AgentService;
 import com.scb.monitoring.serverlog.service.ServerLogService;
@@ -40,6 +43,7 @@ import com.scb.monitoring.topology.service.TopologyException;
  * </pre>
  * 응답은 모두 text/plain (Bourne shell 에서 처리하기 쉽도록).
  */
+@Tag(name = "9. 에이전트 연동", description = "서버 에이전트(krcasmrx11_client) 전용 - X-SCB-Agent-Token 헤더 인증, 응답 text/plain")
 @RestController
 @RequestMapping(value = "/agent-api/v1", produces = "text/plain;charset=UTF-8")
 public class AgentApiController {
@@ -57,17 +61,20 @@ public class AgentApiController {
         this.serverLogService = serverLogService;
     }
 
+    @Operation(summary = "연결 확인")
     @GetMapping("/ping")
     public ResponseEntity<String> ping(@RequestHeader(value = TOKEN_HEADER, required = false) String token, HttpServletRequest req) {
         Long serverId = auth(token, req);
         return text("ok server_id=" + serverId + "\n");
     }
 
+    @Operation(summary = "에이전트 설정 (보고 주기, 감시 프로세스)")
     @GetMapping("/config")
     public ResponseEntity<String> config(@RequestHeader(value = TOKEN_HEADER, required = false) String token, HttpServletRequest req) {
         return text(service.buildConfig(auth(token, req)));
     }
 
+    @Operation(summary = "수집 결과 보고 (text/plain)")
     @PostMapping(value = "/report", consumes = MediaType.ALL_VALUE)
     public ResponseEntity<String> report(@RequestHeader(value = TOKEN_HEADER, required = false) String token,
                                          @RequestBody(required = false) byte[] body, HttpServletRequest req) {
@@ -79,6 +86,7 @@ public class AgentApiController {
         return text(sb.append('\n').toString());
     }
 
+    @Operation(summary = "데몬 heartbeat + 웹 설정·제어 명령·로그 요청 받기")
     @GetMapping("/commands")
     public ResponseEntity<String> commands(@RequestHeader(value = TOKEN_HEADER, required = false) String token,
                                            @RequestParam(value = "state", required = false) String state,
@@ -88,6 +96,7 @@ public class AgentApiController {
         return text(service.pullCommands(auth(token, req), state, pid, ver));
     }
 
+    @Operation(summary = "데몬 종료 보고")
     @PostMapping(value = "/daemon", consumes = MediaType.ALL_VALUE)
     public ResponseEntity<String> daemon(@RequestHeader(value = TOKEN_HEADER, required = false) String token,
                                          @RequestParam("state") String state, HttpServletRequest req) {
@@ -97,6 +106,7 @@ public class AgentApiController {
         return text("ok\n");
     }
 
+    @Operation(summary = "제어 명령 실행 결과 보고")
     @PostMapping(value = "/commands/{cmdId}/result", consumes = MediaType.ALL_VALUE)
     public ResponseEntity<String> commandResult(@RequestHeader(value = TOKEN_HEADER, required = false) String token,
                                                 @PathVariable("cmdId") Long cmdId, @RequestParam("exit") int exit,
@@ -106,6 +116,7 @@ public class AgentApiController {
         return ok ? text("ok\n") : ResponseEntity.status(HttpStatus.CONFLICT).body("ignored: command not in SENT state\n");
     }
 
+    @Operation(summary = "요청받은 서버 로그 올리기")
     @PostMapping(value = "/logs/{logId}", consumes = MediaType.ALL_VALUE)
     public ResponseEntity<String> logUpload(@RequestHeader(value = TOKEN_HEADER, required = false) String token,
                                             @PathVariable("logId") Long logId,

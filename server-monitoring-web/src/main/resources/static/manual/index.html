@@ -112,6 +112,7 @@ footer { text-align: center; color: var(--sub); font-size: 12px; padding: 20px; 
         <li><a href="#process">프로세스 관리</a></li>
         <li><a href="#console">웹 콘솔 (SSH)</a></li>
         <li><a href="#users">사용자 관리 (관리자)</a></li>
+        <li><a href="#swagger">API 문서 (Swagger, 관리자)</a></li>
         <li><a href="#agent">에이전트 설치·등록 절차</a></li>
         <li><a href="#faq">자주 묻는 질문 / 문제 해결</a></li>
         <li><a href="#ops">운영 담당자 참고</a></li>
@@ -446,6 +447,19 @@ bin/scb_client.sh restart    # 다시 시작</pre>
         <tr><td>삭제</td><td>모든 계정</td><td>계정 삭제 (되돌릴 수 없음)</td></tr>
     </table></div>
     <div class="note warn">안전장치 : <b>자기 자신</b>은 사용 중지 / 관리자 권한 내림 / 삭제할 수 없고, 활성 관리자가 한 명뿐이면 그 계정도 막습니다. 다른 관리자가 같은 신청을 먼저 처리했으면 “이미 처리된 신청” 이 표시됩니다.</div>
+</section>
+
+<!-- 13-2 -->
+<section id="swagger">
+    <h2>13-2. API 문서 (Swagger) <span class="chip blue">관리자</span></h2>
+    <p>좌측 메뉴 <b>시스템관리 › API 문서(Swagger)</b> (새 창, 주소 <code>/swagger-ui.html</code>). 웹이 제공하는 API 목록·입력값·응답 형식을 보고 직접 호출해 볼 수 있습니다.</p>
+    <ul>
+        <li>오른쪽 위 <b>Select a definition</b> : <b>웹 API (/api)</b> - 화면이 쓰는 API / <b>에이전트 API (/agent-api)</b> - 서버 에이전트 전용</li>
+        <li>항목을 열고 <b>[Try it out]</b> → 값 입력 → <b>[Execute]</b>. 지금 로그인한 계정으로 호출되며 결과(상태 코드·응답·걸린 시간)가 아래에 표시됩니다.</li>
+        <li>조회(GET)는 바로 확인용으로, 등록·수정·삭제·제어(POST/PUT/DELETE)는 <b>실제 데이터와 서버에 그대로 적용</b>됩니다.</li>
+        <li>에이전트 API 는 <code>X-SCB-Agent-Token</code> 칸에 서버 토큰을 넣어야 합니다. 운영 서버의 토큰으로 호출하면 그 서버의 보고 상태가 바뀌므로 시험용 서버로만 사용하세요.</li>
+    </ul>
+    <div class="note warn">관리자만 열 수 있습니다. 운영에서 끄려면 웹 서버 실행 전 환경변수 <code>SWAGGER_ENABLED=false</code> 를 지정합니다.</div>
 </section>
 
 <!-- 14 -->

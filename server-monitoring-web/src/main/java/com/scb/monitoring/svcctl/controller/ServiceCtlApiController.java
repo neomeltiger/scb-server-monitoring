@@ -17,6 +17,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.scb.monitoring.svcctl.dto.CommandForm;
 import com.scb.monitoring.svcctl.dto.CommandView;
 import com.scb.monitoring.svcctl.dto.ImportForm;
@@ -43,6 +46,7 @@ import com.scb.monitoring.svcctl.service.ServiceCtlService;
  * POST /api/services/{serverId}/import       service.list 가져오기 {text, scriptHome}
  * </pre>
  */
+@Tag(name = "3. 프로세스 관리(service.list)", description = "service.list 서비스 상태·제어·추가·수정·삭제")
 @RestController
 @RequestMapping("/api/services")
 public class ServiceCtlApiController {
@@ -53,63 +57,74 @@ public class ServiceCtlApiController {
         this.service = service;
     }
 
+    @Operation(summary = "서버 선택 목록")
     @GetMapping("/servers")
     public List<ServerOption> servers() {
         return service.getServerOptions();
     }
 
     /** 서버별 서비스 목록 {serverId: [...]} - 메인 홈 */
+    @Operation(summary = "서버별 서비스 목록 (메인 홈)")
     @GetMapping("/by-server")
     public java.util.Map<Long, List<ServiceView>> byServer() {
         return service.getServicesByServer();
     }
 
+    @Operation(summary = "서버의 서비스 목록·상태")
     @GetMapping("/{serverId}")
     public ServerServicesView services(@PathVariable("serverId") Long serverId) {
         return service.getServerServices(serverId);
     }
 
+    @Operation(summary = "서비스 추가 - ADMIN")
     @PostMapping("/{serverId}/items")
     public ServiceView addItem(@PathVariable("serverId") Long serverId, @Valid @RequestBody ServiceForm form) {
         return service.addService(serverId, form);
     }
 
+    @Operation(summary = "서비스 수정 - ADMIN")
     @PutMapping("/{serverId}/items/{svcId}")
     public ServiceView updateItem(@PathVariable("serverId") Long serverId, @PathVariable("svcId") Long svcId,
                                   @Valid @RequestBody ServiceForm form) {
         return service.updateService(serverId, svcId, form);
     }
 
+    @Operation(summary = "서비스 삭제 - ADMIN")
     @DeleteMapping("/{serverId}/items/{svcId}")
     public java.util.Map<String, String> deleteItem(@PathVariable("serverId") Long serverId, @PathVariable("svcId") Long svcId) {
         service.deleteService(serverId, svcId);
         return java.util.Collections.singletonMap("message", "삭제되었습니다.");
     }
 
+    @Operation(summary = "service.list 문서 만들기 (text/plain)")
     @GetMapping(value = "/{serverId}/service-list", produces = "text/plain;charset=UTF-8")
     public String serviceList(@PathVariable("serverId") Long serverId,
                               @RequestParam(value = "scriptHome", required = false) String scriptHome) {
         return service.exportServiceList(serverId, scriptHome);
     }
 
+    @Operation(summary = "서비스별 제어 이력")
     @GetMapping("/{serverId}/items/{svcId}/commands")
     public List<CommandView> itemCommands(@PathVariable("serverId") Long serverId, @PathVariable("svcId") Long svcId,
                                           @RequestParam(value = "rows", defaultValue = "50") int rows) {
         return service.getServiceCommands(serverId, svcId, rows);
     }
 
+    @Operation(summary = "서버 제어 이력")
     @GetMapping("/{serverId}/commands")
     public List<CommandView> allCommands(@PathVariable("serverId") Long serverId,
                                          @RequestParam(value = "rows", defaultValue = "100") int rows) {
         return service.getAllCommands(serverId, rows);
     }
 
+    @Operation(summary = "서비스 제어 요청 (start/stop/...) - ADMIN")
     @PostMapping("/{serverId}/commands")
     public ResponseEntity<CommandView> command(@PathVariable("serverId") Long serverId,
                                                @Valid @RequestBody CommandForm form, Authentication auth) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.requestCommand(serverId, form, auth.getName()));
     }
 
+    @Operation(summary = "service.list 가져오기 - ADMIN")
     @PostMapping("/{serverId}/import")
     public ImportResult importList(@PathVariable("serverId") Long serverId, @Valid @RequestBody ImportForm form) {
         return service.importServiceList(serverId, form);

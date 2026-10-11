@@ -8,7 +8,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 /** 웹 콘솔 화면(static/js/web_console.js)이 접속 모드를 확인하는 API */
+@Tag(name = "7. 기타", description = "웹 콘솔·DB 상태")
 @RestController
 public class ConsoleApiController {
 
@@ -18,6 +22,7 @@ public class ConsoleApiController {
         this.props = props;
     }
 
+    @Operation(summary = "웹 콘솔 접속 모드")
     @GetMapping("/api/console-config")
     public ResponseEntity<Map<String, Object>> config() {
         Map<String, Object> body = new LinkedHashMap<>();

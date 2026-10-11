@@ -23,6 +23,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 
 import com.scb.monitoring.auth.service.LoginService;
 
@@ -36,6 +37,8 @@ import com.scb.monitoring.auth.service.LoginService;
  *   <li>사용자 관리(/admin/**, /api/admin/**)와 웹 콘솔(/console, /ssh)은 ADMIN 만</li>
  *   <li>계정 상태(잠금/중지/승인 대기/반려)는 비밀번호가 맞은 뒤에만 알려줌 (ID 존재·상태 노출 방지)</li>
  *   <li>/agent-api/** 는 서버 에이전트 전용 (세션 대신 토큰 인증 - agent.controller.AgentApiController)</li>
+ *   <li>Swagger UI(/swagger-ui.html, /v3/api-docs) 는 ADMIN 만 (config.OpenApiConfig)</li>
+ *   <li>CSRF 토큰은 쿠키(XSRF-TOKEN)로도 내려줌 → Swagger UI 가 X-XSRF-TOKEN 헤더로 전달 (화면은 meta 태그 그대로)</li>
  * </ul>
  */
 @Configuration
@@ -51,10 +54,13 @@ public class SecurityConfig {
                 .antMatchers("/css/**", "/js/**", "/images/**", "/vendor/**", "/manual/**", "/favicon.ico", "/login", "/signup", "/password", "/error").permitAll()
                 .antMatchers("/agent-api/**").permitAll()
                 .antMatchers("/admin/**", "/api/admin/**", "/console", "/ssh").hasRole("ADMIN")
+                .antMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").hasRole("ADMIN")
                 .antMatchers(HttpMethod.GET, "/api/**").authenticated()
                 .antMatchers("/api/**").hasRole("ADMIN")
                 .anyRequest().authenticated())
-            .csrf(csrf -> csrf.ignoringAntMatchers("/agent-api/**"))
+            .csrf(csrf -> csrf
+                .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .ignoringAntMatchers("/agent-api/**"))
             .formLogin(form -> form
                 .loginPage("/login")
                 .successHandler(new LoginSuccessHandler(loginService))

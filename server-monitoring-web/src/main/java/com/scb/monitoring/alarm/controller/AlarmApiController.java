@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.scb.monitoring.alarm.dto.AlarmView;
 import com.scb.monitoring.alarm.service.AlarmService;
 
@@ -23,6 +26,7 @@ import com.scb.monitoring.alarm.service.AlarmService;
  * POST /api/alarms/check           즉시 점검 - ADMIN
  * </pre>
  */
+@Tag(name = "1. 알람", description = "서버 장애 알람 (서버 Down / 보고 끊김)")
 @RestController
 @RequestMapping("/api/alarms")
 public class AlarmApiController {
@@ -33,6 +37,7 @@ public class AlarmApiController {
         this.service = service;
     }
 
+    @Operation(summary = "알람 목록 (진행 중 + 최근 해소)")
     @GetMapping
     public Map<String, Object> list() {
         List<AlarmView> active = service.getActive();
@@ -44,6 +49,7 @@ public class AlarmApiController {
         return body;
     }
 
+    @Operation(summary = "알람 확인 처리 - ADMIN")
     @PostMapping("/{alarmId}/ack")
     public AlarmView ack(@PathVariable("alarmId") Long alarmId, @RequestBody(required = false) Map<String, Object> req,
                          Authentication auth) {
@@ -51,6 +57,7 @@ public class AlarmApiController {
         return service.acknowledge(alarmId, auth.getName(), memo == null ? null : String.valueOf(memo));
     }
 
+    @Operation(summary = "즉시 점검 - ADMIN")
     @PostMapping("/check")
     public Map<String, Object> check() {
         Map<String, Object> body = new LinkedHashMap<>();

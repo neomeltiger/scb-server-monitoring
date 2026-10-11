@@ -16,6 +16,10 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import io.swagger.v3.oas.annotations.Hidden;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.scb.monitoring.serverlog.dto.LogSourceForm;
 import com.scb.monitoring.serverlog.dto.ServerLogView;
 import com.scb.monitoring.serverlog.service.ServerLogService;
@@ -35,6 +39,7 @@ import com.scb.monitoring.topology.service.TopologyException;
  * GET    /api/logs/{serverId}/snapshots/{snapId}            수집 내용
  * </pre>
  */
+@Tag(name = "4. 서버 로그", description = "서버 로그 주기 요청·수집 내용")
 @Controller
 public class ServerLogController {
 
@@ -46,6 +51,7 @@ public class ServerLogController {
         this.serviceCtl = serviceCtl;
     }
 
+    @Hidden
     @GetMapping("/logs")
     public String page(Model model) {
         model.addAttribute("menu", "logs");
@@ -53,12 +59,14 @@ public class ServerLogController {
         return "server_logs";
     }
 
+    @Operation(summary = "서버 로그 설정·대상 목록")
     @GetMapping("/api/logs/{serverId}")
     @ResponseBody
     public ServerLogView get(@PathVariable("serverId") Long serverId) {
         return service.getServerLogs(serverId);
     }
 
+    @Operation(summary = "요청 주기 변경 - ADMIN")
     @PutMapping("/api/logs/{serverId}/policy")
     @ResponseBody
     public ServerLogView policy(@PathVariable("serverId") Long serverId, @RequestBody Map<String, Object> req, Authentication auth) {
@@ -72,18 +80,21 @@ public class ServerLogController {
         return service.changeInterval(serverId, min, auth.getName());
     }
 
+    @Operation(summary = "지금 요청 - ADMIN")
     @PostMapping("/api/logs/{serverId}/request")
     @ResponseBody
     public ServerLogView requestNow(@PathVariable("serverId") Long serverId, Authentication auth) {
         return service.requestNow(serverId, auth.getName());
     }
 
+    @Operation(summary = "로그 대상 추가 - ADMIN")
     @PostMapping("/api/logs/{serverId}/sources")
     @ResponseBody
     public ServerLogView.Source add(@PathVariable("serverId") Long serverId, @Valid @RequestBody LogSourceForm form) {
         return service.addSource(serverId, form);
     }
 
+    @Operation(summary = "로그 대상 수정 - ADMIN")
     @PutMapping("/api/logs/{serverId}/sources/{logId}")
     @ResponseBody
     public ServerLogView.Source update(@PathVariable("serverId") Long serverId, @PathVariable("logId") Long logId,
@@ -91,6 +102,7 @@ public class ServerLogController {
         return service.updateSource(serverId, logId, form);
     }
 
+    @Operation(summary = "로그 대상 삭제 - ADMIN")
     @DeleteMapping("/api/logs/{serverId}/sources/{logId}")
     @ResponseBody
     public Map<String, String> delete(@PathVariable("serverId") Long serverId, @PathVariable("logId") Long logId) {
@@ -98,12 +110,14 @@ public class ServerLogController {
         return java.util.Collections.singletonMap("message", "삭제되었습니다.");
     }
 
+    @Operation(summary = "수집 이력")
     @GetMapping("/api/logs/{serverId}/sources/{logId}/snapshots")
     @ResponseBody
     public List<ServerLogView.Snapshot> snapshots(@PathVariable("serverId") Long serverId, @PathVariable("logId") Long logId) {
         return service.getSnapshots(serverId, logId);
     }
 
+    @Operation(summary = "수집 내용")
     @GetMapping("/api/logs/{serverId}/snapshots/{snapId}")
     @ResponseBody
     public ServerLogView.Snapshot snapshot(@PathVariable("serverId") Long serverId, @PathVariable("snapId") Long snapId) {

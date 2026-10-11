@@ -74,6 +74,21 @@ app:
       legacy-algorithms: true                   # 구형 SSH(Solaris 10 Sun_SSH 등) 호환: SHA-1 키교환, ssh-rsa, CBC, hmac-sha1 허용
       term-type: xterm                          # TERM 값 (Solaris 10 은 xterm-256color 미지원)
 
+# Swagger UI : /swagger-ui.html (ADMIN 로그인 필요) - 끄려면 SWAGGER_ENABLED=false
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:true}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}
+    path: /swagger-ui.html
+    csrf:
+      enabled: true                             # XSRF-TOKEN 쿠키 → X-XSRF-TOKEN 헤더 (변경 요청)
+    tags-sorter: alpha
+    display-request-duration: true
+    try-it-out-enabled: false                   # [Try it out] 을 눌러야 호출
+  default-produces-media-type: application/json
+  writer-with-order-by-keys: true
+
 logging:
   level:
     console-audit: INFO

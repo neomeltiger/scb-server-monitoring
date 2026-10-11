@@ -18,6 +18,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import com.scb.monitoring.agent.AgentProperties;
 import com.scb.monitoring.agent.dto.AgentStatusView;
 import com.scb.monitoring.agent.dto.AgentView;
@@ -33,6 +36,7 @@ import com.scb.monitoring.agent.service.AgentService;
  * PUT  /api/agents/{serverId}/collect-interval {"sec":60}              수집 주기 (10/30/60/120/300/600초)
  * </pre>
  */
+@Tag(name = "5. 에이전트 관리", description = "에이전트 상태·데몬 제어·수집 주기·토큰 발급")
 @RestController
 @RequestMapping("/api/agents")
 public class AgentAdminController {
@@ -45,22 +49,26 @@ public class AgentAdminController {
         this.props = props;
     }
 
+    @Operation(summary = "에이전트 목록·상태")
     @GetMapping
     public List<AgentStatusView> list() {
         return service.getAgentStatusList();
     }
 
+    @Operation(summary = "에이전트 상세")
     @GetMapping("/{serverId}")
     public AgentView agent(@PathVariable("serverId") Long serverId) {
         return service.getAgent(serverId);
     }
 
+    @Operation(summary = "데몬 제어 (시작/중지/종료) - ADMIN")
     @PostMapping("/{serverId}/daemon")
     public AgentView daemon(@PathVariable("serverId") Long serverId, @RequestBody Map<String, Object> body, Authentication auth) {
         Object a = body.get("action");
         return service.controlDaemon(serverId, a == null ? "" : String.valueOf(a), auth.getName());
     }
 
+    @Operation(summary = "수집 주기 변경 - ADMIN")
     @PutMapping("/{serverId}/collect-interval")
     public AgentView collectInterval(@PathVariable("serverId") Long serverId, @RequestBody Map<String, Object> body, Authentication auth) {
         int sec;
@@ -72,6 +80,7 @@ public class AgentAdminController {
         return service.changeCollectInterval(serverId, sec, auth.getName());
     }
 
+    @Operation(summary = "토큰 발급(재발급) - ADMIN")
     @PostMapping("/{serverId}/token")
     public ResponseEntity<Map<String, Object>> issue(@PathVariable("serverId") Long serverId,
                                                      Authentication auth, HttpServletRequest req) {

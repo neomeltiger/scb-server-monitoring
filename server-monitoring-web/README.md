@@ -62,6 +62,13 @@ java -Dfile.encoding=UTF-8 -jar target/server-monitoring-web.war
 - Mapper SQL 은 ANSI SQL 만 사용합니다 (`JOIN ... ON`, `LEFT OUTER JOIN`, `COALESCE`, `CURRENT_TIMESTAMP`, 키는 JDBC getGeneratedKeys). 테스트(`TopologyServiceTest`)가 같은 Mapper·초기 데이터를 H2 메모리 DB 에서 실행해 확인합니다.
 - 화면의 "서버 목록 기본값으로 초기화" 는 `data.sql` 을 다시 실행합니다.
 
+### API 문서 (Swagger UI)
+
+- 주소 : `/swagger-ui.html` (ADMIN 로그인 필요, 좌측 메뉴 시스템관리 › API 문서), 문서 JSON : `/v3/api-docs/1-web-api`, `/v3/api-docs/2-agent-api`
+- springdoc-openapi-ui 1.8.0 (`config/OpenApiConfig`), 컨트롤러별 `@Tag` / `@Operation(summary)` 한글 설명
+- [Try it out] 은 로그인한 세션으로 호출. CSRF 는 쿠키 방식(`XSRF-TOKEN` → `X-XSRF-TOKEN` 헤더)이라 Swagger UI 가 자동 전달 (화면은 meta 태그 그대로)
+- 끄기 : 환경변수 `SWAGGER_ENABLED=false`
+
 ### 데이터 API (로그인 필요, 변경 요청은 CSRF 토큰 필요)
 
 | 메서드 / 주소 | 내용 |

@@ -35,6 +35,7 @@
             <ul class="submenu">
                 <li><a th:href="@{/admin/users}" class="tree-link" th:classappend="${menu == 'users'} ? 'active'"><span class="bullet">▪</span> 사용자 관리(가입 승인)
                     <span class="nav-count" id="navPendingCount" th:text="${pendingUserCount}" th:hidden="${pendingUserCount == null or pendingUserCount == 0}">0</span></a></li>
+                <li><a th:href="@{/swagger-ui.html}" class="tree-link" target="_blank" rel="noopener"><span class="bullet">▪</span> API 문서(Swagger)</a></li>
             </ul>
         </li>
         <li class="tree-item">
