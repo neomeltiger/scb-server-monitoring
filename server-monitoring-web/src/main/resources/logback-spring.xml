@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    로그 설정
+    - 화면(콘솔) 로그 : Spring Boot 기본과 같음
+    - 프로세스 상태 로그 : 서버 정보를 받아오지 못해 프로세스·서비스를 "종료" 로 바꾼 기록 (agent.service.ProcessStatusService)
+        파일 : {LOG_PATH}/process-status.log  (LOG_PATH 미지정 시 Tomcat 은 {tomcat}/logs, java -jar 는 실행 위치의 logs)
+        보관 : 하루·10MB 단위로 나눠 30일 (최대 300MB)
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <property name="PROC_LOG_DIR" value="${LOG_PATH:-${catalina.base:-.}/logs}"/>
+
+    <appender name="PROCESS_STATUS" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${PROC_LOG_DIR}/process-status.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${PROC_LOG_DIR}/process-status.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>300MB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- 프로세스 상태 로그 : 파일 + 콘솔 -->
+    <logger name="process-status" level="INFO">
+        <appender-ref ref="PROCESS_STATUS"/>
+    </logger>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

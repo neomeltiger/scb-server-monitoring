@@ -416,6 +416,14 @@ bin/scb_client.sh restart    # 다시 시작</pre>
         <li>(관리자) 서비스별 버튼 또는 일괄 제어(전체 / 그룹 N / Level N)로 <b>start, stop, restart, status, kill, clean</b> 을 요청합니다. service.list 에 정의되지 않은 명령은 요청할 수 없습니다.</li>
         <li>요청은 에이전트가 가져가 실행합니다. 아래 <b>제어 명령 이력</b>에서 상태(요청 → 전달 → 완료/실패)와 실행 결과(출력, 종료코드)를 확인합니다.</li>
     </ol>
+    <div class="note warn"><b>서버 정보를 받아오지 못하면 “종료” 로 표시</b> (모든 화면 공통 - 메인 홈, 네트워크 구성도, 서버 전체 목록, 프로세스 관리)
+        <ul>
+            <li><b>서버 단위</b> : 에이전트가 정상 보고 중이 아니면(미설치 · 보고 대기 · 보고 끊김 · 수집 중지 · 데몬 종료) 그 서버의 주요 프로세스와 service.list 서비스를 모두 <b>종료</b>로 바꿉니다. (60초마다 점검)</li>
+            <li><b>프로세스 단위</b> : 보고는 들어왔지만 특정 프로세스·서비스 정보가 빠져 있으면 그것만 <b>종료</b>로 바꿉니다.</li>
+            <li>실행 중 → 종료로 바뀐 내용은 웹 서버의 <code>logs/process-status.log</code> 에 기록됩니다. (서버·프로세스명·이전 PID·사유)</li>
+            <li>다음 정상 보고가 들어오면 보고된 실제 상태로 돌아옵니다.</li>
+        </ul>
+    </div>
     <div class="note info">에이전트가 10분 안에 가져가지 않은 요청, 30분 안에 결과가 오지 않은 요청은 “만료” 처리됩니다. (관리자) [service.list 가져오기] 로 서버의 service.list 내용을 다시 등록할 수 있습니다.</div>
 </section>
 
@@ -511,7 +519,8 @@ chmod 600 etc/client.env</pre></li>
     <div class="tbl"><table>
         <tr><th>설정 (application.yml)</th><th>기본값</th><th>설명</th></tr>
         <tr><td><code>app.security.max-login-failures</code></td><td>5</td><td>연속 실패 잠금 횟수</td></tr>
-        <tr><td><code>app.alarm.check-interval-ms</code></td><td>60000</td><td>알람 점검 주기</td></tr>
+        <tr><td><code>app.alarm.check-interval-ms</code></td><td>60000</td><td>알람 점검 주기 (서버 정보 수신 안 됨 → 프로세스 종료 표시도 이 주기)</td></tr>
+        <tr><td>로그 <code>logs/process-status.log</code></td><td>30일 보관</td><td>프로세스·서비스 종료 표시 기록. 위치는 환경변수 <code>LOG_PATH</code> (Tomcat 은 tomcat\logs, java -jar 는 실행 위치의 logs)</td></tr>
         <tr><td><code>app.alarm.closed-keep-hours</code></td><td>24</td><td>“최근 해소 알람” 표시 시간</td></tr>
         <tr><td><code>app.agent.stale-after-sec</code></td><td>300</td><td>보고 끊김 판단 시간</td></tr>
         <tr><td><code>app.agent.report-interval-sec</code></td><td>60</td><td>에이전트 보고 주기</td></tr>

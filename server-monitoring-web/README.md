@@ -109,6 +109,14 @@ java -Dfile.encoding=UTF-8 -jar target/server-monitoring-web.war
 - 에이전트 API (`X-SCB-Agent-Token` 헤더, 응답 text/plain) : `GET /agent-api/v1/ping`, `GET /config`, `POST /report`, `GET /commands`, `POST /commands/{id}/result?exit=N`
 - 설정 `app.agent.*` : 보고 주기, 이력 보관 일수(7), 명령 만료(요청 10분 / 결과 30분), 보고 끊김 기준(300초)
 
+## 서버 정보 수신 안 됨 → 프로세스 종료 표시
+
+- `agent/service/ProcessStatusService`
+  - 서버 단위 : 에이전트 상태가 OK 가 아니면(NONE/WAITING/STALE/PAUSED/STOPPED) 실행 중 프로세스(tb_server_process)·서비스(tb_service) → 종료 (AlarmService 60초 점검)
+  - 프로세스 단위 : 에이전트 보고에 빠진 프로세스·서비스 → 종료 (AgentService.ingestReport, 서비스 상태를 보내지 않는 이전 클라이언트는 서비스 제외)
+- 실행 중 → 종료로 바뀔 때만 기록 : 로거 `process-status` → `logs/process-status.log` (`logback-spring.xml`, 일·10MB 단위, 30일) + 프로세스 수집 이력 running_yn=N
+- 화면 표시 문구 "중지" → "종료" (메인 홈, 구성도, 서버 전체목록, 프로세스 관리)
+
 ## 서버 장애 알람 (tb_alarm)
 
 - `AlarmService` 가 `app.alarm.check-interval-ms`(60초)마다 점검 + 서버 생성/수정·에이전트 보고·초기화 커밋 직후 점검

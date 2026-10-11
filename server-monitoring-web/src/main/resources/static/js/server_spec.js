@@ -32,7 +32,7 @@ function renderSpecProc() {
     document.getElementById('specProcBody').innerHTML = procs.length ? procs.map((p, i) =>
         '<tr><td>' + (i + 1) + '</td><td class="svc-name">' + escapeHtml(p.name) + '</td>' +
         '<td class="svc-path" title="' + escapeHtml(p.path) + '">' + escapeHtml(p.path) + '</td>' +
-        '<td><span class="svc-state ' + (p.running ? 'RUNNING' : 'STOPPED') + '">' + (p.running ? '실행 중' : '중지') + '</span></td>' +
+        '<td><span class="svc-state ' + (p.running ? 'RUNNING' : 'STOPPED') + '">' + (p.running ? '실행 중' : '종료') + '</span></td>' +
         '<td><code>' + escapeHtml(p.pid) + '</code></td><td>' + escapeHtml(p.cpu) + ' / ' + escapeHtml(p.mem) + '</td>' +
         (admin ? '<td class="svc-manage"><button type="button" class="svc-btn restart" data-act="edit" data-id="' + p.id + '">수정</button>' +
                  '<button type="button" class="svc-btn del" data-act="del" data-id="' + p.id + '">삭제</button></td>' : '') + '</tr>'

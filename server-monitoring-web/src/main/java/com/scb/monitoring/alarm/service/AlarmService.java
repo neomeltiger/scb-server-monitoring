@@ -21,6 +21,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import com.scb.monitoring.agent.AgentProperties;
 import com.scb.monitoring.agent.domain.Agent;
+import com.scb.monitoring.agent.dto.AgentView;
+import com.scb.monitoring.agent.service.ProcessStatusService;
 import com.scb.monitoring.agent.mapper.AgentMapper;
 import com.scb.monitoring.alarm.domain.Alarm;
 import com.scb.monitoring.alarm.dto.AlarmView;
@@ -35,6 +37,7 @@ import com.scb.monitoring.topology.service.TopologyException;
  *   <li>SERVER_DOWN (CRITICAL) : 서버 상태가 Down</li>
  *   <li>AGENT_STALE (WARNING)  : 에이전트가 보고하다가 app.agent.stale-after-sec 이상 끊김 (서버가 Down 이면 SERVER_DOWN 만)</li>
  *   <li>조건이 풀리면 자동 해소(CLOSED). 같은 서버·종류의 진행 중 알람은 하나만 유지</li>
+ *   <li>서버 정보를 받아오지 못하는 서버(에이전트 상태 OK 아님)는 실행 중 프로세스·서비스를 종료로 표시 (ProcessStatusService)</li>
  *   <li>점검 : app.alarm.check-interval-ms 주기(기본 60초) + 서버 수정/에이전트 보고 직후</li>
  *   <li>확인/조치 기록(ACK) 은 ADMIN 만 (SecurityConfig : /api/** 변경 요청)</li>
  * </ul>
@@ -45,10 +48,21 @@ public class AlarmService {
 
     private static final Logger log = LoggerFactory.getLogger(AlarmService.class);
 
+    /** 에이전트 상태 → 서버 정보 수신 안 됨 사유 */
+    private static final Map<String, String> NO_DATA_REASON = new HashMap<>();
+    static {
+        NO_DATA_REASON.put("NONE", "에이전트 미설치");
+        NO_DATA_REASON.put("WAITING", "보고 대기");
+        NO_DATA_REASON.put("STALE", "보고 끊김");
+        NO_DATA_REASON.put("PAUSED", "수집 중지");
+        NO_DATA_REASON.put("STOPPED", "데몬 종료");
+    }
+
     private final AlarmMapper alarmMapper;
     private final TopologyMapper topologyMapper;
     private final AgentMapper agentMapper;
     private final AgentProperties agentProps;
+    private final ProcessStatusService processStatus;
     private final TransactionTemplate tx;
     private final TransactionTemplate readTx;
     private final int closedKeepHours;
@@ -56,7 +70,9 @@ public class AlarmService {
 
     public AlarmService(AlarmMapper alarmMapper, TopologyMapper topologyMapper, AgentMapper agentMapper,
                         AgentProperties agentProps, PlatformTransactionManager txManager,
-                        @Value("${app.alarm.closed-keep-hours:24}") int closedKeepHours) {
+                        @Value("${app.alarm.closed-keep-hours:24}") int closedKeepHours,
+                        ProcessStatusService processStatus) {
+        this.processStatus = processStatus;
         this.alarmMapper = alarmMapper;
         this.topologyMapper = topologyMapper;
         this.agentMapper = agentMapper;
@@ -206,6 +222,12 @@ public class AlarmService {
         if (sync(s.getServerId(), Alarm.TYPE_AGENT_STALE, stale, active, Alarm.LEVEL_WARNING,
                 "에이전트 보고 끊김 : " + name + " - 마지막 보고 " + (agoSec == null ? "-" : (agoSec / 60) + "분 전")
                         + ", krcasmrx11_client 실행 상태를 확인하세요.")) opened++;
+
+        // 서버 정보 수신 안 됨 → 프로세스·서비스 종료 표시 (실행 중 → 종료로 바뀔 때만 기록)
+        String state = AgentView.of(agent, agentProps.getStaleAfterSec()).getState();
+        if (!"OK".equals(state)) {
+            processStatus.stopAllNoData(s.getServerId(), s.getSystemNm(), NO_DATA_REASON.getOrDefault(state, state));
+        }
         return opened;
     }
 

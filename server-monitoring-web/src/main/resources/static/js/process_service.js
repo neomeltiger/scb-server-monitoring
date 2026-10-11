@@ -150,7 +150,7 @@ function renderServices() {
     const list = svcData.services;
     const n = st => list.filter(s => s.state === st).length;
     document.getElementById('svcSummary').innerHTML = list.length
-        ? '<span class="svc-count RUNNING">RUNNING ' + n('RUNNING') + '</span><span class="svc-count STOPPED">STOPPED ' + n('STOPPED') + '</span>' +
+        ? '<span class="svc-count RUNNING">실행 중 ' + n('RUNNING') + '</span><span class="svc-count STOPPED">종료 ' + n('STOPPED') + '</span>' +
           '<span class="svc-count UNKNOWN">미확인 ' + n('UNKNOWN') + '</span><span class="svc-sub">전체 ' + list.length + '건</span>'
         : '';
     const body = document.getElementById('svcBody');
@@ -172,7 +172,7 @@ function renderServices() {
             '<td class="svc-name">' + escapeHtml(s.name) + '</td><td>' + escapeHtml(s.account) + '</td>' +
             '<td class="svc-path" title="' + escapeHtml(s.script) + (s.arg ? ' ' + escapeHtml(s.arg) : '') + '">' + escapeHtml(s.script) +
             (s.arg ? ' <i>' + escapeHtml(s.arg) + '</i>' : '') + '</td>' +
-            '<td><span class="svc-state ' + escapeHtml(s.state) + '">' + (s.state === 'UNKNOWN' ? '미확인' : escapeHtml(s.state)) + '</span></td>' +
+            '<td><span class="svc-state ' + escapeHtml(s.state) + '">' + (s.state === 'UNKNOWN' ? '미확인' : s.state === 'STOPPED' ? '종료' : s.state === 'RUNNING' ? '실행 중' : escapeHtml(s.state)) + '</span></td>' +
             '<td><code>' + escapeHtml(s.pid) + '</code></td><td class="svc-time">' + escapeHtml(s.stateDt || '-') + '</td>' +
             '<td class="svc-ctrl">' + btns + '</td>' +
             '<td class="svc-manage"><button type="button" class="svc-btn status" data-act="hist" data-id="' + s.id + '">이력</button>' +

@@ -58,10 +58,13 @@ public class AgentService {
     private final ServerLogService serverLogService;
     private final com.scb.monitoring.svcctl.mapper.ServiceCtlMapper serviceCtlMapper;
     private final AgentProperties props;
+    private final ProcessStatusService processStatus;
 
     public AgentService(AgentMapper mapper, TopologyMapper topologyMapper, ServiceCtlService serviceCtl, AgentProperties props,
                         AlarmService alarmService, ServerLogService serverLogService,
-                        com.scb.monitoring.svcctl.mapper.ServiceCtlMapper serviceCtlMapper) {
+                        com.scb.monitoring.svcctl.mapper.ServiceCtlMapper serviceCtlMapper,
+                        ProcessStatusService processStatus) {
+        this.processStatus = processStatus;
         this.serviceCtlMapper = serviceCtlMapper;
         this.alarmService = alarmService;
         this.serverLogService = serverLogService;
@@ -138,7 +141,7 @@ public class AgentService {
 
     @Transactional
     public Map<String, Integer> ingestReport(Long serverId, String text, String clientIp) {
-        findServer(serverId);
+        Server server = findServer(serverId);
         AgentReport r = AgentReport.parse(text);
         Map<String, Integer> applied = new LinkedHashMap<>();
 
@@ -178,9 +181,11 @@ public class AgentService {
         // 프로세스 상태 + 이력 (이 서버의 프로세스만)
         Set<Long> own = new HashSet<>();
         for (ServerProcess p : topologyMapper.selectProcessListByServer(serverId)) own.add(p.getProcId());
+        Set<Long> reported = new HashSet<>();
         int procCount = 0;
         for (AgentReport.ProcState ps : r.procs) {
             if (!own.contains(ps.procId)) continue;
+            reported.add(ps.procId);
             ServerProcess p = new ServerProcess();
             p.setServerId(serverId);
             p.setProcId(ps.procId);
@@ -205,6 +210,12 @@ public class AgentService {
         // 서비스 상태 (service.list)
         serviceCtl.updateStates(serverId, r.services);
         applied.put("service", r.services.size());
+
+        // 보고에 빠진 프로세스·서비스 → 종료 + 기록 (서비스 상태를 보내지 않는 이전 클라이언트는 서비스 제외)
+        Set<String> svcNames = new HashSet<>();
+        for (String[] st : r.services) svcNames.add(st[0]);
+        applied.put("stopped", processStatus.stopMissing(serverId, server.getSystemNm(), reported,
+                r.services.isEmpty() ? null : svcNames));
 
         // 보고가 들어왔으니 "보고 끊김" 알람은 커밋 후 바로 해소
         alarmService.checkAfterCommit(serverId);

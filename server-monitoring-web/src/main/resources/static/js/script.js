@@ -442,10 +442,11 @@ function topoDetailHtml(server) {
     const badgeClass = isDown ? 'badge-stopped' : (server.status === 'Active' ? 'badge-active' : 'badge-standby');
     const headColor = isDown ? '#dc3545' : '#203a43';
     const pair = topoPairOf(server);
-    const procs = Array.isArray(server.processes) ? server.processes : [];
+    const procs = (Array.isArray(server.processes) ? server.processes : [])
+        .map(p => noData ? Object.assign({}, p, { running: false, pid: '-' }) : p);   // 서버 정보 수신 안 됨 → 종료
     const procHtml = procs.length
         ? '<ul class="topo-proc">' + procs.map(p =>
-            '<li><span class="' + (p.running ? 'on' : 'off') + '">' + (p.running ? '● 실행 중' : '○ 중지') + '</span> ' +
+            '<li><span class="' + (p.running ? 'on' : 'off') + '">' + (p.running ? '● 실행 중' : '○ 종료') + '</span> ' +
             escapeHtml(p.name) + '<small> PID ' + escapeHtml(p.pid) + '</small></li>').join('') + '</ul>'
         : '<div style="font-size:12px;color:#666;">등록된 프로세스가 없습니다.</div>';
     return '<div class="topo-detail-head" style="border-bottom:2px solid ' + headColor + ';">' +
@@ -963,7 +964,7 @@ function setProcessScope(scope) {
 // --- 주요 프로세스 미등록 서버 : 프로세스 관리 화면(service.list)에 등록된 목록만 표시 ---
 // 데이터 : GET /api/services/by-server (tb_service, 상태/PID 는 에이전트가 scb_main.sh status 로 보고)
 let svcByServer = {};
-const SVC_STATE = { RUNNING: ['● 실행 중', 'on'], STOPPED: ['○ 중지', 'off'], UNKNOWN: ['? 미확인', 'unk'] };
+const SVC_STATE = { RUNNING: ['● 실행 중', 'on'], STOPPED: ['○ 종료', 'off'], UNKNOWN: ['? 미확인', 'unk'] };
 
 async function loadServiceLists() {
     try {
@@ -1094,7 +1095,7 @@ function renderGraphPicker() {
             '<label><input type="checkbox" data-gkey="' + escapeHtml(i.key) + '"' + (on ? ' checked' : '') + (!on && full ? ' disabled' : '') + '>' +
             '<i class="proc-swatch' + (on ? ' on' : '') + '" style="background:' + (on ? PROC_COLORS[k % PROC_COLORS.length] : 'transparent') + '"></i>' +
             '<span class="gp-name"><b>' + escapeHtml(i.name) + '</b><small>' + sub + '</small></span>' +
-            '<span class="proc-state ' + (i.running ? 'on' : 'off') + '">' + (i.running ? '● 실행 중' : '○ 중지') + '</span>' +
+            '<span class="proc-state ' + (i.running ? 'on' : 'off') + '">' + (i.running ? '● 실행 중' : '○ 종료') + '</span>' +
             '<span class="gp-cpu" title="최근 CPU">' + cur + '</span></label></li>';
     }).join('');
     document.getElementById('graphPickList').innerHTML = rows || '<li class="proc-empty">검색 결과가 없습니다.</li>';
@@ -1209,11 +1210,11 @@ function renderServiceSummary(server) {
     const last = svcs.map(s => s.stateDt).filter(Boolean).sort().pop();
     return '<div class="proc-chart-head"><div class="proc-chart-title">서비스 상태 <span>프로세스 관리(service.list) 기준</span>' +
         (last ? ' <span class="proc-src agent">확인 ' + escapeHtml(last) + '</span>' : '') + '</div></div>' +
-        '<div class="svc-sum-bar" role="img" aria-label="실행 중 ' + n.RUNNING + ', 중지 ' + n.STOPPED + ', 미확인 ' + n.UNKNOWN + '">' +
+        '<div class="svc-sum-bar" role="img" aria-label="실행 중 ' + n.RUNNING + ', 종료 ' + n.STOPPED + ', 미확인 ' + n.UNKNOWN + '">' +
         '<i class="run" style="width:' + pct('RUNNING') + '%"></i><i class="stop" style="width:' + pct('STOPPED') + '%"></i>' +
         '<i class="unk" style="width:' + pct('UNKNOWN') + '%"></i></div>' +
         '<div class="proc-legend"><span class="proc-legend-item"><i style="background:#28a745"></i>실행 중 <b>' + n.RUNNING + '</b></span>' +
-        '<span class="proc-legend-item"><i style="background:#dc3545"></i>중지 <b>' + n.STOPPED + '</b></span>' +
+        '<span class="proc-legend-item"><i style="background:#dc3545"></i>종료 <b>' + n.STOPPED + '</b></span>' +
         '<span class="proc-legend-item"><i style="background:#94a3b8"></i>미확인 <b>' + n.UNKNOWN + '</b></span></div>' +
         '<div class="proc-chart-note svc-sum-note">서버의 krcasmrx11_client 를 1.3 이상으로 올리면 서비스별 CPU 그래프가 표시됩니다.</div>';
 }
@@ -1234,7 +1235,7 @@ function renderProcessBlock(server) {
     const gi = graphSelection(server);
     const rows = server.processes.map((p, i) =>
         '<li class="proc-row">' + graphPickHtml(server, gi, gi.items[i]) +
-        '<span class="proc-state ' + (p.running ? 'on' : 'off') + '">' + (p.running ? '● 실행 중' : '○ 중지') + '</span>' +
+        '<span class="proc-state ' + (p.running ? 'on' : 'off') + '">' + (p.running ? '● 실행 중' : '○ 종료') + '</span>' +
         '<span class="proc-name" title="' + escapeHtml(p.path) + '">' + escapeHtml(p.name) +
         '<small>PID ' + escapeHtml(p.pid) + ' · CPU ' + escapeHtml(p.cpu) + ' · MEM ' + escapeHtml(p.mem) + '</small></span>' +
         '<button type="button" class="proc-btn admin-only" onclick="toggleServerProcess(' + server.id + ',' + i + ')">' + (p.running ? '중지' : '기동') + '</button>' +
@@ -1363,7 +1364,7 @@ function chartBar(procs, series, large) {
         const w = Math.max(1, v / yMax * barMax);
         return '<text x="' + (labelW - 6) + '" y="' + (yy + rh * 0.65) + '" text-anchor="end" font-size="' + 10 * f + '" fill="#334155">' + escapeHtml(shortName(p.name, large ? 26 : 15)) + '</text>' +
             '<rect x="' + labelW + '" y="' + (yy + rh * 0.18) + '" width="' + w.toFixed(1) + '" height="' + rh * 0.64 + '" rx="2" fill="' + PROC_COLORS[k % PROC_COLORS.length] + '"/>' +
-            '<text x="' + (labelW + w + 5) + '" y="' + (yy + rh * 0.65) + '" font-size="' + 10 * f + '" font-weight="bold" fill="#203a43">' + (v > 0 ? v.toFixed(1) + '%' : '중지') + '</text>';
+            '<text x="' + (labelW + w + 5) + '" y="' + (yy + rh * 0.65) + '" font-size="' + 10 * f + '" font-weight="bold" fill="#203a43">' + (v > 0 ? v.toFixed(1) + '%' : '종료') + '</text>';
     }).join('');
     return { W: W, H: H, body: '<line x1="' + labelW + '" y1="' + T + '" x2="' + labelW + '" y2="' + (H - T) + '" stroke="#94a3b8"/>' + rows };
 }
@@ -1529,7 +1530,7 @@ function renderProcessChart(server, large) {
     const total = series.reduce((s, a) => s + lastOf(a), 0);
     const legend = procs.map((p, k) => {
         const cur = lastOf(series[k]);
-        const val = (p.running && !down) ? (type === 'pie' && total > 0 ? Math.round(cur / total * 100) + '%' : cur.toFixed(1) + '%') : '중지';
+        const val = (p.running && !down) ? (type === 'pie' && total > 0 ? Math.round(cur / total * 100) + '%' : cur.toFixed(1) + '%') : '종료';
         return '<span class="proc-legend-item"><i style="background:' + PROC_COLORS[k % PROC_COLORS.length] + '"></i>' + escapeHtml(p.name) + ' <b>' + val + '</b></span>';
     }).join('');
     const note = down ? '<div class="proc-chart-note">서버 연결 끊김 · 수집 데이터 없음</div>' : '';
