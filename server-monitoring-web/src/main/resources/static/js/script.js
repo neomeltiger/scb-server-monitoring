@@ -134,19 +134,35 @@ const TOPO_BUS_GAP = 95;   // 스위치-서버 버스 간격
 //   (에이전트 상태를 못 읽었으면 DB 상태만 사용)
 const TOPO_NODATA_LABEL = { NONE: '에이전트 미설치', WAITING: '보고 대기', STALE: '보고 끊김', PAUSED: '수집 중지', STOPPED: '데몬 종료' };
 
-/** 원격 서버에서 기본 정보를 못 받아오는 사유 (받고 있으면 null) */
+/** 원격 서버에서 기본 정보를 못 받아오는 사유 (받고 있으면 null) - 화면에서 읽은 에이전트 상태, 없으면 서버 응답(noData) */
 function topoNoDataReason(server) {
-    if (!agentStatesLoaded) return null;
+    if (!agentStatesLoaded) return server.noData || null;
     const st = (agentStates[server.id] || { state: 'NONE' }).state;
     return st === 'OK' ? null : (TOPO_NODATA_LABEL[st] || st);
 }
 
+/** 등록된 상태 (서버 응답 status 는 정보 수신 안 되면 Down 으로 바뀌어 옴) */
+function serverBaseStatus(server) {
+    return server.baseStatus || server.status;
+}
+
+/** 등록 상태가 Down (서버 장애) */
+function serverBaseDown(server) {
+    const b = serverBaseStatus(server);
+    return b === 'Down' || b === 'Stopped';
+}
+
 function topoIsDown(server) {
-    return server.status === 'Down' || server.status === 'Stopped' || topoNoDataReason(server) !== null;
+    return serverBaseDown(server) || topoNoDataReason(server) !== null;
 }
 
 function topoViewStatus(server) {
-    return topoIsDown(server) ? 'Down' : server.status;
+    return topoIsDown(server) ? 'Down' : serverBaseStatus(server);
+}
+
+/** Down 사유 짧은 표시 : 정보 수신 안 됨이면 " (보고 끊김)" */
+function serverDownNote(server) {
+    return !serverBaseDown(server) && server.noData ? ' (' + server.noData + ')' : '';
 }
 
 function topoStatusStyle(status) {
@@ -260,10 +276,9 @@ function buildTopoNodes() {
 /** 서버 노드의 글자·아이콘 (상태가 바뀌면 이 값만 바꿔 위치는 유지) */
 function topoServerLook(s) {
     const down = topoIsDown(s);
-    const dbDown = s.status === 'Down' || s.status === 'Stopped';
-    const reason = dbDown ? null : topoNoDataReason(s);
+    const reason = serverBaseDown(s) ? null : topoNoDataReason(s);
     return {
-        label: s.systemName + '\n' + s.ip + '\n' + (down ? 'DOWN' + (reason ? ' (' + reason + ')' : '') : s.status),
+        label: s.systemName + '\n' + s.ip + '\n' + (down ? 'DOWN' + (reason ? ' (' + reason + ')' : '') : serverBaseStatus(s)),
         image: topoIconUri(getServerType(s), topoViewStatus(s)),
         font: { size: 12, face: 'Segoe UI', color: down ? '#dc3545' : '#203a43' }
     };
@@ -435,11 +450,11 @@ function topoBar(label, value, color) {
 
 function topoDetailHtml(server) {
     const isDown = topoIsDown(server);
-    const noData = (server.status === 'Down' || server.status === 'Stopped') ? null : topoNoDataReason(server);
+    const noData = serverBaseDown(server) ? null : topoNoDataReason(server);
     const lastReport = (agentStates[server.id] || {}).lastReportDt;
     const type = getServerType(server);
     const typeLabel = { ap: 'AP 서버', db: 'DB 서버', nfs: 'NFS 스토리지' }[type];
-    const badgeClass = isDown ? 'badge-stopped' : (server.status === 'Active' ? 'badge-active' : 'badge-standby');
+    const badgeClass = isDown ? 'badge-stopped' : (serverBaseStatus(server) === 'Active' ? 'badge-active' : 'badge-standby');
     const headColor = isDown ? '#dc3545' : '#203a43';
     const pair = topoPairOf(server);
     const procs = (Array.isArray(server.processes) ? server.processes : [])
@@ -453,7 +468,7 @@ function topoDetailHtml(server) {
         '<img src="' + topoIconUri(type, topoViewStatus(server)) + '" width="44" height="44" alt="' + typeLabel + ' 아이콘">' +
         '<div><div class="topo-detail-name" style="color:' + headColor + ';">' + escapeHtml(server.systemName) + '</div>' +
         '<div class="topo-detail-sub">' + typeLabel + ' · ' + escapeHtml(server.location) + '</div></div>' +
-        '<span class="badge ' + badgeClass + '">' + escapeHtml(noData ? 'Down' : server.status) + '</span></div>' +
+        '<span class="badge ' + badgeClass + '">' + escapeHtml(isDown ? 'Down' : serverBaseStatus(server)) + '</span></div>' +
         '<table class="detail-table">' +
         '<tr><th>FQDN</th><td>' + escapeHtml(server.fqdn) + '</td></tr>' +
         '<tr><th>IP 주소</th><td><code>' + escapeHtml(server.ip) + '</code></td></tr>' +
@@ -581,7 +596,7 @@ function openServerModal(server) {
     const isDown = server.status === 'Down' || server.status === 'Stopped';
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     set('modalServerName', server.systemName + ' 서버 상태 정보');
-    set('modalHealth', isDown ? 'Down (Unreachable)' : (server.status === 'Standby' ? 'Standby (Ready)' : 'Normal (Healthy)'));
+    set('modalHealth', isDown ? 'Down (' + (server.noData && !serverBaseDown(server) ? '서버 정보 수신 안 됨 - ' + server.noData : 'Unreachable') + ')' : (server.status === 'Standby' ? 'Standby (Ready)' : 'Normal (Healthy)'));
     set('modalCpu', isDown ? '0.0% (DOWN)' : server.cpu);
     set('modalMemory', isDown ? '0.0% (DOWN)' : server.mem);
     set('modalDisk', isDown ? 'N/A (Unreachable)' : server.disk);
@@ -732,8 +747,8 @@ function openConsoleConnect(server) {
         info.innerHTML =
             '<div class="cc-question"><b>' + escapeHtml(server.systemName) + '</b> 서버에 터미널(SSH) 화면을 띄우시겠습니까?</div>' +
             '<div class="cc-meta">' + escapeHtml(server.fqdn) + ' · ' + escapeHtml(server.os) + ' · ' + escapeHtml(server.location) +
-            ' · <span class="badge ' + (isDown ? 'badge-stopped' : server.status === 'Active' ? 'badge-active' : 'badge-standby') + '">' + escapeHtml(server.status) + '</span></div>' +
-            (isDown ? '<div class="cc-warn">이 서버는 Down 상태입니다. 접속이 실패할 수 있습니다.</div>' : '');
+            ' · <span class="badge ' + (isDown ? 'badge-stopped' : server.status === 'Active' ? 'badge-active' : 'badge-standby') + '">' + escapeHtml(server.status + serverDownNote(server)) + '</span></div>' +
+            (isDown ? '<div class="cc-warn">이 서버는 Down 상태입니다' + (server.noData && !serverBaseDown(server) ? ' (서버 정보 수신 안 됨 - ' + escapeHtml(server.noData) + ')' : '') + '. 접속이 실패할 수 있습니다.</div>' : '');
         host.value = server.ip;
         host.readOnly = true;
         document.getElementById('ccStatusBtn').style.display = '';
@@ -794,7 +809,7 @@ function renderSpecTable() {
         const isDown = s.status === 'Down' || s.status === 'Stopped';
         const badgeClass = isDown ? 'badge-stopped' : ((s.status === 'Active') ? 'badge-active' : 'badge-standby');
         const netStatusBadge = isDown
-            ? '<span class="badge badge-stopped">DISCONNECTED (Down)</span>'
+            ? '<span class="badge badge-stopped">DISCONNECTED (Down)</span>' + (s.noData && !serverBaseDown(s) ? '<div class="spec-nodata">서버 정보 수신 안 됨 · ' + escapeHtml(s.noData) + '</div>' : '')
             : '<span class="badge ' + badgeClass + '">' + escapeHtml(s.sync) + '</span>';
         const procs = s.processes || [];
         const run = procs.filter(p => p.running).length;
@@ -905,7 +920,8 @@ function openServerEdit(serverId) {
     document.getElementById('editOs').value = s.os;
     document.getElementById('editIp').value = s.ip;
     document.getElementById('editLocation').value = s.switchNodeId;
-    document.getElementById('editStatus').value = (s.status === 'Stopped') ? 'Down' : s.status;
+    const base = serverBaseStatus(s);   // 화면 Down(정보 수신 안 됨)이 아니라 등록된 상태
+    document.getElementById('editStatus').value = (base === 'Stopped') ? 'Down' : base;
     document.getElementById('serverEditModal').style.display = 'flex';
 }
 
@@ -1252,7 +1268,9 @@ function renderProcessCard(server) {
     const pairText = pairServer ? ' · 동기화 대상 ' + escapeHtml(pairServer.systemName) : '';
     const isDown = server.status === 'Down';
     return '<div class="proc-card' + (isDown ? ' is-down' : '') + '" id="card-' + server.id + '" data-server-id="' + server.id + '">' +
-        (isDown ? '<div class="proc-down-alert" role="alert">⚠ 서버 다운 - 즉시 조치가 필요합니다</div>' : '') +
+        (isDown ? '<div class="proc-down-alert" role="alert">⚠ ' + (server.noData && !serverBaseDown(server)
+            ? '서버 정보 수신 안 됨 (' + escapeHtml(server.noData) + ') - Down'
+            : '서버 다운 - 즉시 조치가 필요합니다') + '</div>' : '') +
         '<div class="proc-card-top">' + (typeof cardDragHandle === 'function' ? cardDragHandle(server) : '') +
         '<div class="proc-card-title"><div class="proc-server-name">' + escapeHtml(server.systemName) + '</div>' +
         '<div class="proc-sub">' + escapeHtml(server.ip) + pairText + '</div></div>' +

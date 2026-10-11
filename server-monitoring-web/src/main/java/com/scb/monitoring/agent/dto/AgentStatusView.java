@@ -29,6 +29,8 @@ public class AgentStatusView {
         v.statusCd = s.getStatusCd();
         v.location = s.getLocationNm();
         v.agent = AgentView.of(a, staleAfterSec);
+        // 서버 정보를 받아오지 못하면(에이전트 상태 OK 아님) 화면 상태 Down
+        if (!"OK".equals(v.agent.getState())) v.statusCd = "Down";
         String st = v.agent.getState();
         v.registered = "OK".equals(st);
         if ("NONE".equals(st)) v.reason = "토큰 미발급 (에이전트 미등록)";

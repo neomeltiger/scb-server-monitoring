@@ -109,7 +109,9 @@ java -Dfile.encoding=UTF-8 -jar target/server-monitoring-web.war
 - 에이전트 API (`X-SCB-Agent-Token` 헤더, 응답 text/plain) : `GET /agent-api/v1/ping`, `GET /config`, `POST /report`, `GET /commands`, `POST /commands/{id}/result?exit=N`
 - 설정 `app.agent.*` : 보고 주기, 이력 보관 일수(7), 명령 만료(요청 10분 / 결과 30분), 보고 끊김 기준(300초)
 
-## 서버 정보 수신 안 됨 → 프로세스 종료 표시
+## 서버 정보 수신 안 됨 → 서버 Down / 프로세스 종료 표시
+
+- 서버 : `ServerView.of(server, processes, agentState)` - 에이전트 상태 OK 아니면 `status = "Down"`, `baseStatus` = 등록 상태(tb_server.status_cd, 수정 화면 기본값), `noData` = 사유. `ServerServicesView.status`, `AgentStatusView.statusCd` 도 같은 기준 (DB 의 status_cd 와 SERVER_DOWN 알람은 바꾸지 않음)
 
 - `agent/service/ProcessStatusService`
   - 서버 단위 : 에이전트 상태가 OK 가 아니면(NONE/WAITING/STALE/PAUSED/STOPPED) 실행 중 프로세스(tb_server_process)·서비스(tb_service) → 종료 (AlarmService 60초 점검)

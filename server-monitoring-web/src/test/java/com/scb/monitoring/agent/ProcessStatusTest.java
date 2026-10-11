@@ -55,6 +55,25 @@ class ProcessStatusTest {
     }
 
     @Test
+    void serverWithoutDataIsShownDown() {
+        ServerView s = topology.getServer(11L);              // 에이전트 미설치
+        assertEquals("Down", s.getStatus(), "서버 정보 수신 안 됨 → 화면 상태 Down");
+        assertEquals("Active", s.getBaseStatus(), "등록 상태는 그대로");
+        assertEquals("에이전트 미설치", s.getNoData());
+        assertEquals("Down", svc.getServerServices(11L).getStatus());
+
+        agent.issueToken(11L, "admin");
+        agent.ingestReport(11L, HEAD + "[proc]\n1|Y|100|1|1\n", "127.0.0.1");
+        s = topology.getServers().stream().filter(v -> v.getId().equals(11L)).findFirst().get();
+        assertEquals("Active", s.getStatus(), "정상 보고 → 등록 상태");
+        assertEquals(null, s.getNoData());
+
+        agent.controlDaemon(11L, "stop", "admin");
+        assertEquals("Down", topology.getServer(11L).getStatus());
+        assertEquals("수집 중지", topology.getServer(11L).getNoData());
+    }
+
+    @Test
     void serverWithoutAgentStopsAllProcesses() {
         ServerView before = topology.getServer(11L);
         assertTrue(before.getProcesses().get(0).isRunning(), "초기 데이터 : 실행 중");

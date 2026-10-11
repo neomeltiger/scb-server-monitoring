@@ -3,6 +3,7 @@ package com.scb.monitoring.topology.service;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,8 @@ import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.scb.monitoring.agent.domain.Agent;
+import com.scb.monitoring.agent.dto.AgentView;
 import com.scb.monitoring.agent.mapper.AgentMapper;
 import com.scb.monitoring.alarm.mapper.AlarmMapper;
 import com.scb.monitoring.alarm.service.AlarmService;
@@ -57,9 +60,13 @@ public class TopologyService {
     private final AlarmMapper alarmMapper;
     private final ServerLogMapper serverLogMapper;
     private final AlarmService alarmService;
+    /** 에이전트 보고 끊김 기준 (app.agent.stale-after-sec) */
+    private final int staleAfterSec;
 
     public TopologyService(TopologyMapper mapper, ServiceCtlMapper serviceCtlMapper, AgentMapper agentMapper, DataSource dataSource,
-                           AlarmMapper alarmMapper, AlarmService alarmService, ServerLogMapper serverLogMapper) {
+                           AlarmMapper alarmMapper, AlarmService alarmService, ServerLogMapper serverLogMapper,
+                           @org.springframework.beans.factory.annotation.Value("${app.agent.stale-after-sec:300}") int staleAfterSec) {
+        this.staleAfterSec = staleAfterSec;
         this.alarmMapper = alarmMapper;
         this.serverLogMapper = serverLogMapper;
         this.alarmService = alarmService;
@@ -91,15 +98,20 @@ public class TopologyService {
         for (ServerProcess p : mapper.selectProcessList()) {
             byServer.computeIfAbsent(p.getServerId(), k -> new ArrayList<>()).add(p);
         }
+        Map<Long, Agent> agents = new HashMap<>();
+        for (Agent a : agentMapper.selectAgentList()) agents.put(a.getServerId(), a);
         List<ServerView> list = new ArrayList<>();
         for (Server s : mapper.selectServerList()) {
-            list.add(ServerView.of(s, byServer.getOrDefault(s.getServerId(), Collections.emptyList())));
+            list.add(ServerView.of(s, byServer.getOrDefault(s.getServerId(), Collections.emptyList()),
+                    AgentView.of(agents.get(s.getServerId()), staleAfterSec).getState()));
         }
         return list;
     }
 
+    /** 서버 응답 : 서버 정보를 받아오지 못하면(에이전트 상태 OK 아님) 화면 상태 Down */
     public ServerView getServer(Long serverId) {
-        return ServerView.of(findServer(serverId), mapper.selectProcessListByServer(serverId));
+        return ServerView.of(findServer(serverId), mapper.selectProcessListByServer(serverId),
+                AgentView.of(agentMapper.selectAgent(serverId), staleAfterSec).getState());
     }
 
     // ===================== 서버 =====================

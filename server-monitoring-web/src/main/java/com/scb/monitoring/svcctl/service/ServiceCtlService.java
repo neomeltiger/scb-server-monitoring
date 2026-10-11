@@ -92,7 +92,9 @@ public class ServiceCtlService {
         List<CommandView> commands = new ArrayList<>();
         for (ServiceCommand c : mapper.selectRecentCommands(serverId, RECENT_COMMANDS)) commands.add(CommandView.of(c));
         AgentView agent = AgentView.of(agentMapper.selectAgent(serverId), props.getStaleAfterSec());
-        return new ServerServicesView(server.getServerId(), server.getSystemNm(), server.getIpAddr(), server.getStatusCd(),
+        // 서버 정보를 받아오지 못하면(에이전트 상태 OK 아님) 화면 상태 Down
+        String status = "OK".equals(agent.getState()) ? server.getStatusCd() : "Down";
+        return new ServerServicesView(server.getServerId(), server.getSystemNm(), server.getIpAddr(), status,
                 agent, services, commands, mapper.countActiveCommands(serverId));
     }
 
