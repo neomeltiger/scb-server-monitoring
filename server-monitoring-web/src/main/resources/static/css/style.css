@@ -585,6 +585,7 @@ p.subtitle {
 .btn-console { width: 100%; margin-top: 8px; background: #203a43; color: #fff; }
 .btn-console:hover { background: #2c5364; }
 .topo-hint { margin: 6px 0 0; font-size: 11px; color: #888; text-align: center; }
+.topo-down-warn { background-color: #f8d7da; color: #721c24; padding: 8px; border-radius: 4px; font-size: 12px; font-weight: bold; text-align: center; margin-top: 8px; line-height: 1.5; }
 
 /* 웹 콘솔 접속 확인 / 주소 입력 (network_topology.html) */
 #consoleConnectModal .modal-card { gap: 14px; }

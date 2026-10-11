@@ -20,7 +20,9 @@ async function renderDashboard() {
         return;
     }
     if (document.getElementById('network-container')) {
+        await loadAgentStates();
         initNetwork();
+        startTopoRefresh();
     }
     if (document.getElementById('specTableBody')) {
         renderSpecTable();
@@ -128,6 +130,25 @@ const TOPO_SERVER_X = 190; // 서버 열 x 좌표 (ITC는 -, DRC는 +)
 const TOPO_SWITCH_X = 380; // 스위치 x 좌표
 const TOPO_BUS_GAP = 95;   // 스위치-서버 버스 간격
 
+// 구성도 표시 상태 : DB 상태가 Down 이거나, 에이전트로 서버 기본 정보를 받아오지 못하면(OK 외) Down 색으로 표시
+//   (에이전트 상태를 못 읽었으면 DB 상태만 사용)
+const TOPO_NODATA_LABEL = { NONE: '에이전트 미설치', WAITING: '보고 대기', STALE: '보고 끊김', PAUSED: '수집 중지', STOPPED: '데몬 종료' };
+
+/** 원격 서버에서 기본 정보를 못 받아오는 사유 (받고 있으면 null) */
+function topoNoDataReason(server) {
+    if (!agentStatesLoaded) return null;
+    const st = (agentStates[server.id] || { state: 'NONE' }).state;
+    return st === 'OK' ? null : (TOPO_NODATA_LABEL[st] || st);
+}
+
+function topoIsDown(server) {
+    return server.status === 'Down' || server.status === 'Stopped' || topoNoDataReason(server) !== null;
+}
+
+function topoViewStatus(server) {
+    return topoIsDown(server) ? 'Down' : server.status;
+}
+
 function topoStatusStyle(status) {
     return TOPO_STATUS[status === 'Stopped' ? 'Down' : status] || TOPO_STATUS.Active;
 }
@@ -231,16 +252,39 @@ function buildTopoNodes() {
     serversData.forEach(s => {
         const p = pos[s.id];
         if (!p) return;   // 스위치에 연결되지 않은 서버
-        const down = s.status === 'Down' || s.status === 'Stopped';
-        list.push(Object.assign({}, common, {
-            id: s.id,
-            label: s.systemName + '\n' + s.ip + '\n' + (down ? 'DOWN' : s.status),
-            image: topoIconUri(getServerType(s), s.status),
-            font: { size: 12, face: 'Segoe UI', color: down ? '#dc3545' : '#203a43' },
-            x: p.x, y: p.y
-        }));
+        list.push(Object.assign({}, common, topoServerLook(s), { id: s.id, x: p.x, y: p.y }));
     });
     return list;
+}
+
+/** 서버 노드의 글자·아이콘 (상태가 바뀌면 이 값만 바꿔 위치는 유지) */
+function topoServerLook(s) {
+    const down = topoIsDown(s);
+    const dbDown = s.status === 'Down' || s.status === 'Stopped';
+    const reason = dbDown ? null : topoNoDataReason(s);
+    return {
+        label: s.systemName + '\n' + s.ip + '\n' + (down ? 'DOWN' + (reason ? ' (' + reason + ')' : '') : s.status),
+        image: topoIconUri(getServerType(s), topoViewStatus(s)),
+        font: { size: 12, face: 'Segoe UI', color: down ? '#dc3545' : '#203a43' }
+    };
+}
+
+// 에이전트 상태 주기 갱신 (60초) : 보고가 끊기거나 다시 연결되면 노드 색을 바꿈 (위치는 유지)
+let topoRefreshTimer = null;
+function startTopoRefresh() {
+    if (topoRefreshTimer) return;
+    topoRefreshTimer = setInterval(async () => {
+        if (document.hidden || !nodes) return;
+        await loadAgentStates();
+        nodes.update(serversData.filter(s => nodes.get(s.id)).map(s => Object.assign({ id: s.id }, topoServerLook(s))));
+        if (network) network.redraw();
+        const box = document.getElementById('topoAgent');
+        const sel = box ? serversData.find(s => String(s.id) === box.dataset.server) : null;
+        if (sel) {
+            document.getElementById('detail-content').innerHTML = topoDetailHtml(sel);
+            loadTopoAgent(sel.id);
+        }
+    }, 60000);
 }
 
 function topoRoundRect(ctx, x, y, w, h, r) {
@@ -302,7 +346,7 @@ function drawTopoBus(ctx, pos, switchId, servers, dir) {
     ctx.stroke();
     list.forEach(s => {
         const p = pos[s.id];
-        const down = s.status === 'Down' || s.status === 'Stopped';
+        const down = topoIsDown(s);
         ctx.beginPath();
         ctx.setLineDash(down ? [6, 4] : []);
         ctx.strokeStyle = down ? '#dc3545' : '#64748b';
@@ -354,7 +398,7 @@ function drawTopoLinks(ctx) {
         const pair = topoPairOf(s);
         if (!pair || !pos[s.id] || !pos[pair.id]) return;
         const a = pos[s.id], b = pos[pair.id];
-        const down = [s, pair].some(x => x.status === 'Down' || x.status === 'Stopped');
+        const down = [s, pair].some(topoIsDown);
         ctx.save();
         ctx.lineWidth = 2;
         ctx.setLineDash([7, 5]);
@@ -390,7 +434,9 @@ function topoBar(label, value, color) {
 }
 
 function topoDetailHtml(server) {
-    const isDown = server.status === 'Down' || server.status === 'Stopped';
+    const isDown = topoIsDown(server);
+    const noData = (server.status === 'Down' || server.status === 'Stopped') ? null : topoNoDataReason(server);
+    const lastReport = (agentStates[server.id] || {}).lastReportDt;
     const type = getServerType(server);
     const typeLabel = { ap: 'AP 서버', db: 'DB 서버', nfs: 'NFS 스토리지' }[type];
     const badgeClass = isDown ? 'badge-stopped' : (server.status === 'Active' ? 'badge-active' : 'badge-standby');
@@ -403,10 +449,10 @@ function topoDetailHtml(server) {
             escapeHtml(p.name) + '<small> PID ' + escapeHtml(p.pid) + '</small></li>').join('') + '</ul>'
         : '<div style="font-size:12px;color:#666;">등록된 프로세스가 없습니다.</div>';
     return '<div class="topo-detail-head" style="border-bottom:2px solid ' + headColor + ';">' +
-        '<img src="' + topoIconUri(type, server.status) + '" width="44" height="44" alt="' + typeLabel + ' 아이콘">' +
+        '<img src="' + topoIconUri(type, topoViewStatus(server)) + '" width="44" height="44" alt="' + typeLabel + ' 아이콘">' +
         '<div><div class="topo-detail-name" style="color:' + headColor + ';">' + escapeHtml(server.systemName) + '</div>' +
         '<div class="topo-detail-sub">' + typeLabel + ' · ' + escapeHtml(server.location) + '</div></div>' +
-        '<span class="badge ' + badgeClass + '">' + escapeHtml(server.status) + '</span></div>' +
+        '<span class="badge ' + badgeClass + '">' + escapeHtml(noData ? 'Down' : server.status) + '</span></div>' +
         '<table class="detail-table">' +
         '<tr><th>FQDN</th><td>' + escapeHtml(server.fqdn) + '</td></tr>' +
         '<tr><th>IP 주소</th><td><code>' + escapeHtml(server.ip) + '</code></td></tr>' +
@@ -420,7 +466,9 @@ function topoDetailHtml(server) {
         topoBar('MEM', isDown ? '0.0%' : server.mem, '#0275d8') +
         topoBar('DISK', isDown ? 'N/A' : server.disk, '#6f42c1') + '</div>' +
         '<div class="topo-section-title">주요 프로세스 <span>' + procs.filter(p => p.running).length + ' / ' + procs.length + ' 실행 중</span></div>' + procHtml +
-        (isDown ? '<div style="background-color:#f8d7da;color:#721c24;padding:8px;border-radius:4px;font-size:12px;font-weight:bold;text-align:center;margin-top:8px;">경고: 해당 서버가 다운(Down) 상태입니다. 네트워크 연결 및 전원 상태를 확인하세요.</div>' : '') +
+        (noData ? '<div class="topo-down-warn">경고: 원격 서버에서 기본 정보를 받아오지 못해 Down 으로 표시합니다. (' + escapeHtml(noData) +
+            (lastReport ? ', 마지막 보고 ' + escapeHtml(lastReport) : '') + ') 서버 상태와 에이전트(krcasmrx11_client)를 확인하세요.</div>'
+        : isDown ? '<div class="topo-down-warn">경고: 해당 서버가 다운(Down) 상태입니다. 네트워크 연결 및 전원 상태를 확인하세요.</div>' : '') +
         '<div class="topo-actions admin-only"><button class="btn btn-primary" onclick="openServerEdit(' + server.id + ')">서버 정보 수정</button>' +
         '<button class="btn btn-danger" onclick="deleteServerFromDetail(' + server.id + ')">서버 삭제</button></div>' +
         '<button class="btn btn-primary" style="margin-top:8px;width:100%;" onclick="jumpToProcessTab(' + server.id + ')">이 서버의 프로세스 관리 화면으로 이동</button>' +
@@ -442,7 +490,7 @@ function topoNodeInfoHtml(id) {
     const left = topoLayoutNodes().left;
     const isLeft = left && left.id === n.id;
     const list = serversOn(n);
-    const cnt = st => list.filter(s => s.status === st).length;
+    const cnt = st => list.filter(s => topoViewStatus(s) === st).length;
     return '<div class="topo-detail-head" style="border-bottom:2px solid ' + (isLeft ? '#28a745' : '#dc3545') + ';"><img src="' + topoIconUri(isLeft ? 'switch-itc' : 'switch-drc') + '" width="44" height="44" alt="스위치 아이콘">' +
         '<div><div class="topo-detail-name">' + escapeHtml(n.name) + '</div><div class="topo-detail-sub">' + escapeHtml(n.desc || n.location || '') + '</div></div></div>' +
         '<p style="font-size:13px;color:#444;line-height:1.6;">연결 서버 ' + list.length + '대 · Active ' + cnt('Active') + ' / Standby ' + cnt('Standby') + ' / Down ' + cnt('Down') + '</p>' + topoManualConsoleBtn();
@@ -560,7 +608,7 @@ function renderTopoLegend() {
         ico(topoIconUri('ap', 'Active'), 'AP 서버') +
         ico(topoIconUri('db', 'Active'), 'DB 서버') +
         ico(topoIconUri('nfs', 'Active'), 'NFS 스토리지') +
-        dot('#28a745', 'Active') + dot('#f0ad4e', 'Standby') + dot('#dc3545', 'Down (다운)') +
+        dot('#28a745', 'Active') + dot('#f0ad4e', 'Standby') + dot('#dc3545', 'Down (다운 / 서버 정보 수신 안 됨)') +
         '<div class="legend-item"><span class="legend-dash"></span>Sync 링크</div>';
 }
 
