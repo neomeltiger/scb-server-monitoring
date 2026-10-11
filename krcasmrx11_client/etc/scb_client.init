@@ -1,0 +1,28 @@
+#!/sbin/sh
+#=============================================================
+# scb_client.init - krcasmrx11_client 자료수집 데몬 부팅 시 자동 시작 (Solaris 10 rc 스크립트)
+#
+# 설치 (root, 한 번)
+#   cp /shared/opt/agent/krcasmrx11_client/etc/scb_client.init /etc/init.d/scb_client
+#   chmod 744 /etc/init.d/scb_client
+#   ln -s /etc/init.d/scb_client /etc/rc3.d/S99scb_client
+#   ln -s /etc/init.d/scb_client /etc/rc0.d/K01scb_client
+#   ln -s /etc/init.d/scb_client /etc/rc1.d/K01scb_client
+#   ln -s /etc/init.d/scb_client /etc/rcS.d/K01scb_client
+#
+# 사용 : /etc/init.d/scb_client start | stop | restart | status
+#=============================================================
+CLIENT_HOME=/shared/opt/agent/krcasmrx11_client
+MAIN=$CLIENT_HOME/bin/scb_client.sh
+
+[ -f $MAIN ] || { echo "scb_client: $MAIN 없음"; exit 0; }
+
+case "$1" in
+    start|stop|restart|status)
+        /bin/sh $MAIN $1
+        ;;
+    *)
+        echo "Usage: $0 { start | stop | restart | status }"
+        exit 1
+        ;;
+esac

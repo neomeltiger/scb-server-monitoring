@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>통합 서버 관리 및 모니터링 시스템</title>
+    <!-- vis-network (npm: vis-network) -->
+    <script th:src="@{/vendor/vis-network/vis-network.min.js}"></script>
+    <!-- API 변경 요청용 CSRF 토큰 (script.js apiRequest) -->
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <div id="dashboard-container">
+        <div class="app-layout">
+            <!-- LEFT : templates/fragments/left.html -->
+            <div th:replace="fragments/left :: left(${menu})"></div>
+
+            <div class="main-content-wrapper">
+                <!-- TOP : templates/fragments/top.html -->
+                <div th:replace="fragments/top :: top"></div>
+
+                <!-- ===== MAIN : 네트워크구성도 ===== -->
+                <p><span class="icon">🏠</span> 메인 홈 &gt; 서버자원모니터링 &gt; 네트워크구성도</p>
+
+                <!-- Main Content Area: Topology View -->
+                <div style="width: 100%;">
+                    <div id="tab-topo" class="tab-content active" style="display: flex; flex-direction: column; gap: 20px;">
+                        <div class="topo-layout">
+                            <div id="network-container"></div>
+
+                            <div class="sidebar">
+                                <div class="panel">
+                                    <h3>선택된 서버 및 프로세스 상태</h3>
+                                    <div id="detail-content">
+                                        <p style="color: #888; font-style: italic; font-size: 13px;">다이어그램에서 서버 노드를 클릭하세요.</p>
+                                    </div>
+                                </div>
+
+                                <!-- 서버 추가/제거/초기화 : ADMIN 만 (일반 사용자는 화면에서 숨김, 서버에서도 거부) -->
+                                <div class="panel admin-only">
+                                    <h3>서버 관리 (추가 / 제거)</h3>
+                                    <div class="form-group">
+                                        <label>시스템명</label>
+                                        <input type="text" id="addName" placeholder="예: MUREX AP #3">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>FQDN</label>
+                                        <input type="text" id="addFqdn" placeholder="hostname.domain.com">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>OS 종류</label>
+                                        <input type="text" id="addOs" value="SOLARIS">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>IP 주소</label>
+                                        <input type="text" id="addIp" placeholder="10.0.x.x">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>설치장소 및 위치</label>
+                                        <!-- 설치장소 = tb_net_node 스위치 (Model: switches) -->
+                                        <select id="addParent">
+                                            <option th:each="sw : ${switches}" th:value="${sw.id}" th:text="${sw.location} + (${sw.siteCd} != ${sw.location} ? ' (' + ${sw.siteCd} + ')' : '')">GASAN MTR-A (ITC)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>시스템 구분 (상태)</label>
+                                        <select id="addStatus">
+                                            <option value="Active">Active</option>
+                                            <option value="Standby">Standby</option>
+                                            <option value="Down">Down (다운)</option>
+                                        </select>
+                                    </div>
+                                    <button class="btn btn-primary" onclick="addServer()">서버 추가하기</button>
+
+                                    <hr style="border:0; border-top:1px solid #eee; margin:5px 0;">
+
+                                    <div class="form-group">
+                                        <label>제거할 서버 선택</label>
+                                        <select id="removeNodeSelect"></select>
+                                    </div>
+                                    <button class="btn btn-danger" onclick="removeServer()">선택 서버 제거하기</button>
+                                    <p style="font-size:12px;color:#555;margin:8px 0 0;line-height:1.5;">서버 추가·수정·삭제 내용은 MySQL(scb_mon_agent)에 저장되어 메인 홈, 서버 전체목록, 프로세스 관리 화면에 함께 반영됩니다.</p>
+                                    <button class="btn" style="margin-top:6px;border:1px solid #cbd5e1;background:#fff;color:#334155;" onclick="resetServers()">서버 목록 기본값으로 초기화</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="legend" id="topoLegend"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Server Edit Modal -->
+    <div id="serverEditModal" class="modal-overlay">
+        <div class="modal-card" style="width: 460px; max-width: 92vw;">
+            <div class="modal-header">
+                <h2>서버 정보 수정</h2>
+                <button class="close-btn" onclick="closeServerEdit()">&times;</button>
+            </div>
+            <input type="hidden" id="editServerId">
+            <div class="form-group"><label>시스템명</label><input type="text" id="editName"></div>
+            <div class="form-group"><label>FQDN</label><input type="text" id="editFqdn"></div>
+            <div class="form-group"><label>OS 종류</label><input type="text" id="editOs"></div>
+            <div class="form-group"><label>IP 주소</label><input type="text" id="editIp"></div>
+            <div class="form-group"><label>설치장소 및 위치</label>
+                <select id="editLocation"><option th:each="sw : ${switches}" th:value="${sw.id}" th:text="${sw.location} + (${sw.siteCd} != ${sw.location} ? ' (' + ${sw.siteCd} + ')' : '')">GASAN MTR-A (ITC)</option></select>
+            </div>
+            <div class="form-group"><label>시스템 구분 (상태)</label>
+                <select id="editStatus"><option value="Active">Active</option><option value="Standby">Standby</option><option value="Down">Down (다운)</option></select>
+            </div>
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-primary" style="flex:1;" onclick="saveServerEdit()">저장하기</button>
+                <button class="btn btn-danger" style="flex:1;" onclick="closeServerEdit()">취소</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Web Console Connect Modal (더블클릭: 터미널 접속 확인 / 주소 직접 입력) -->
+    <div id="consoleConnectModal" class="modal-overlay">
+        <div class="modal-card" style="width: 480px; max-width: 92vw;">
+            <div class="modal-header">
+                <h2 id="ccTitle">웹 콘솔 접속 확인</h2>
+                <button class="close-btn" onclick="closeConsoleConnect()" aria-label="닫기">&times;</button>
+            </div>
+            <div id="ccInfo"></div>
+            <form id="ccForm" onsubmit="submitConsoleConnect(event)" novalidate>
+                <div class="cc-row">
+                    <div class="form-group cc-host">
+                        <label for="ccHost">접속 주소 (IP / 호스트명)</label>
+                        <input type="text" id="ccHost" placeholder="예: 10.0.13.217" autocomplete="off" spellcheck="false">
+                    </div>
+                    <div class="form-group cc-port">
+                        <label for="ccPort">포트</label>
+                        <input type="number" id="ccPort" min="1" max="65535" value="22">
+                    </div>
+                </div>
+                <div id="ccError" class="cc-error" role="alert"></div>
+                <div class="cc-btns">
+                    <button type="submit" class="btn btn-primary">터미널 열기</button>
+                    <button type="button" id="ccStatusBtn" class="btn btn-info" onclick="showStatusFromConsoleConnect()">서버 상태 보기</button>
+                    <button type="button" class="btn btn-danger" onclick="closeConsoleConnect()">취소</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 에이전트 토큰 발급 결과 (토큰 원문은 이 화면에서 한 번만 보여줌) -->
+    <div id="agentTokenModal" class="modal-overlay">
+        <div class="modal-card" style="width: 640px; max-width: 94vw;">
+            <div class="modal-header">
+                <h2 id="agentTokenTitle">에이전트 토큰</h2>
+                <button class="close-btn" type="button" onclick="closeAgentToken()" aria-label="닫기">&times;</button>
+            </div>
+            <p class="svc-modal-help">
+                아래 두 줄을 서버의 <code>/shared/opt/agent/krcasmrx11_client/etc/client.env</code> 에 넣으세요.
+                <b>토큰은 지금만 표시되며 다시 볼 수 없습니다.</b> (분실 시 재발급)
+            </p>
+            <textarea id="agentTokenEnv" class="svc-import-text" rows="3" readonly spellcheck="false"></textarea>
+            <div id="agentUrlWarn" class="agent-url-warn" role="alert" hidden></div>
+            <p class="svc-modal-help"><code>SCB_WEB_URL</code> 은 <b>서버에서 접속할 수 있는 이 웹 서버 주소</b>여야 합니다. (서버에서 <code>localhost</code> 는 서버 자신)</p>
+            <ol class="agent-steps">
+                <li><code>cd /shared/opt/agent &amp;&amp; tar xf krcasmrx11_client.tar</code></li>
+                <li><code>cd krcasmrx11_client &amp;&amp; cp etc/client.env.sample etc/client.env</code> (처음 한 번) 후 <code>vi etc/client.env</code> 에 위 두 줄 입력, <code>chmod 600 etc/client.env</code></li>
+                <li>확인: <code>bin/scb_client.sh ping</code> → <code>ok server_id=...</code> (연결 실패면 서버에서 <code>ping 웹서버IP</code>, 웹 서버 PC 방화벽의 포트 허용 확인)</li>
+                <li>데몬 시작: <code>bin/scb_client.sh start</code> (상태 <code>status</code> / 정지 <code>stop</code>) - crontab 사용 안 함</li>
+                <li>재부팅 시 자동 시작: <code>cp etc/scb_client.init /etc/init.d/scb_client</code> 후 <code>ln -s /etc/init.d/scb_client /etc/rc3.d/S99scb_client</code></li>
+                <li>자료 수집 시작/중지, 수집 주기, 데몬 종료는 웹 <b>에이전트 관리</b> 화면에서 합니다.</li>
+            </ol>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <button class="btn btn-primary" type="button" onclick="copyAgentEnv()">복사</button>
+                <span id="agentCopyMsg" class="svc-import-msg"></span>
+                <button class="btn btn-danger" type="button" style="margin-left:auto;" onclick="closeAgentToken()">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Server Status Modal -->
+    <div id="statusModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2 id="modalServerName">서버 상태 정보</h2>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="status-grid">
+                <div class="status-box">
+                    <span class="label">헬스 체크 상태</span>
+                    <span class="value"><span class="health-indicator"></span><span id="modalHealth">Normal (Healthy)</span></span>
+                </div>
+                <div class="status-box">
+                    <span class="label">CPU 사용률</span>
+                    <span class="value" id="modalCpu">14.2%</span>
+                </div>
+                <div class="status-box">
+                    <span class="label">메모리(RAM) 사용률</span>
+                    <span class="value" id="modalMemory">62.8% (25.1 GB / 40 GB)</span>
+                </div>
+                <div class="status-box">
+                    <span class="label">디스크(Storage) 사용량</span>
+                    <span class="value" id="modalDisk">45% 사용중 (1.2 TB 남음)</span>
+                </div>
+                <div class="status-box">
+                    <span class="label">동기화(Sync) 상태</span>
+                    <span class="value" id="modalSync" style="color: #007bff;">Synchronized (OK)</span>
+                </div>
+                <div class="status-box">
+                    <span class="label">활성 세션 수</span>
+                    <span class="value" id="modalSessions">1,248 개</span>
+                </div>
+            </div>
+            <button class="btn btn-primary" onclick="closeModal()">확인</button>
+        </div>
+    </div>
+
+    <script th:src="@{/js/script.js}"></script>
+</body>
+</html>

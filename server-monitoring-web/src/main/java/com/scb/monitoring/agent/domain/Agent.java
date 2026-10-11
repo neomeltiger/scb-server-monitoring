@@ -1,0 +1,96 @@
+package com.scb.monitoring.agent.domain;
+
+import java.sql.Timestamp;
+
+/** tb_agent : 서버 에이전트(krcasmrx11_client) 토큰, 마지막 보고, 데몬 제어/상태 */
+public class Agent {
+
+    /** 웹에서 고를 수 있는 수집 주기 (초) */
+    public static final int[] COLLECT_INTERVALS = {10, 30, 60, 120, 300, 600};
+    public static final int DEFAULT_COLLECT_INTERVAL = 60;
+    /** 데몬이 웹을 확인(heartbeat)하는 주기 (초) - 클라이언트 scb_client.sh 의 POLL_SEC 와 같게 */
+    public static final int POLL_SEC = 10;
+    /** 이 시간 이상 확인이 없으면 "응답 없음" (cron 방식 1.1 클라이언트의 1분 주기도 포함) */
+    public static final int POLL_TIMEOUT_SEC = 90;
+
+    public static final String D_RUNNING = "RUNNING";
+    public static final String D_PAUSED = "PAUSED";
+    public static final String D_STOPPING = "STOPPING";
+    public static final String D_STOPPED = "STOPPED";
+
+    private Long serverId;
+    private String tokenHash;
+    private Timestamp issueDt;
+    private String issueUser;
+    private Timestamp lastReportDt;
+    private String lastReportIp;
+    private String agentHost;
+    private String agentOs;
+    private String agentVer;
+    private String peerStatus;
+    private String collectYn = "Y";
+    private int collectIntervalSec = DEFAULT_COLLECT_INTERVAL;
+    private String shutdownReqYn = "N";
+    private String daemonState;
+    private Integer daemonPid;
+    private Timestamp daemonStartDt;
+    private Timestamp lastPollDt;
+    private String ctlUser;
+    private Timestamp ctlDt;
+
+    public static boolean isAllowedInterval(int sec) {
+        for (int i : COLLECT_INTERVALS) if (i == sec) return true;
+        return false;
+    }
+
+    public boolean isCollectOn() { return !"N".equals(collectYn); }
+    public boolean isShutdownRequested() { return "Y".equals(shutdownReqYn); }
+    /** 관리자가 일부러 멈춘 상태 (수집 중지 / 종료) - 보고 끊김 알람 대상 아님 */
+    public boolean isIntentionallyIdle() {
+        return !isCollectOn() || D_STOPPED.equals(daemonState) || D_STOPPING.equals(daemonState) || isShutdownRequested();
+    }
+    /** 보고 끊김 기준 (초) : 설정값과 수집 주기 3배 중 큰 값 */
+    public int staleLimitSec(int staleAfterSec) {
+        return Math.max(staleAfterSec, collectIntervalSec * 3);
+    }
+
+    public String getCollectYn() { return collectYn; }
+    public void setCollectYn(String collectYn) { this.collectYn = collectYn; }
+    public int getCollectIntervalSec() { return collectIntervalSec; }
+    public void setCollectIntervalSec(int collectIntervalSec) { this.collectIntervalSec = collectIntervalSec; }
+    public String getShutdownReqYn() { return shutdownReqYn; }
+    public void setShutdownReqYn(String shutdownReqYn) { this.shutdownReqYn = shutdownReqYn; }
+    public String getDaemonState() { return daemonState; }
+    public void setDaemonState(String daemonState) { this.daemonState = daemonState; }
+    public Integer getDaemonPid() { return daemonPid; }
+    public void setDaemonPid(Integer daemonPid) { this.daemonPid = daemonPid; }
+    public Timestamp getDaemonStartDt() { return daemonStartDt; }
+    public void setDaemonStartDt(Timestamp daemonStartDt) { this.daemonStartDt = daemonStartDt; }
+    public Timestamp getLastPollDt() { return lastPollDt; }
+    public void setLastPollDt(Timestamp lastPollDt) { this.lastPollDt = lastPollDt; }
+    public String getCtlUser() { return ctlUser; }
+    public void setCtlUser(String ctlUser) { this.ctlUser = ctlUser; }
+    public Timestamp getCtlDt() { return ctlDt; }
+    public void setCtlDt(Timestamp ctlDt) { this.ctlDt = ctlDt; }
+
+    public Long getServerId() { return serverId; }
+    public void setServerId(Long serverId) { this.serverId = serverId; }
+    public String getTokenHash() { return tokenHash; }
+    public void setTokenHash(String tokenHash) { this.tokenHash = tokenHash; }
+    public Timestamp getIssueDt() { return issueDt; }
+    public void setIssueDt(Timestamp issueDt) { this.issueDt = issueDt; }
+    public String getIssueUser() { return issueUser; }
+    public void setIssueUser(String issueUser) { this.issueUser = issueUser; }
+    public Timestamp getLastReportDt() { return lastReportDt; }
+    public void setLastReportDt(Timestamp lastReportDt) { this.lastReportDt = lastReportDt; }
+    public String getLastReportIp() { return lastReportIp; }
+    public void setLastReportIp(String lastReportIp) { this.lastReportIp = lastReportIp; }
+    public String getAgentHost() { return agentHost; }
+    public void setAgentHost(String agentHost) { this.agentHost = agentHost; }
+    public String getAgentOs() { return agentOs; }
+    public void setAgentOs(String agentOs) { this.agentOs = agentOs; }
+    public String getAgentVer() { return agentVer; }
+    public void setAgentVer(String agentVer) { this.agentVer = agentVer; }
+    public String getPeerStatus() { return peerStatus; }
+    public void setPeerStatus(String peerStatus) { this.peerStatus = peerStatus; }
+}

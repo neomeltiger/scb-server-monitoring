@@ -1,0 +1,279 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+    네트워크 구성도 (network_topology) SQL
+    ANSI SQL 만 사용합니다. (DB 전용 함수/문법 미사용)
+      - JOIN ... ON / LEFT OUTER JOIN, COALESCE, CASE, CURRENT_TIMESTAMP
+      - 자동 증가 키는 SQL 이 아닌 JDBC getGeneratedKeys 로 받음 (useGeneratedKeys)
+      - LIMIT / IFNULL / NOW() / 백틱(`) 미사용
+    컬럼명 → 프로퍼티명은 mybatis.configuration.map-underscore-to-camel-case 로 변환 (server_id → serverId)
+-->
+<mapper namespace="com.scb.monitoring.topology.mapper.TopologyMapper">
+
+    <!-- =========================== 네트워크 노드 =========================== -->
+
+    <sql id="nodeColumns">
+        n.node_id, n.node_type, n.node_nm, n.node_desc, n.site_cd, n.location_nm, n.parent_node_id, n.sort_ord
+    </sql>
+
+    <select id="selectNodeList" resultType="NetNode">
+        SELECT <include refid="nodeColumns"/>
+          FROM tb_net_node n
+         ORDER BY n.sort_ord, n.node_id
+    </select>
+
+    <select id="selectNode" resultType="NetNode">
+        SELECT <include refid="nodeColumns"/>
+          FROM tb_net_node n
+         WHERE n.node_id = #{nodeId}
+    </select>
+
+    <!-- =========================== 서버 =========================== -->
+
+    <sql id="serverSelect">
+        SELECT s.server_id,
+               s.system_nm,
+               s.fqdn,
+               s.os_type,
+               s.ip_addr,
+               s.switch_node_id,
+               s.status_cd,
+               s.sync_status,
+               s.pair_server_id,
+               s.sort_ord,
+               n.location_nm,
+               m.cpu_pct,
+               m.mem_pct,
+               m.disk_pct,
+               m.session_cnt
+          FROM tb_server s
+         INNER JOIN tb_net_node n
+            ON n.node_id = s.switch_node_id
+          LEFT OUTER JOIN tb_server_metric m
+            ON m.server_id = s.server_id
+    </sql>
+
+    <select id="selectServerList" resultType="Server">
+        <include refid="serverSelect"/>
+         ORDER BY s.sort_ord, s.server_id
+    </select>
+
+    <select id="selectServer" resultType="Server">
+        <include refid="serverSelect"/>
+         WHERE s.server_id = #{serverId}
+    </select>
+
+    <!-- IP 중복 확인 (수정 시 자기 자신 제외) -->
+    <select id="countServerByIp" resultType="int">
+        SELECT COUNT(*)
+          FROM tb_server s
+         WHERE s.ip_addr = #{ipAddr}
+        <if test="excludeServerId != null">
+           AND s.server_id &lt;&gt; #{excludeServerId}
+        </if>
+    </select>
+
+    <select id="selectMaxServerSortOrd" resultType="int">
+        SELECT COALESCE(MAX(s.sort_ord), 0)
+          FROM tb_server s
+    </select>
+
+    <insert id="insertServer" parameterType="Server" useGeneratedKeys="true" keyProperty="serverId" keyColumn="server_id">
+        INSERT INTO tb_server (
+               system_nm, fqdn, os_type, ip_addr, switch_node_id,
+               status_cd, sync_status, pair_server_id, sort_ord, reg_dt, upd_dt
+        ) VALUES (
+               #{systemNm}, #{fqdn}, #{osType}, #{ipAddr}, #{switchNodeId},
+               #{statusCd}, #{syncStatus}, #{pairServerId, jdbcType=BIGINT}, #{sortOrd}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+    </insert>
+
+    <update id="updateServer" parameterType="Server">
+        UPDATE tb_server
+           SET system_nm      = #{systemNm},
+               fqdn           = #{fqdn},
+               os_type        = #{osType},
+               ip_addr        = #{ipAddr},
+               switch_node_id = #{switchNodeId},
+               status_cd      = #{statusCd},
+               sync_status    = #{syncStatus},
+               upd_dt         = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+    </update>
+
+    <!-- 삭제할 서버를 동기화 대상으로 가진 서버의 연결 해제 -->
+    <update id="clearPairReference">
+        UPDATE tb_server
+           SET pair_server_id = NULL,
+               upd_dt         = CURRENT_TIMESTAMP
+         WHERE pair_server_id = #{serverId}
+    </update>
+
+    <delete id="deleteServer">
+        DELETE FROM tb_server
+         WHERE server_id = #{serverId}
+    </delete>
+
+    <!-- =========================== 자원 현황 =========================== -->
+
+    <insert id="insertMetric" parameterType="ServerMetric">
+        INSERT INTO tb_server_metric (
+               server_id, cpu_pct, mem_pct, disk_pct, session_cnt, collect_dt
+        ) VALUES (
+               #{serverId}, #{cpuPct}, #{memPct}, #{diskPct, jdbcType=DECIMAL}, #{sessionCnt}, CURRENT_TIMESTAMP
+        )
+    </insert>
+
+    <update id="updateMetric" parameterType="ServerMetric">
+        UPDATE tb_server_metric
+           SET cpu_pct     = #{cpuPct},
+               mem_pct     = #{memPct},
+               disk_pct    = #{diskPct, jdbcType=DECIMAL},
+               session_cnt = #{sessionCnt},
+               collect_dt  = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+    </update>
+
+    <delete id="deleteMetric">
+        DELETE FROM tb_server_metric
+         WHERE server_id = #{serverId}
+    </delete>
+
+    <!-- =========================== 프로세스 =========================== -->
+
+    <sql id="processColumns">
+        p.proc_id, p.server_id, p.proc_nm, p.exec_path, p.pid, p.cpu_pct, p.mem_pct, p.running_yn, p.sort_ord
+    </sql>
+
+    <select id="selectProcessList" resultType="ServerProcess">
+        SELECT <include refid="processColumns"/>
+          FROM tb_server_process p
+         ORDER BY p.server_id, p.sort_ord, p.proc_id
+    </select>
+
+    <select id="selectProcessListByServer" resultType="ServerProcess">
+        SELECT <include refid="processColumns"/>
+          FROM tb_server_process p
+         WHERE p.server_id = #{serverId}
+         ORDER BY p.sort_ord, p.proc_id
+    </select>
+
+    <select id="selectProcess" resultType="ServerProcess">
+        SELECT <include refid="processColumns"/>
+          FROM tb_server_process p
+         WHERE p.server_id = #{serverId}
+           AND p.proc_id   = #{procId}
+    </select>
+
+    <select id="selectMaxProcessSortOrd" resultType="int">
+        SELECT COALESCE(MAX(p.sort_ord), 0)
+          FROM tb_server_process p
+         WHERE p.server_id = #{serverId}
+    </select>
+
+    <insert id="insertProcess" parameterType="ServerProcess" useGeneratedKeys="true" keyProperty="procId" keyColumn="proc_id">
+        INSERT INTO tb_server_process (
+               server_id, proc_nm, exec_path, pid, cpu_pct, mem_pct, running_yn, sort_ord, reg_dt, upd_dt
+        ) VALUES (
+               #{serverId}, #{procNm}, #{execPath}, #{pid, jdbcType=INTEGER}, #{cpuPct}, #{memPct}, #{runningYn}, #{sortOrd},
+               CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+    </insert>
+
+    <update id="updateProcess" parameterType="ServerProcess">
+        UPDATE tb_server_process
+           SET proc_nm    = #{procNm},
+               exec_path  = #{execPath},
+               pid        = #{pid, jdbcType=INTEGER},
+               cpu_pct    = #{cpuPct},
+               mem_pct    = #{memPct},
+               running_yn = #{runningYn},
+               upd_dt     = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+           AND proc_id   = #{procId}
+    </update>
+
+    <delete id="deleteProcess">
+        DELETE FROM tb_server_process
+         WHERE server_id = #{serverId}
+           AND proc_id   = #{procId}
+    </delete>
+
+    <delete id="deleteProcessesByServer">
+        DELETE FROM tb_server_process
+         WHERE server_id = #{serverId}
+    </delete>
+
+    <!-- 에이전트 수집 값 반영 (이름/경로는 화면에서 관리하므로 변경하지 않음) -->
+    <update id="updateProcessRuntime" parameterType="ServerProcess">
+        UPDATE tb_server_process
+           SET pid        = #{pid, jdbcType=INTEGER},
+               cpu_pct    = #{cpuPct},
+               mem_pct    = #{memPct},
+               running_yn = #{runningYn},
+               upd_dt     = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+           AND proc_id   = #{procId}
+    </update>
+
+    <!-- =========================== 수집 이력 (메인 홈 그래프) =========================== -->
+
+    <insert id="insertMetricHist" parameterType="MetricHist">
+        INSERT INTO tb_server_metric_hist (server_id, collect_dt, cpu_pct, mem_pct, disk_pct, session_cnt, src_cd)
+        VALUES (#{serverId}, CURRENT_TIMESTAMP, #{cpuPct, jdbcType=DECIMAL}, #{memPct, jdbcType=DECIMAL},
+                #{diskPct, jdbcType=DECIMAL}, #{sessionCnt, jdbcType=INTEGER}, #{srcCd})
+    </insert>
+
+    <insert id="insertProcessHist" parameterType="MetricHist">
+        INSERT INTO tb_process_metric_hist (proc_id, server_id, collect_dt, cpu_pct, mem_pct, running_yn, src_cd)
+        VALUES (#{procId}, #{serverId}, CURRENT_TIMESTAMP, #{cpuPct}, #{memPct}, #{runningYn}, #{srcCd})
+    </insert>
+
+    <!-- 서버별 최근 N 건 : ROW_NUMBER() OVER (ANSI SQL:2003) - LIMIT 미사용 -->
+    <select id="selectMetricHistory" resultType="MetricHist">
+        SELECT t.server_id, t.collect_dt, t.cpu_pct, t.mem_pct, t.disk_pct, t.session_cnt, t.src_cd
+          FROM (SELECT h.server_id, h.collect_dt, h.cpu_pct, h.mem_pct, h.disk_pct, h.session_cnt, h.src_cd, h.hist_id,
+                       ROW_NUMBER() OVER (PARTITION BY h.server_id ORDER BY h.collect_dt DESC, h.hist_id DESC) AS rn
+                  FROM tb_server_metric_hist h) t
+         WHERE t.rn &lt;= #{points}
+         ORDER BY t.server_id, t.collect_dt, t.hist_id
+    </select>
+
+    <select id="selectProcessHistory" resultType="MetricHist">
+        SELECT t.proc_id, t.server_id, t.collect_dt, t.cpu_pct, t.mem_pct, t.running_yn, t.src_cd
+          FROM (SELECT h.proc_id, h.server_id, h.collect_dt, h.cpu_pct, h.mem_pct, h.running_yn, h.src_cd, h.hist_id,
+                       ROW_NUMBER() OVER (PARTITION BY h.proc_id ORDER BY h.collect_dt DESC, h.hist_id DESC) AS rn
+                  FROM tb_process_metric_hist h) t
+         WHERE t.rn &lt;= #{points}
+         ORDER BY t.proc_id, t.collect_dt, t.hist_id
+    </select>
+
+    <!-- 보관 기간이 지난 이력 삭제 (기준 시각은 애플리케이션에서 계산) -->
+    <delete id="deleteMetricHistBefore">
+        DELETE FROM tb_server_metric_hist
+         WHERE server_id = #{serverId}
+           AND collect_dt &lt; #{before}
+    </delete>
+
+    <delete id="deleteProcessHistBefore">
+        DELETE FROM tb_process_metric_hist
+         WHERE server_id = #{serverId}
+           AND collect_dt &lt; #{before}
+    </delete>
+
+    <delete id="deleteMetricHistByServer">
+        DELETE FROM tb_server_metric_hist
+         WHERE server_id = #{serverId}
+    </delete>
+
+    <delete id="deleteProcessHistByServer">
+        DELETE FROM tb_process_metric_hist
+         WHERE server_id = #{serverId}
+    </delete>
+
+    <delete id="deleteProcessHistByProcess">
+        DELETE FROM tb_process_metric_hist
+         WHERE proc_id = #{procId}
+    </delete>
+
+</mapper>

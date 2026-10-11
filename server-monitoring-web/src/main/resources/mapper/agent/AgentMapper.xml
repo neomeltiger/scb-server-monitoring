@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 서버 에이전트 (ANSI SQL). 토큰은 SHA-256 해시만 저장합니다. -->
+<mapper namespace="com.scb.monitoring.agent.mapper.AgentMapper">
+
+    <sql id="agentColumns">
+        a.server_id, a.token_hash, a.issue_dt, a.issue_user, a.last_report_dt, a.last_report_ip,
+        a.agent_host, a.agent_os, a.agent_ver, a.peer_status,
+        a.collect_yn, a.collect_interval_sec, a.shutdown_req_yn, a.daemon_state, a.daemon_pid,
+        a.daemon_start_dt, a.last_poll_dt, a.ctl_user, a.ctl_dt
+    </sql>
+
+    <select id="selectAgent" resultType="com.scb.monitoring.agent.domain.Agent">
+        SELECT <include refid="agentColumns"/>
+          FROM tb_agent a
+         WHERE a.server_id = #{serverId}
+    </select>
+
+    <select id="selectAgentList" resultType="com.scb.monitoring.agent.domain.Agent">
+        SELECT <include refid="agentColumns"/>
+          FROM tb_agent a
+         ORDER BY a.server_id
+    </select>
+
+    <select id="selectServerIdByToken" resultType="long">
+        SELECT a.server_id
+          FROM tb_agent a
+         WHERE a.token_hash = #{tokenHash}
+    </select>
+
+    <insert id="insertAgent">
+        INSERT INTO tb_agent (server_id, token_hash, issue_dt, issue_user)
+        VALUES (#{serverId}, #{tokenHash}, CURRENT_TIMESTAMP, #{issueUser})
+    </insert>
+
+    <update id="updateAgentToken">
+        UPDATE tb_agent
+           SET token_hash = #{tokenHash},
+               issue_dt   = CURRENT_TIMESTAMP,
+               issue_user = #{issueUser}
+         WHERE server_id = #{serverId}
+    </update>
+
+    <update id="updateAgentReport" parameterType="com.scb.monitoring.agent.domain.Agent">
+        UPDATE tb_agent
+           SET last_report_dt = CURRENT_TIMESTAMP,
+               last_report_ip = #{lastReportIp},
+               agent_host     = #{agentHost},
+               agent_os       = #{agentOs},
+               agent_ver      = #{agentVer},
+               peer_status    = #{peerStatus}
+         WHERE server_id = #{serverId}
+    </update>
+
+    <!-- =========================== 데몬 =========================== -->
+
+    <!--
+        daemon_start_dt 를 daemon_pid / daemon_state 보다 먼저 SET 합니다.
+        (ANSI 는 변경 전 값을 보지만 MySQL 은 앞에서 바꾼 값을 보므로, 순서를 맞춰 두 DB 결과를 같게 함)
+    -->
+    <update id="updateHeartbeat">
+        UPDATE tb_agent
+           SET daemon_start_dt = CASE WHEN daemon_pid IS NULL OR daemon_pid &lt;&gt; #{daemonPid}
+                                        OR daemon_state = 'STOPPED' OR daemon_start_dt IS NULL
+                                      THEN CURRENT_TIMESTAMP ELSE daemon_start_dt END,
+               daemon_pid      = #{daemonPid},
+               daemon_state    = #{daemonState},
+               last_poll_dt    = CURRENT_TIMESTAMP,
+               agent_ver       = COALESCE(#{agentVer, jdbcType=VARCHAR}, agent_ver)
+         WHERE server_id = #{serverId}
+    </update>
+
+    <update id="updatePollOnly">
+        UPDATE tb_agent
+           SET last_poll_dt = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+    </update>
+
+    <update id="markShutdownSent">
+        UPDATE tb_agent
+           SET shutdown_req_yn = 'N',
+               daemon_state    = 'STOPPING'
+         WHERE server_id = #{serverId}
+    </update>
+
+    <update id="updateDaemonStopped">
+        UPDATE tb_agent
+           SET daemon_state = 'STOPPED',
+               last_poll_dt = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+    </update>
+
+    <update id="updateCollect">
+        UPDATE tb_agent
+           SET collect_yn      = #{collectYn},
+               shutdown_req_yn = #{shutdownReqYn},
+               ctl_user        = #{ctlUser},
+               ctl_dt          = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+    </update>
+
+    <update id="updateCollectInterval">
+        UPDATE tb_agent
+           SET collect_interval_sec = #{sec},
+               ctl_user             = #{ctlUser},
+               ctl_dt               = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+    </update>
+
+    <delete id="deleteAgent">
+        DELETE FROM tb_agent
+         WHERE server_id = #{serverId}
+    </delete>
+
+</mapper>

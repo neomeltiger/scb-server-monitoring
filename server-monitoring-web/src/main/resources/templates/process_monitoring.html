@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>통합 서버 관리 및 모니터링 시스템</title>
+    <!-- API 변경 요청용 CSRF 토큰 (script.js apiRequest) -->
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <div id="dashboard-container">
+        <div class="app-layout">
+            <!-- LEFT : templates/fragments/left.html -->
+            <div th:replace="fragments/left :: left(${menu})"></div>
+
+            <div class="main-content-wrapper">
+                <!-- TOP : templates/fragments/top.html -->
+                <div th:replace="fragments/top :: top"></div>
+
+                <!-- ===== MAIN : 프로세스관리 (service.list 기준) =====
+                     서비스 목록 : 서버의 /shared/opt/agent/krcasmrx11_agent/etc/service.list (DB tb_service)
+                     상태/PID   : 서버 에이전트(krcasmrx11_client)가 scb_main.sh status 로 수집해 보고
+                     제어       : 요청 → tb_service_cmd → 에이전트가 scb_main.sh <명령> <대상> 실행 → 결과 보고
+                     화면 동작  : js/process_service.js -->
+                <p><span class="icon">🏠</span> 메인 홈 &gt; 프로세스운영 &gt; 프로세스관리</p>
+
+                <div class="svc-page">
+                    <div class="spec-container">
+                        <div class="spec-header">
+                            <h3>서비스 프로세스 관리 <small class="svc-sub">service.list 기준</small></h3>
+                            <div class="svc-toolbar">
+                                <label for="svcServer" class="svc-label">대상 서버</label>
+                                <!-- 서버 목록 : Model "servers" (서비스가 등록된 서버 먼저) -->
+                                <select id="svcServer" class="search-box svc-select">
+                                    <option th:each="s : ${servers}" th:value="${s.id}"
+                                            th:text="${s.systemName} + ' (' + ${s.ip} + ') · 서비스 ' + ${s.serviceCount} + '건'">MUREX MXG AP #1</option>
+                                </select>
+                                <button type="button" class="btn svc-btn-light" id="svcRefreshBtn">새로고침</button>
+                                <button type="button" class="btn btn-primary admin-only" id="svcImportBtn">service.list 가져오기</button>
+                                <button type="button" class="btn btn-success admin-only" id="svcAddBtn">+ 프로세스 추가</button>
+                                <button type="button" class="btn svc-btn-light" id="svcExportBtn">service.list 문서 만들기</button>
+                                <button type="button" class="btn svc-btn-light" id="svcHistBtn">제어 이력</button>
+                            </div>
+                        </div>
+
+                        <!-- 웹에서 목록을 바꾼 뒤 : 서버 반영 안내 -->
+                        <div class="svc-dirty" id="svcDirty" role="status" hidden>
+                            ⚠ 이 서버의 프로세스 목록을 웹에서 변경했습니다. 서버의 <code>service.list</code> 에 반영해야 제어(scb_main.sh)에 적용됩니다.
+                            <button type="button" class="btn btn-primary" id="svcDirtyExport">service.list 문서 만들기</button>
+                        </div>
+
+                        <!-- 에이전트 상태 (마지막 보고 시각 등) -->
+                        <div id="svcAgentBar" class="svc-agent"></div>
+
+                        <!-- 일괄 제어 : 전체 / 그룹 / Level -->
+                        <div class="svc-bulk admin-only">
+                            <span class="svc-bulk-title">일괄 제어</span>
+                            <label>대상 <select id="bulkTarget" class="search-box"></select></label>
+                            <label>명령
+                                <select id="bulkCmd" class="search-box">
+                                    <option value="status">status (상태 확인)</option>
+                                    <option value="start">start (기동)</option>
+                                    <option value="stop">stop (종료)</option>
+                                    <option value="restart">restart (재기동)</option>
+                                    <option value="kill">kill (강제 종료)</option>
+                                    <option value="clean">clean (정리)</option>
+                                </select>
+                            </label>
+                            <button type="button" class="btn btn-primary" id="bulkRunBtn">실행</button>
+                            <span class="svc-hint">기동은 그룹제어순서 오름차순, 종료는 역순으로 실행됩니다. (scb_main.sh)</span>
+                        </div>
+
+                        <div class="svc-summary" id="svcSummary"></div>
+
+                        <div class="svc-table-wrap">
+                        <table class="full-spec-table svc-table">
+                            <thead>
+                                <tr>
+                                    <th>NO</th>
+                                    <th>GROUP</th>
+                                    <th>LEVEL</th>
+                                    <th>SERVICE</th>
+                                    <th>ACCOUNT</th>
+                                    <th>SCRIPT (경로)</th>
+                                    <th>상태</th>
+                                    <th>PID</th>
+                                    <th>확인 시각</th>
+                                    <th>제어</th>
+                                    <th>이력 / 관리</th>
+                                </tr>
+                            </thead>
+                            <tbody id="svcBody">
+                                <tr><td colspan="11" class="svc-empty">불러오는 중...</td></tr>
+                            </tbody>
+                        </table>
+                        </div>
+                    </div>
+
+                    <div class="spec-container">
+                        <div class="spec-header">
+                            <h3>최근 제어 명령 <small class="svc-sub">최근 20건 · 처리 중인 명령이 있으면 5초마다 자동 갱신 · 전체/서비스별은 [제어 이력]·[이력] 팝업</small></h3>
+                        </div>
+                        <div class="svc-table-wrap">
+                        <table class="full-spec-table svc-cmd-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>요청 시각</th>
+                                    <th>대상</th>
+                                    <th>명령</th>
+                                    <th>상태</th>
+                                    <th>요청자</th>
+                                    <th>종료코드</th>
+                                    <th>완료 시각</th>
+                                    <th>결과</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cmdBody"></tbody>
+                        </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- service.list 가져오기 -->
+    <div id="importModal" class="modal-overlay">
+        <div class="modal-card" style="width: 760px; max-width: 94vw;">
+            <div class="modal-header">
+                <h2>service.list 가져오기</h2>
+                <button class="close-btn" type="button" onclick="closeImport()" aria-label="닫기">&times;</button>
+            </div>
+            <p class="svc-modal-help">
+                서버의 <code>/shared/opt/agent/krcasmrx11_agent/etc/service.list</code> 내용을 붙여 넣거나 파일을 선택하세요.<br>
+                같은 서비스명은 갱신, 새 서비스는 추가, 목록에 없는 서비스는 삭제됩니다. (상태/PID 는 유지)
+            </p>
+            <div class="svc-import-row">
+                <label>파일 <input type="file" id="importFile" accept=".list,.txt,text/plain"></label>
+                <label>제어 스크립트 위치 (SCB_SCRIPT_HOME)
+                    <input type="text" id="importHome" class="search-box" value="/shared/opt/pos" maxlength="200">
+                </label>
+            </div>
+            <textarea id="importText" class="svc-import-text" rows="14" spellcheck="false"
+                      placeholder="# GROUP|LEVEL|SERVICE_NAME|ACCOUNT|SCRIPT|ARG|CMDS&#10;2|2|SCB_fs_app1|murex|SCB_fs_app1/mxg_fs.sh||start|stop|test|kill|clean"></textarea>
+            <div id="importMsg" class="svc-import-msg" role="status"></div>
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-primary" style="flex:1;" type="button" id="importRunBtn">가져오기</button>
+                <button class="btn btn-danger" style="flex:1;" type="button" onclick="closeImport()">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 프로세스(서비스) 추가 / 수정 (ADMIN) : service.list 1줄과 같은 항목 -->
+    <div id="svcFormModal" class="modal-overlay">
+        <div class="modal-card sf-modal" role="dialog" aria-modal="true" aria-labelledby="svcFormTitle">
+            <div class="modal-header">
+                <h2 id="svcFormTitle">프로세스 추가</h2>
+                <button class="close-btn" type="button" onclick="closeSvcForm()" aria-label="닫기">&times;</button>
+            </div>
+            <p class="svc-modal-help">service.list 한 줄 형식 <code>GROUP|LEVEL|SERVICE_NAME|ACCOUNT|SCRIPT|ARG|CMDS</code> 과 같은 규칙으로 검사합니다.</p>
+            <form id="svcForm" class="sf-grid" novalidate>
+                <input type="hidden" id="sfId">
+                <label>GROUP <span class="req">*</span><input type="number" id="sfGroup" min="0" max="999" required></label>
+                <label>LEVEL <span class="req">*</span><input type="number" id="sfLevel" min="0" max="999" required></label>
+                <label class="sf-wide">서비스명 (SERVICE_NAME) <span class="req">*</span>
+                    <input type="text" id="sfName" maxlength="50" placeholder="SCB_fs_app1" spellcheck="false" autocomplete="off" required></label>
+                <label>실행 계정 (ACCOUNT) <span class="req">*</span><input type="text" id="sfAccount" maxlength="30" placeholder="murex" spellcheck="false" required></label>
+                <label>ARG<input type="text" id="sfArg" maxlength="100" placeholder="(없으면 비움)" spellcheck="false"></label>
+                <label class="sf-wide">제어 스크립트 (SCRIPT) <span class="req">*</span>
+                    <input type="text" id="sfScript" maxlength="200" placeholder="SCB_fs_app1/mxg_fs.sh  또는  /절대/경로/script.sh" spellcheck="false" required></label>
+                <label class="sf-wide">상대 경로 기준 (SCB_SCRIPT_HOME)<input type="text" id="sfHome" maxlength="200" value="/shared/opt/pos" spellcheck="false"></label>
+                <fieldset class="sf-wide sf-cmds">
+                    <legend>지원 명령 (CMDS) <span class="req">*</span></legend>
+                    <label><input type="checkbox" value="start" checked> start</label>
+                    <label><input type="checkbox" value="stop" checked> stop</label>
+                    <label><input type="checkbox" value="test"> test</label>
+                    <label><input type="checkbox" value="check"> check</label>
+                    <label><input type="checkbox" value="kill"> kill</label>
+                    <label><input type="checkbox" value="clean"> clean</label>
+                </fieldset>
+                <div class="sf-wide sf-preview">service.list 줄 : <code id="sfPreview"></code></div>
+                <div class="sf-wide cc-error" id="sfError" role="alert"></div>
+                <div class="sf-wide sf-btns">
+                    <button type="button" class="btn svc-btn-light" onclick="closeSvcForm()">취소</button>
+                    <button type="submit" class="btn btn-primary" id="sfSave">추가</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- service.list 문서 만들기 -->
+    <div id="exportModal" class="modal-overlay">
+        <div class="modal-card" style="width: 820px; max-width: 94vw;" role="dialog" aria-modal="true" aria-labelledby="exportTitle">
+            <div class="modal-header">
+                <h2 id="exportTitle">service.list 문서</h2>
+                <button class="close-btn" type="button" onclick="closeExport()" aria-label="닫기">&times;</button>
+            </div>
+            <p class="svc-modal-help">
+                웹의 프로세스 목록으로 만든 <code>service.list</code> 입니다. 서버의 <code>/shared/opt/agent/krcasmrx11_agent/etc/service.list</code> 로 저장하면
+                scb_main.sh 제어에 적용됩니다. (기존 파일은 백업 후 교체 권장, 줄 순서 = scb_main.sh 번호)
+            </p>
+            <div class="svc-import-row">
+                <label>SCRIPT 상대 경로 기준 (SCB_SCRIPT_HOME)
+                    <input type="text" id="exportHome" class="search-box" value="/shared/opt/pos" maxlength="200" spellcheck="false">
+                </label>
+            </div>
+            <textarea id="exportText" class="svc-import-text" rows="16" readonly spellcheck="false"></textarea>
+            <div class="sf-btns">
+                <span id="exportMsg" class="svc-import-msg" role="status"></span>
+                <button class="btn svc-btn-light" type="button" id="exportRebuild">다시 만들기</button>
+                <button class="btn svc-btn-light" type="button" id="exportCopy">복사</button>
+                <button class="btn btn-primary" type="button" id="exportDownload">내려받기 (service.list)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 제어 이력 (전체 / 서비스별) -->
+    <div id="histModal" class="modal-overlay">
+        <div class="modal-card" style="width: 960px; max-width: 96vw; max-height: 92vh;" role="dialog" aria-modal="true" aria-labelledby="histTitle">
+            <div class="modal-header">
+                <h2 id="histTitle">제어 이력</h2>
+                <button class="close-btn" type="button" onclick="closeHist()" aria-label="닫기">&times;</button>
+            </div>
+            <p class="svc-modal-help" id="histSub"></p>
+            <div class="svc-toolbar">
+                <select id="histState" class="search-box" aria-label="상태">
+                    <option value="">상태 전체</option>
+                    <option value="DONE">완료</option>
+                    <option value="FAILED">실패</option>
+                    <option value="EXPIRED">만료</option>
+                    <option value="SENT">실행 중</option>
+                    <option value="REQUESTED">요청됨</option>
+                </select>
+                <select id="histCmd" class="search-box" aria-label="명령">
+                    <option value="">명령 전체</option>
+                    <option>start</option><option>stop</option><option>restart</option><option>status</option><option>kill</option><option>clean</option>
+                </select>
+                <span class="svc-hint" id="histCount"></span>
+            </div>
+            <div class="svc-table-wrap hist-wrap">
+                <table class="full-spec-table svc-cmd-table">
+                    <thead>
+                        <tr><th>ID</th><th>요청 시각</th><th>대상</th><th>명령</th><th>상태</th><th>요청자</th><th>종료코드</th><th>완료 시각</th><th>결과</th></tr>
+                    </thead>
+                    <tbody id="histBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 명령 실행 결과 -->
+    <div id="resultModal" class="modal-overlay">
+        <div class="modal-card" style="width: 820px; max-width: 94vw;">
+            <div class="modal-header">
+                <h2 id="resultTitle">실행 결과</h2>
+                <button class="close-btn" type="button" onclick="closeResult()" aria-label="닫기">&times;</button>
+            </div>
+            <pre id="resultBody" class="svc-result"></pre>
+            <div style="display:flex; justify-content:flex-end;">
+                <button class="btn btn-primary" type="button" onclick="closeResult()">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/js/script.js}"></script>
+    <script th:src="@{/js/process_service.js}"></script>
+</body>
+</html>

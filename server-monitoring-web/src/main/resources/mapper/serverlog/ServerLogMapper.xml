@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 서버 로그 : 요청 주기 / 수집 대상 / 수집 결과 (ANSI SQL) -->
+<mapper namespace="com.scb.monitoring.serverlog.mapper.ServerLogMapper">
+
+    <!-- =========================== 요청 주기 =========================== -->
+
+    <select id="selectPolicy" resultType="com.scb.monitoring.serverlog.domain.LogPolicy">
+        SELECT p.server_id, p.interval_min, p.req_now_yn, p.last_req_dt, p.next_req_dt,
+               p.last_recv_dt, p.upd_user, p.upd_dt
+          FROM tb_log_policy p
+         WHERE p.server_id = #{serverId}
+    </select>
+
+    <insert id="insertPolicy">
+        INSERT INTO tb_log_policy (server_id, interval_min, req_now_yn, upd_user, upd_dt)
+        VALUES (#{serverId}, #{intervalMin}, 'N', #{updUser, jdbcType=VARCHAR}, CURRENT_TIMESTAMP)
+    </insert>
+
+    <update id="updateInterval">
+        UPDATE tb_log_policy
+           SET interval_min = #{intervalMin},
+               next_req_dt  = #{nextReqDt, jdbcType=TIMESTAMP},
+               upd_user     = #{updUser},
+               upd_dt       = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+    </update>
+
+    <update id="requestNow">
+        UPDATE tb_log_policy
+           SET req_now_yn = 'Y',
+               upd_user   = #{updUser},
+               upd_dt     = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+    </update>
+
+    <update id="markRequested">
+        UPDATE tb_log_policy
+           SET req_now_yn  = 'N',
+               last_req_dt = CURRENT_TIMESTAMP,
+               next_req_dt = #{nextReqDt, jdbcType=TIMESTAMP}
+         WHERE server_id = #{serverId}
+    </update>
+
+    <update id="markReceived">
+        UPDATE tb_log_policy
+           SET last_recv_dt = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+    </update>
+
+    <!-- =========================== 수집 대상 =========================== -->
+
+    <sql id="sourceColumns">
+        s.log_id, s.server_id, s.log_nm, s.log_path, s.tail_lines, s.use_yn, s.sort_ord, s.last_status, s.last_dt
+    </sql>
+
+    <select id="selectSourceList" resultType="com.scb.monitoring.serverlog.domain.LogSource">
+        SELECT <include refid="sourceColumns"/>
+          FROM tb_log_source s
+         WHERE s.server_id = #{serverId}
+         ORDER BY s.sort_ord, s.log_id
+    </select>
+
+    <select id="selectSource" resultType="com.scb.monitoring.serverlog.domain.LogSource">
+        SELECT <include refid="sourceColumns"/>
+          FROM tb_log_source s
+         WHERE s.log_id = #{logId}
+    </select>
+
+    <select id="countSourceByPath" resultType="int">
+        SELECT COUNT(*)
+          FROM tb_log_source s
+         WHERE s.server_id = #{serverId}
+           AND s.log_path  = #{logPath}
+        <if test="excludeLogId != null">
+           AND s.log_id &lt;&gt; #{excludeLogId}
+        </if>
+    </select>
+
+    <select id="selectMaxSourceSortOrd" resultType="int">
+        SELECT COALESCE(MAX(s.sort_ord), 0)
+          FROM tb_log_source s
+         WHERE s.server_id = #{serverId}
+    </select>
+
+    <insert id="insertSource" parameterType="com.scb.monitoring.serverlog.domain.LogSource"
+            useGeneratedKeys="true" keyProperty="logId" keyColumn="log_id">
+        INSERT INTO tb_log_source (server_id, log_nm, log_path, tail_lines, use_yn, sort_ord, reg_dt, upd_dt)
+        VALUES (#{serverId}, #{logNm}, #{logPath}, #{tailLines}, #{useYn}, #{sortOrd}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    </insert>
+
+    <update id="updateSource" parameterType="com.scb.monitoring.serverlog.domain.LogSource">
+        UPDATE tb_log_source
+           SET log_nm     = #{logNm},
+               log_path   = #{logPath},
+               tail_lines = #{tailLines},
+               use_yn     = #{useYn},
+               upd_dt     = CURRENT_TIMESTAMP
+         WHERE log_id    = #{logId}
+           AND server_id = #{serverId}
+    </update>
+
+    <update id="updateSourceResult">
+        UPDATE tb_log_source
+           SET last_status = #{lastStatus},
+               last_dt     = CURRENT_TIMESTAMP
+         WHERE log_id = #{logId}
+    </update>
+
+    <delete id="deleteSource">
+        DELETE FROM tb_log_source
+         WHERE log_id = #{logId}
+    </delete>
+
+    <!-- =========================== 수집 결과 =========================== -->
+
+    <insert id="insertSnapshot" parameterType="com.scb.monitoring.serverlog.domain.LogSnapshot"
+            useGeneratedKeys="true" keyProperty="snapId" keyColumn="snap_id">
+        INSERT INTO tb_log_snapshot (log_id, server_id, collect_dt, status_cd, line_cnt, byte_cnt, content)
+        VALUES (#{logId}, #{serverId}, CURRENT_TIMESTAMP, #{statusCd}, #{lineCnt}, #{byteCnt}, #{content, jdbcType=VARCHAR})
+    </insert>
+
+    <select id="selectSnapshotList" resultType="com.scb.monitoring.serverlog.domain.LogSnapshot">
+        SELECT n.snap_id, n.log_id, n.server_id, n.collect_dt, n.status_cd, n.line_cnt, n.byte_cnt
+          FROM tb_log_snapshot n
+         WHERE n.log_id = #{logId}
+         ORDER BY n.collect_dt DESC, n.snap_id DESC
+    </select>
+
+    <select id="selectSnapshot" resultType="com.scb.monitoring.serverlog.domain.LogSnapshot">
+        SELECT n.snap_id, n.log_id, n.server_id, n.collect_dt, n.status_cd, n.line_cnt, n.byte_cnt, n.content
+          FROM tb_log_snapshot n
+         WHERE n.snap_id = #{snapId}
+    </select>
+
+    <!-- LIMIT/OFFSET 대신 ROW_NUMBER() (ANSI) -->
+    <select id="selectOldSnapshotIds" resultType="long">
+        SELECT x.snap_id
+          FROM (
+                SELECT n.snap_id,
+                       ROW_NUMBER() OVER (ORDER BY n.collect_dt DESC, n.snap_id DESC) AS rn
+                  FROM tb_log_snapshot n
+                 WHERE n.log_id = #{logId}
+               ) x
+         WHERE x.rn &gt; #{keep}
+    </select>
+
+    <delete id="deleteSnapshots">
+        DELETE FROM tb_log_snapshot
+         WHERE snap_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </delete>
+
+    <delete id="deleteSnapshotsByLog">
+        DELETE FROM tb_log_snapshot
+         WHERE log_id = #{logId}
+    </delete>
+
+    <!-- =========================== 서버 삭제 =========================== -->
+
+    <delete id="deleteSnapshotsByServer">
+        DELETE FROM tb_log_snapshot
+         WHERE server_id = #{serverId}
+    </delete>
+
+    <delete id="deleteSourcesByServer">
+        DELETE FROM tb_log_source
+         WHERE server_id = #{serverId}
+    </delete>
+
+    <delete id="deletePolicy">
+        DELETE FROM tb_log_policy
+         WHERE server_id = #{serverId}
+    </delete>
+
+</mapper>

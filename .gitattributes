@@ -1,0 +1,10 @@
+* text=auto
+*.sh text eol=lf
+*.init text eol=lf
+*.sample text eol=lf
+krcasmrx11_client/README.txt text eol=lf
+*.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.war binary
+*.jar binary

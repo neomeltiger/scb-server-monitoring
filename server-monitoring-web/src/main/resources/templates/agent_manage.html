@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>에이전트 관리 - 통합 서버 관리 및 모니터링 시스템</title>
+    <!-- API 변경 요청용 CSRF 토큰 (script.js apiRequest) -->
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <!--
+        에이전트 관리 (agent.controller.AgentPageController, js/agent_manage.js)
+        서버의 krcasmrx11_client 는 데몬(bin/scb_client.sh start)으로 실행되며 10초마다 웹을 확인(heartbeat)
+        웹에서 정한 값(수집 시작/중지, 수집 주기, 종료)을 데몬이 확인할 때마다 적용
+    -->
+    <div class="app-layout">
+        <div th:replace="fragments/left :: left(${menu})"></div>
+
+        <div class="main-content-wrapper">
+            <div th:replace="fragments/top :: top"></div>
+
+            <p><span class="icon">🏠</span> 메인 홈 &gt; 서버자원모니터링 &gt; 에이전트 관리</p>
+
+            <div class="svc-page">
+                <div class="spec-container">
+                    <div class="spec-header">
+                        <h3>에이전트(krcasmrx11_client) 데몬 관리
+                            <span class="svc-sub">실행 중 <b id="amRunCount">0</b> / 등록 <b id="amRegCount">0</b>대</span></h3>
+                        <div class="svc-toolbar">
+                            <input type="search" id="amSearch" class="search-box" placeholder="시스템명, IP 검색..." aria-label="서버 검색">
+                            <button type="button" class="btn svc-btn-light" id="amReload">새로고침</button>
+                            <label class="lg-check"><input type="checkbox" id="amAuto" checked> 자동 갱신 (5초)</label>
+                        </div>
+                    </div>
+                    <div class="data-error" id="amError" hidden></div>
+                    <div class="svc-table-wrap">
+                        <table class="full-spec-table am-table">
+                            <thead>
+                                <tr>
+                                    <th>서버</th>
+                                    <th>데몬 상태</th>
+                                    <th>자료 수집</th>
+                                    <th>수집 주기</th>
+                                    <th>PID / 시작</th>
+                                    <th>마지막 확인</th>
+                                    <th>마지막 보고</th>
+                                    <th>제어</th>
+                                </tr>
+                            </thead>
+                            <tbody id="amBody">
+                                <tr><td colspan="8" class="svc-empty">불러오는 중...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="spec-container am-help">
+                    <h3>사용 안내</h3>
+                    <div class="am-help-grid">
+                        <div>
+                            <b>웹에서 하는 일</b> <span class="chip-admin">관리자</span>
+                            <ul>
+                                <li><b>[시작]</b> 자료 수집을 시작(재개)합니다.</li>
+                                <li><b>[중지]</b> 자료 수집을 멈춥니다. 데몬은 계속 살아 있어 언제든 [시작] 할 수 있습니다. (서비스 제어 명령은 계속 처리)</li>
+                                <li><b>[종료]</b> 서버의 데몬 프로세스를 끝냅니다. 종료 후에는 웹에서 다시 켤 수 없으니 서버에서 시작하세요.</li>
+                                <li><b>수집 주기</b> : 10초 / 30초 / 1분 / 2분 / 5분 / 10분 - 데몬이 다음 확인 때(최대 10초) 적용합니다.</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <b>서버에서 하는 일</b> (root)
+                            <ul>
+                                <li>시작 : <code>/shared/opt/agent/krcasmrx11_client/bin/scb_client.sh start</code></li>
+                                <li>상태 : <code>bin/scb_client.sh status</code> / 정지 : <code>bin/scb_client.sh stop</code></li>
+                                <li>서버 재부팅 시 자동 시작 : <code>etc/scb_client.init</code> 을 <code>/etc/init.d/scb_client</code> 로 복사하고 <code>/etc/rc3.d/S99scb_client</code> 링크 (crontab 사용 안 함)</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/js/script.js}"></script>
+    <script th:src="@{/js/agent_manage.js}"></script>
+</body>
+</html>

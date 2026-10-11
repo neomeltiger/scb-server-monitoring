@@ -1,0 +1,2 @@
+vis-network.min.js : vis-network 9.1.9 (Apache-2.0 OR MIT)
+출처: https://github.com/visjs/vis-network

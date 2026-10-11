@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 서버 장애 알람 (ANSI SQL) -->
+<mapper namespace="com.scb.monitoring.alarm.mapper.AlarmMapper">
+
+    <sql id="alarmSelect">
+        SELECT a.alarm_id, a.server_id, a.alarm_type, a.alarm_level, a.message, a.state_cd,
+               a.occur_dt, a.ack_user, a.ack_dt, a.action_memo, a.close_dt,
+               s.system_nm, s.ip_addr, s.fqdn, n.location_nm
+          FROM tb_alarm a
+         INNER JOIN tb_server s ON s.server_id = a.server_id
+          LEFT OUTER JOIN tb_net_node n ON n.node_id = s.switch_node_id
+    </sql>
+
+    <select id="selectActiveAlarmList" resultType="com.scb.monitoring.alarm.domain.Alarm">
+        <include refid="alarmSelect"/>
+         WHERE a.state_cd IN ('OPEN', 'ACK')
+         ORDER BY CASE a.alarm_level WHEN 'CRITICAL' THEN 0 ELSE 1 END,
+                  CASE a.state_cd WHEN 'OPEN' THEN 0 ELSE 1 END,
+                  a.occur_dt DESC, a.alarm_id DESC
+    </select>
+
+    <!-- LIMIT 대신 ROW_NUMBER() (ANSI) -->
+    <select id="selectClosedAlarmList" resultType="com.scb.monitoring.alarm.domain.Alarm">
+        SELECT x.alarm_id, x.server_id, x.alarm_type, x.alarm_level, x.message, x.state_cd,
+               x.occur_dt, x.ack_user, x.ack_dt, x.action_memo, x.close_dt,
+               x.system_nm, x.ip_addr, x.fqdn, x.location_nm
+          FROM (
+                SELECT a.alarm_id, a.server_id, a.alarm_type, a.alarm_level, a.message, a.state_cd,
+                       a.occur_dt, a.ack_user, a.ack_dt, a.action_memo, a.close_dt,
+                       s.system_nm, s.ip_addr, s.fqdn, n.location_nm,
+                       ROW_NUMBER() OVER (ORDER BY a.close_dt DESC, a.alarm_id DESC) AS rn
+                  FROM tb_alarm a
+                 INNER JOIN tb_server s ON s.server_id = a.server_id
+                  LEFT OUTER JOIN tb_net_node n ON n.node_id = s.switch_node_id
+                 WHERE a.state_cd = 'CLOSED'
+                   AND a.close_dt &gt;= #{since}
+               ) x
+         WHERE x.rn &lt;= #{maxRows}
+         ORDER BY x.rn
+    </select>
+
+    <select id="selectAlarm" resultType="com.scb.monitoring.alarm.domain.Alarm">
+        <include refid="alarmSelect"/>
+         WHERE a.alarm_id = #{alarmId}
+    </select>
+
+    <insert id="insertAlarm" parameterType="com.scb.monitoring.alarm.domain.Alarm"
+            useGeneratedKeys="true" keyProperty="alarmId" keyColumn="alarm_id">
+        INSERT INTO tb_alarm (server_id, alarm_type, alarm_level, message, state_cd, occur_dt)
+        VALUES (#{serverId}, #{alarmType}, #{alarmLevel}, #{message}, 'OPEN', CURRENT_TIMESTAMP)
+    </insert>
+
+    <update id="closeAlarm">
+        UPDATE tb_alarm
+           SET state_cd = 'CLOSED',
+               close_dt = CURRENT_TIMESTAMP
+         WHERE server_id  = #{serverId}
+           AND alarm_type = #{alarmType}
+           AND state_cd IN ('OPEN', 'ACK')
+    </update>
+
+    <update id="ackAlarm">
+        UPDATE tb_alarm
+           SET state_cd    = 'ACK',
+               ack_user    = #{ackUser},
+               ack_dt      = CURRENT_TIMESTAMP,
+               action_memo = #{actionMemo}
+         WHERE alarm_id = #{alarmId}
+           AND state_cd IN ('OPEN', 'ACK')
+    </update>
+
+    <delete id="deleteAlarmsByServer">
+        DELETE FROM tb_alarm
+         WHERE server_id = #{serverId}
+    </delete>
+
+</mapper>

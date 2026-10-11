@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>통합 서버 관리 및 모니터링 시스템</title>
+    <!-- API 변경 요청용 CSRF 토큰 (script.js apiRequest) -->
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <div id="dashboard-container">
+        <div class="app-layout">
+            <!-- LEFT : templates/fragments/left.html -->
+            <div th:replace="fragments/left :: left(${menu})"></div>
+
+            <div class="main-content-wrapper">
+                <!-- TOP : templates/fragments/top.html -->
+                <div th:replace="fragments/top :: top"></div>
+
+                <!-- ===== MAIN : 메인 홈 ===== -->
+
+                <!-- 서버 장애 알람 (main_alarm.js ← /api/alarms) : 서버 다운(CRITICAL) / 에이전트 보고 끊김(WARNING) -->
+                <section id="alarmBanner" class="alarm-banner" aria-live="assertive" hidden>
+                    <div class="alarm-banner-head">
+                        <div class="alarm-banner-title"><span class="alarm-siren" aria-hidden="true">🚨</span>
+                            <b id="alarmTitle">장애 알람</b> <span id="alarmSummary" class="alarm-summary"></span></div>
+                        <div class="alarm-banner-tools">
+                            <label class="alarm-sound"><input type="checkbox" id="alarmSound"> 알림음</label>
+                            <button type="button" class="alarm-tool-btn admin-only" id="alarmCheckBtn">지금 점검</button>
+                            <button type="button" class="alarm-tool-btn" id="alarmFoldBtn" aria-expanded="true">접기</button>
+                        </div>
+                    </div>
+                    <ul class="alarm-list" id="alarmList"></ul>
+                </section>
+                <div class="alarm-ok" id="alarmOk" hidden>✔ 현재 진행 중인 장애 알람이 없습니다. <span id="alarmOkTime"></span>
+                    <button type="button" class="alarm-history-link" id="alarmHistoryBtn">최근 해소 알람 보기</button></div>
+
+                <!-- krcasmrx11_client 미등록 서버 (main_alarm.js ← /api/agents) -->
+                <section class="agent-reg" id="agentRegPanel" hidden>
+                    <div class="agent-reg-head">
+                        <h3>에이전트(krcasmrx11_client) 미등록 서버 <span class="agent-reg-count" id="agentRegCount">0</span></h3>
+                        <div class="agent-reg-tools">
+                            <span class="svc-hint" id="agentRegSummary"></span>
+                            <button type="button" class="alarm-tool-btn" id="agentRegAllBtn">전체 등록 확인</button>
+                        </div>
+                    </div>
+                    <div class="svc-table-wrap">
+                        <table class="full-spec-table agent-reg-table">
+                            <thead>
+                                <tr><th>시스템명</th><th>IP</th><th>설치장소</th><th>서버 상태</th><th>에이전트 상태</th><th>미등록 사유</th><th>마지막 보고</th><th>등록 확인</th></tr>
+                            </thead>
+                            <tbody id="agentRegBody"></tbody>
+                        </table>
+                    </div>
+                    <p class="svc-hint">등록 절차 : 네트워크 구성도 → 서버 선택 → [에이전트 토큰 발급](관리자) → 서버의 krcasmrx11_client 설치 후 client.env 에 토큰 입력 → 기동 → [등록 확인]</p>
+                </section>
+
+                <!-- Server Process Section (per server, based on network topology) -->
+                <div id="processSection" class="proc-section">
+                    <div class="proc-head">
+                        <div>
+                            <p class="subtitle"><span class="icon">🏠</span> 메인 홈</p>
+                        </div>
+                        <div class="proc-scope-wrap">
+                        <button type="button" class="proc-order-reset" id="cardOrderReset"
+                                title="끌어서 옮긴 서버 카드 순서를 기본 순서로 되돌립니다">카드 순서 초기화</button>
+                        <div class="proc-scope" id="processScope">
+                            <button type="button" class="active" data-scope="all" onclick="setProcessScope('all')">전체</button>
+                            <button type="button" data-scope="itc" onclick="setProcessScope('itc')">ITC (가산)</button>
+                            <button type="button" data-scope="drc" onclick="setProcessScope('drc')">DRC</button>
+                        </div>
+                        </div>
+                    </div>
+                    <div id="processGroups"></div>
+                </div>
+
+                <!-- Quick Links: small icon sub-menu -->
+                <nav class="quick-links" aria-label="하위 메뉴 바로가기">
+                    <a th:href="@{/network}" class="quick-link ql-blue" title="네트워크 구성도">
+                        <span class="quick-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.8 3 2.8 15 0 18"/><path d="M12 3c-2.8 3-2.8 15 0 18"/></svg></span><span class="quick-label">네트워크 구성도</span>
+                    </a>
+                    <a th:href="@{/servers}" class="quick-link ql-green" title="서버 상세스펙 전체 목록">
+                        <span class="quick-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg></span><span class="quick-label">서버 상세스펙</span>
+                    </a>
+                    <a th:href="@{/processes}" class="quick-link ql-teal" title="개발프로세스 모니터링 및 관리">
+                        <span class="quick-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/><path d="M4.9 4.9l2.1 2.1"/><path d="M17 17l2.1 2.1"/><path d="M4.9 19.1L7 17"/><path d="M17 7l2.1-2.1"/></svg></span><span class="quick-label">개발프로세스 관리</span>
+                    </a>
+                </nav>
+
+                <footer class="app-footer">
+                    <span>&copy; 2026 통합 서버 관리 및 모니터링 시스템. All rights reserved.</span>
+                </footer>
+            </div>
+        </div>
+    </div>
+
+    <!-- Process Search Popup -->
+    <div id="procSearchModal" class="modal-overlay">
+        <div class="modal-card" style="width: 560px; max-width: 92vw;">
+            <div class="modal-header">
+                <h2 id="procSearchTitle">프로세스 찾기</h2>
+                <button type="button" class="proc-btn" onclick="closeProcSearch()">닫기</button>
+            </div>
+            <input type="text" id="procSearchInput" class="proc-search-input" placeholder="프로세스명, 경로 또는 서버명으로 검색" oninput="renderProcSearchResults()" aria-label="프로세스 검색">
+            <ul id="procSearchResults" class="proc-search-results"></ul>
+            <div class="proc-manual">
+                <div class="proc-manual-title">찾는 프로세스가 없나요? 직접 등록</div>
+                <div class="proc-add">
+                    <input type="text" id="procManualName" placeholder="프로세스명" aria-label="프로세스명">
+                    <input type="text" id="procManualPath" placeholder="실행 파일 경로" aria-label="실행 파일 경로">
+                    <button type="button" class="proc-btn add" onclick="addManualProcess()">등록</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart Zoom Popup -->
+    <div id="chartZoomModal" class="modal-overlay">
+        <div class="modal-card" style="width: 860px; max-width: 94vw; max-height: 92vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2 id="chartZoomTitle">프로세스 모니터링</h2>
+                <button type="button" class="proc-btn" onclick="closeChartZoom()">닫기</button>
+            </div>
+            <div id="chartZoomBody" class="proc-chart"></div>
+        </div>
+    </div>
+
+    <!-- 그래프 항목 선택 (script.js openGraphPicker) : 카드 그래프에 표시할 주요 프로세스 / 서비스, 최대 6개 -->
+    <div id="graphPickModal" class="modal-overlay">
+        <div class="modal-card gp-modal" role="dialog" aria-modal="true" aria-labelledby="graphPickTitle">
+            <div class="modal-header">
+                <h2 id="graphPickTitle">그래프 항목 선택</h2>
+                <button type="button" class="close-btn" onclick="closeGraphPicker()" aria-label="닫기">&times;</button>
+            </div>
+            <p class="gp-sub" id="graphPickSub"></p>
+            <div class="gp-tools">
+                <input type="search" id="graphPickSearch" class="proc-search-input" placeholder="이름으로 찾기" aria-label="이름으로 찾기">
+                <button type="button" class="proc-btn" onclick="graphPickTop()">CPU 상위 5개</button>
+                <button type="button" class="proc-btn" onclick="graphPickClear()">모두 해제</button>
+            </div>
+            <div class="gp-count" id="graphPickCount" role="status"></div>
+            <ul class="gp-list" id="graphPickList"></ul>
+            <div class="gp-btns">
+                <button type="button" class="btn svc-btn-light" onclick="closeGraphPicker()">취소</button>
+                <button type="button" class="btn btn-primary" onclick="graphPickApply()">적용</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 알람 확인 / 조치 기록 (ADMIN) -->
+    <div id="alarmAckModal" class="modal-overlay">
+        <div class="modal-card ua-modal" role="dialog" aria-modal="true" aria-labelledby="alarmAckTitle">
+            <h3 id="alarmAckTitle">알람 확인 / 조치 기록</h3>
+            <div id="alarmAckTarget" class="cc-meta"></div>
+            <label class="ua-label" for="alarmAckMemo">조치 내용 (필수, 500자 이내)</label>
+            <textarea id="alarmAckMemo" class="svc-import-text" maxlength="500" rows="4"
+                      placeholder="예: 전원 재기동 요청 (담당: 인프라팀), 14:20 복구 확인 예정"></textarea>
+            <div class="cc-error" id="alarmAckError"></div>
+            <div class="cc-btns">
+                <button type="button" class="btn svc-btn-light" id="alarmAckCancel">취소</button>
+                <button type="button" class="btn btn-primary" id="alarmAckOk">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 최근 해소 알람 -->
+    <div id="alarmHistoryModal" class="modal-overlay">
+        <div class="modal-card" style="width: 860px; max-width: 94vw; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2>최근 해소된 알람 (24시간)</h2>
+                <button type="button" class="proc-btn" id="alarmHistoryClose">닫기</button>
+            </div>
+            <div class="svc-table-wrap">
+                <table class="full-spec-table agent-reg-table">
+                    <thead><tr><th>서버</th><th>종류</th><th>발생</th><th>해소</th><th>지속</th><th>조치 내용</th></tr></thead>
+                    <tbody id="alarmHistoryBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/js/script.js}"></script>
+    <script th:src="@{/js/main_alarm.js}"></script>
+    <script th:src="@{/js/card_order.js}"></script>
+</body>
+</html>

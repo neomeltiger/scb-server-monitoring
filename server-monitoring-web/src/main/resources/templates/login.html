@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>로그인 - 통합 서버 관리 및 모니터링 시스템</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="login-page-body">
+    <main class="login-page">
+        <!--
+            Spring Security 로그인 (POST /login, CSRF 토큰은 th:action 이 자동 추가)
+            사용자 : DB tb_user (비밀번호 BCrypt), 연속 5회 실패 시 잠금, 로그인 이력 tb_login_hist
+            실패 사유 : /login?error=bad | locked | disabled | pending | rejected  (SecurityConfig.LoginFailureHandler)
+            계정이 없으면 가입 신청(/signup) → 관리자 승인(/admin/users) 후 로그인
+        -->
+        <form class="login-page-card" id="loginForm" th:action="@{/login}" method="post" autocomplete="on">
+            <img th:src="@{/images/logo.png}" alt="SC제일은행 (Standard Chartered)" class="login-page-logo" width="144" height="56">
+            <div class="login-page-title">
+                <h1>통합 서버 관리 및 모니터링 시스템</h1>
+                <p>등록된 계정으로 로그인한 후 시스템을 이용할 수 있습니다.</p>
+            </div>
+            <div class="login-form-group">
+                <label for="loginId">계정 (ID)</label>
+                <input type="text" id="loginId" name="username" autocomplete="username" placeholder="ID 입력"
+                       maxlength="30" required autofocus>
+            </div>
+            <div class="login-form-group">
+                <label for="loginPw">비밀번호 (Password)</label>
+                <input type="password" id="loginPw" name="password" autocomplete="current-password" placeholder="비밀번호 입력"
+                       maxlength="100" required>
+                <div class="login-caps" id="capsWarn" role="status" hidden>Caps Lock 이 켜져 있습니다.</div>
+            </div>
+
+            <th:block th:if="${param.error != null}" th:switch="${param.error[0]}">
+                <div class="login-error" role="alert" style="display:block;" th:case="'locked'">
+                    로그인 실패가 반복되어 계정이 잠겼습니다. 관리자에게 잠금 해제를 요청하세요.
+                </div>
+                <div class="login-error" role="alert" style="display:block;" th:case="'pending'">
+                    가입 신청이 아직 승인되지 않았습니다. 관리자 승인 후 로그인할 수 있습니다.
+                </div>
+                <div class="login-error" role="alert" style="display:block;" th:case="'rejected'">
+                    가입 신청이 반려되었습니다. 반려 사유는 관리자에게 문의하세요.
+                </div>
+                <div class="login-error" role="alert" style="display:block;" th:case="'disabled'">
+                    사용이 중지된 계정입니다. 관리자에게 문의하세요.
+                </div>
+                <div class="login-error" role="alert" style="display:block;" th:case="*">
+                    아이디 또는 비밀번호가 올바르지 않습니다. (연속 5회 실패 시 계정이 잠깁니다)
+                </div>
+            </th:block>
+            <div class="login-info" role="status" th:if="${param.logout != null}">로그아웃되었습니다.</div>
+            <div class="login-info" role="status" th:if="${param.pwchanged != null}">
+                비밀번호가 변경되었습니다. 새 비밀번호로 로그인하세요.
+            </div>
+            <div class="login-info" role="status" th:if="${param.signup != null}">
+                가입 신청이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다.
+            </div>
+
+            <button type="submit" class="btn-login" id="loginBtn">로그인</button>
+            <div class="login-links">
+                계정이 없으신가요? <a th:href="@{/signup}">사용자 가입 신청</a>
+                <span class="login-links-sep">|</span> <a th:href="@{/password}">비밀번호 변경</a>
+                <span class="login-links-sep">|</span> <a th:href="@{/manual/index.html}" target="_blank" rel="noopener">사용자 매뉴얼</a>
+            </div>
+            <div class="login-page-foot">&copy; 2026 통합 서버 관리 및 모니터링 시스템. All rights reserved.</div>
+        </form>
+    </main>
+    <script>
+        // Caps Lock 안내, 중복 제출 방지
+        (function () {
+            var pw = document.getElementById('loginPw');
+            var warn = document.getElementById('capsWarn');
+            function caps(e) { if (e.getModifierState) warn.hidden = !e.getModifierState('CapsLock'); }
+            pw.addEventListener('keydown', caps);
+            pw.addEventListener('keyup', caps);
+            document.getElementById('loginForm').addEventListener('submit', function () {
+                var b = document.getElementById('loginBtn');
+                b.disabled = true;
+                b.textContent = '로그인 중...';
+            });
+        })();
+    </script>
+</body>
+</html>

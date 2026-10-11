@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 프로세스 관리 화면 : service.list 서비스 목록 / 제어 명령 (ANSI SQL) -->
+<mapper namespace="com.scb.monitoring.svcctl.mapper.ServiceCtlMapper">
+
+    <!-- =========================== 서비스 목록 =========================== -->
+
+    <sql id="serviceColumns">
+        v.svc_id, v.server_id, v.list_no, v.group_no, v.level_no, v.svc_nm, v.account_nm,
+        v.script_path, v.script_arg, v.cmds, v.state_cd, v.pid, v.state_dt
+    </sql>
+
+    <select id="selectServiceList" resultType="com.scb.monitoring.svcctl.domain.ServiceItem">
+        SELECT <include refid="serviceColumns"/>
+          FROM tb_service v
+         WHERE v.server_id = #{serverId}
+         ORDER BY v.list_no, v.svc_id
+    </select>
+
+    <select id="selectAllServiceList" resultType="com.scb.monitoring.svcctl.domain.ServiceItem">
+        SELECT <include refid="serviceColumns"/>
+          FROM tb_service v
+         ORDER BY v.server_id, v.list_no, v.svc_id
+    </select>
+
+    <select id="selectService" resultType="com.scb.monitoring.svcctl.domain.ServiceItem">
+        SELECT <include refid="serviceColumns"/>
+          FROM tb_service v
+         WHERE v.server_id = #{serverId}
+           AND v.svc_nm    = #{svcNm}
+    </select>
+
+    <select id="selectServiceCounts" resultType="com.scb.monitoring.svcctl.domain.ServiceCount">
+        SELECT v.server_id AS server_id,
+               COUNT(*)    AS svc_cnt
+          FROM tb_service v
+         GROUP BY v.server_id
+    </select>
+
+    <insert id="insertService" parameterType="com.scb.monitoring.svcctl.domain.ServiceItem"
+            useGeneratedKeys="true" keyProperty="svcId" keyColumn="svc_id">
+        INSERT INTO tb_service (
+               server_id, list_no, group_no, level_no, svc_nm, account_nm, script_path, script_arg, cmds,
+               state_cd, pid, state_dt, reg_dt, upd_dt
+        ) VALUES (
+               #{serverId}, #{listNo}, #{groupNo}, #{levelNo}, #{svcNm}, #{accountNm}, #{scriptPath},
+               #{scriptArg, jdbcType=VARCHAR}, #{cmds},
+               'UNKNOWN', NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+    </insert>
+
+    <!-- service.list 정의 변경 (상태는 유지) -->
+    <update id="updateServiceDef" parameterType="com.scb.monitoring.svcctl.domain.ServiceItem">
+        UPDATE tb_service
+           SET list_no     = #{listNo},
+               svc_nm      = #{svcNm},
+               group_no    = #{groupNo},
+               level_no    = #{levelNo},
+               account_nm  = #{accountNm},
+               script_path = #{scriptPath},
+               script_arg  = #{scriptArg, jdbcType=VARCHAR},
+               cmds        = #{cmds},
+               upd_dt      = CURRENT_TIMESTAMP
+         WHERE svc_id = #{svcId}
+    </update>
+
+    <select id="selectServiceById" resultType="com.scb.monitoring.svcctl.domain.ServiceItem">
+        SELECT <include refid="serviceColumns"/>
+          FROM tb_service v
+         WHERE v.svc_id = #{svcId}
+    </select>
+
+    <select id="selectMaxListNo" resultType="int">
+        SELECT COALESCE(MAX(v.list_no), 0)
+          FROM tb_service v
+         WHERE v.server_id = #{serverId}
+    </select>
+
+    <update id="updateListNo">
+        UPDATE tb_service
+           SET list_no = #{listNo}
+         WHERE svc_id = #{svcId}
+    </update>
+
+    <delete id="deleteService">
+        DELETE FROM tb_service
+         WHERE svc_id = #{svcId}
+    </delete>
+
+    <update id="updateServiceState">
+        UPDATE tb_service
+           SET state_cd = #{stateCd},
+               pid      = #{pid, jdbcType=INTEGER},
+               state_dt = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+           AND svc_nm    = #{svcNm}
+    </update>
+
+    <!-- =========================== 서비스 CPU / MEM 이력 =========================== -->
+
+    <insert id="insertServiceHist">
+        INSERT INTO tb_service_metric_hist (svc_id, server_id, collect_dt, cpu_pct, mem_pct, running_yn)
+        SELECT v.svc_id, v.server_id, CURRENT_TIMESTAMP,
+               #{cpuPct, jdbcType=DECIMAL}, #{memPct, jdbcType=DECIMAL}, #{runningYn}
+          FROM tb_service v
+         WHERE v.server_id = #{serverId}
+           AND v.svc_nm    = #{svcNm}
+    </insert>
+
+    <!-- 서비스별 최근 N건 : LIMIT 대신 ROW_NUMBER() (ANSI) -->
+    <select id="selectServiceHistory" resultType="com.scb.monitoring.svcctl.domain.ServiceMetricHist">
+        SELECT t.svc_id, t.server_id, t.svc_nm, t.collect_dt, t.cpu_pct, t.mem_pct, t.running_yn
+          FROM (SELECT h.svc_id, h.server_id, v.svc_nm, h.collect_dt, h.cpu_pct, h.mem_pct, h.running_yn, h.hist_id,
+                       ROW_NUMBER() OVER (PARTITION BY h.svc_id ORDER BY h.collect_dt DESC, h.hist_id DESC) AS rn
+                  FROM tb_service_metric_hist h
+                 INNER JOIN tb_service v ON v.svc_id = h.svc_id) t
+         WHERE t.rn &lt;= #{points}
+         ORDER BY t.server_id, t.svc_id, t.collect_dt, t.hist_id
+    </select>
+
+    <delete id="deleteServiceHistBefore">
+        DELETE FROM tb_service_metric_hist
+         WHERE server_id = #{serverId}
+           AND collect_dt &lt; #{before}
+    </delete>
+
+    <delete id="deleteServiceHistByServer">
+        DELETE FROM tb_service_metric_hist
+         WHERE server_id = #{serverId}
+    </delete>
+
+    <delete id="deleteServiceHistBySvc">
+        DELETE FROM tb_service_metric_hist
+         WHERE svc_id = #{svcId}
+    </delete>
+
+    <delete id="deleteServicesByServer">
+        DELETE FROM tb_service
+         WHERE server_id = #{serverId}
+    </delete>
+
+    <!-- =========================== 제어 명령 =========================== -->
+
+    <sql id="commandColumns">
+        c.cmd_id, c.server_id, c.target, c.cmd_cd, c.state_cd, c.req_user, c.req_dt, c.sent_dt, c.end_dt, c.exit_cd, c.result_msg
+    </sql>
+
+    <insert id="insertCommand" parameterType="com.scb.monitoring.svcctl.domain.ServiceCommand"
+            useGeneratedKeys="true" keyProperty="cmdId" keyColumn="cmd_id">
+        INSERT INTO tb_service_cmd (server_id, target, cmd_cd, state_cd, req_user, req_dt)
+        VALUES (#{serverId}, #{target}, #{cmdCd}, 'REQUESTED', #{reqUser}, CURRENT_TIMESTAMP)
+    </insert>
+
+    <select id="selectCommand" resultType="com.scb.monitoring.svcctl.domain.ServiceCommand">
+        SELECT <include refid="commandColumns"/>
+          FROM tb_service_cmd c
+         WHERE c.server_id = #{serverId}
+           AND c.cmd_id    = #{cmdId}
+    </select>
+
+    <!-- 최근 N 건 : ROW_NUMBER() OVER (ANSI) - LIMIT 미사용 -->
+    <select id="selectRecentCommands" resultType="com.scb.monitoring.svcctl.domain.ServiceCommand">
+        SELECT t.cmd_id, t.server_id, t.target, t.cmd_cd, t.state_cd, t.req_user, t.req_dt, t.sent_dt, t.end_dt, t.exit_cd, t.result_msg
+          FROM (SELECT <include refid="commandColumns"/>,
+                       ROW_NUMBER() OVER (ORDER BY c.cmd_id DESC) AS rn
+                  FROM tb_service_cmd c
+                 WHERE c.server_id = #{serverId}) t
+         WHERE t.rn &lt;= #{rows}
+         ORDER BY t.cmd_id DESC
+    </select>
+
+    <!-- 서비스별 제어 이력 : 서비스명 / group:N / level:N / all 대상 명령 -->
+    <select id="selectCommandsByTargets" resultType="com.scb.monitoring.svcctl.domain.ServiceCommand">
+        SELECT t.cmd_id, t.server_id, t.target, t.cmd_cd, t.state_cd, t.req_user, t.req_dt, t.sent_dt, t.end_dt, t.exit_cd, t.result_msg
+          FROM (SELECT <include refid="commandColumns"/>,
+                       ROW_NUMBER() OVER (ORDER BY c.cmd_id DESC) AS rn
+                  FROM tb_service_cmd c
+                 WHERE c.server_id = #{serverId}
+                   AND c.target IN
+                   <foreach collection="targets" item="t" open="(" separator="," close=")">#{t}</foreach>
+               ) t
+         WHERE t.rn &lt;= #{rows}
+         ORDER BY t.cmd_id DESC
+    </select>
+
+    <select id="selectPendingCommands" resultType="com.scb.monitoring.svcctl.domain.ServiceCommand">
+        SELECT <include refid="commandColumns"/>
+          FROM tb_service_cmd c
+         WHERE c.server_id = #{serverId}
+           AND c.state_cd  = 'REQUESTED'
+         ORDER BY c.cmd_id
+    </select>
+
+    <select id="countActiveCommands" resultType="int">
+        SELECT COUNT(*)
+          FROM tb_service_cmd c
+         WHERE c.server_id = #{serverId}
+           AND c.state_cd IN ('REQUESTED', 'SENT')
+    </select>
+
+    <update id="markCommandSent">
+        UPDATE tb_service_cmd
+           SET state_cd = 'SENT',
+               sent_dt  = CURRENT_TIMESTAMP
+         WHERE cmd_id   = #{cmdId}
+           AND state_cd = 'REQUESTED'
+    </update>
+
+    <update id="completeCommand">
+        UPDATE tb_service_cmd
+           SET state_cd   = #{stateCd},
+               exit_cd    = #{exitCd},
+               result_msg = #{resultMsg, jdbcType=VARCHAR},
+               end_dt     = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+           AND cmd_id    = #{cmdId}
+           AND state_cd  = 'SENT'
+    </update>
+
+    <update id="expireCommands">
+        UPDATE tb_service_cmd
+           SET state_cd = 'EXPIRED',
+               end_dt   = CURRENT_TIMESTAMP
+         WHERE (state_cd = 'REQUESTED' AND req_dt  &lt; #{requestedBefore})
+            OR (state_cd = 'SENT'      AND sent_dt &lt; #{sentBefore})
+    </update>
+
+    <delete id="deleteCommandsByServer">
+        DELETE FROM tb_service_cmd
+         WHERE server_id = #{serverId}
+    </delete>
+
+</mapper>

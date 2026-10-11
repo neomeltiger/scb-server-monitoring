@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>사용자 가입 신청 - 통합 서버 관리 및 모니터링 시스템</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="login-page-body">
+    <main class="login-page">
+        <!--
+            사용자 가입 신청 (auth.controller.SignupController, POST /signup)
+            신청 → tb_user (appr_status = PENDING, role = USER) → 관리자가 [사용자 관리] 화면에서 승인해야 로그인 가능
+            비밀번호는 BCrypt 해시로만 저장
+        -->
+        <form class="login-page-card signup-card" id="signupForm" th:action="@{/signup}" th:object="${form}" method="post" novalidate>
+            <img th:src="@{/images/logo.png}" alt="SC제일은행 (Standard Chartered)" class="login-page-logo" width="144" height="56">
+            <div class="login-page-title">
+                <h1>사용자 가입 신청</h1>
+                <p>신청 후 관리자가 승인하면 로그인할 수 있습니다.</p>
+            </div>
+
+            <div class="login-error" role="alert" style="display:block;" th:if="${#fields.hasGlobalErrors()}"
+                 th:text="${#fields.globalErrors()[0]}"></div>
+
+            <div class="signup-grid">
+                <div class="login-form-group" th:classappend="${#fields.hasErrors('userId')} ? 'has-error'">
+                    <label for="userId">아이디 <span class="req">*</span> <span class="hint">영문 시작 4~30자</span></label>
+                    <input type="text" id="userId" th:field="*{userId}" maxlength="30" autocomplete="username" required autofocus>
+                    <div class="field-error" th:if="${#fields.hasErrors('userId')}" th:errors="*{userId}"></div>
+                </div>
+                <div class="login-form-group" th:classappend="${#fields.hasErrors('userNm')} ? 'has-error'">
+                    <label for="userNm">이름 <span class="req">*</span></label>
+                    <input type="text" id="userNm" th:field="*{userNm}" maxlength="50" autocomplete="name" required>
+                    <div class="field-error" th:if="${#fields.hasErrors('userNm')}" th:errors="*{userNm}"></div>
+                </div>
+                <div class="login-form-group" th:classappend="${#fields.hasErrors('password')} ? 'has-error'">
+                    <label for="password">비밀번호 <span class="req">*</span> <span class="hint">8자 이상, 영문·숫자·특수문자</span></label>
+                    <input type="password" id="password" th:field="*{password}" maxlength="100" autocomplete="new-password" required>
+                    <div class="login-caps" id="capsWarn" role="status" hidden>Caps Lock 이 켜져 있습니다.</div>
+                    <div class="field-error" th:if="${#fields.hasErrors('password')}" th:errors="*{password}"></div>
+                </div>
+                <div class="login-form-group" th:classappend="${#fields.hasErrors('passwordConfirm')} ? 'has-error'">
+                    <label for="passwordConfirm">비밀번호 확인 <span class="req">*</span></label>
+                    <input type="password" id="passwordConfirm" th:field="*{passwordConfirm}" maxlength="100" autocomplete="new-password" required>
+                    <div class="field-error" id="pwMatch" th:if="${#fields.hasErrors('passwordConfirm')}" th:errors="*{passwordConfirm}"></div>
+                </div>
+                <div class="login-form-group" th:classappend="${#fields.hasErrors('email')} ? 'has-error'">
+                    <label for="email">이메일</label>
+                    <input type="email" id="email" th:field="*{email}" maxlength="100" autocomplete="email">
+                    <div class="field-error" th:if="${#fields.hasErrors('email')}" th:errors="*{email}"></div>
+                </div>
+                <div class="login-form-group" th:classappend="${#fields.hasErrors('deptNm')} ? 'has-error'">
+                    <label for="deptNm">부서</label>
+                    <input type="text" id="deptNm" th:field="*{deptNm}" maxlength="50" autocomplete="organization">
+                    <div class="field-error" th:if="${#fields.hasErrors('deptNm')}" th:errors="*{deptNm}"></div>
+                </div>
+                <div class="login-form-group full" th:classappend="${#fields.hasErrors('reqReason')} ? 'has-error'">
+                    <label for="reqReason">신청 사유 <span class="req">*</span> <span class="hint">200자 이내</span></label>
+                    <textarea id="reqReason" th:field="*{reqReason}" maxlength="200" rows="3" required
+                              placeholder="예: Murex 운영팀 서버 모니터링 조회"></textarea>
+                    <div class="field-error" th:if="${#fields.hasErrors('reqReason')}" th:errors="*{reqReason}"></div>
+                </div>
+            </div>
+
+            <p class="signup-notice">
+                · 가입 신청한 계정은 <b>일반 사용자(조회 전용)</b> 권한으로 등록됩니다. 수정/삭제/제어 권한은 관리자만 가집니다.<br>
+                · 승인 결과는 로그인 화면에서 확인할 수 있습니다. (승인 대기 / 반려 시 안내 문구 표시)
+            </p>
+
+            <div class="btn-row">
+                <a class="btn-cancel-link" th:href="@{/login}">취소 (로그인으로)</a>
+                <button type="submit" class="btn-login" id="signupBtn">가입 신청</button>
+            </div>
+        </form>
+    </main>
+    <script>
+        // Caps Lock 안내, 비밀번호 확인 즉시 표시, 중복 제출 방지 (최종 검증은 서버에서 함)
+        (function () {
+            var pw = document.getElementById('password');
+            var pw2 = document.getElementById('passwordConfirm');
+            var warn = document.getElementById('capsWarn');
+            function caps(e) { if (e.getModifierState) warn.hidden = !e.getModifierState('CapsLock'); }
+            pw.addEventListener('keydown', caps);
+            pw.addEventListener('keyup', caps);
+            pw2.addEventListener('input', function () {
+                pw2.setCustomValidity(pw2.value && pw2.value !== pw.value ? '비밀번호 확인이 일치하지 않습니다.' : '');
+            });
+            document.getElementById('signupForm').addEventListener('submit', function () {
+                var b = document.getElementById('signupBtn');
+                b.disabled = true;
+                b.textContent = '신청 중...';
+            });
+        })();
+    </script>
+</body>
+</html>

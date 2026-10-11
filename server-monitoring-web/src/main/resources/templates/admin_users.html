@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>사용자 관리 - 통합 서버 관리 및 모니터링 시스템</title>
+    <!-- API 변경 요청용 CSRF 토큰 (script.js apiRequest) -->
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <!--
+        사용자 관리 (ADMIN 전용) : 가입 신청 승인/반려, 잠금 해제, 사용 중지, 권한 변경, 삭제
+        API : /api/admin/users (auth.controller.UserAdminController)
+    -->
+    <div class="app-layout">
+        <div th:replace="fragments/left :: left(${menu})"></div>
+
+        <div class="main-content-wrapper">
+            <div th:replace="fragments/top :: top"></div>
+
+            <p><span class="icon">🏠</span> 메인 홈 &gt; 시스템관리 &gt; 사용자 관리</p>
+
+            <div class="svc-page ua-page">
+                <div class="spec-container">
+                    <div class="spec-header">
+                        <h3>사용자 관리 (가입 승인) <span class="svc-sub">승인 대기 <b id="pendingCount">0</b>건</span></h3>
+                        <div class="svc-toolbar">
+                            <div class="ua-tabs" role="tablist" id="statusTabs">
+                                <button type="button" class="ua-tab active" data-status="PENDING">승인 대기</button>
+                                <button type="button" class="ua-tab" data-status="APPROVED">승인</button>
+                                <button type="button" class="ua-tab" data-status="REJECTED">반려</button>
+                                <button type="button" class="ua-tab" data-status="ALL">전체</button>
+                            </div>
+                            <input type="text" id="userSearch" class="search-box" placeholder="아이디, 이름, 부서 검색...">
+                            <button type="button" class="btn svc-btn-light" id="reloadBtn">새로고침</button>
+                        </div>
+                    </div>
+                    <div class="data-error" id="userError" hidden></div>
+                    <div class="svc-table-wrap">
+                        <table class="full-spec-table ua-table">
+                            <thead>
+                                <tr>
+                                    <th>아이디</th>
+                                    <th>이름</th>
+                                    <th>부서 / 이메일</th>
+                                    <th>신청 사유</th>
+                                    <th>신청일시</th>
+                                    <th>상태</th>
+                                    <th>권한</th>
+                                    <th>계정</th>
+                                    <th>최근 로그인</th>
+                                    <th>처리</th>
+                                </tr>
+                            </thead>
+                            <tbody id="userTableBody">
+                                <tr><td colspan="10" class="svc-empty">불러오는 중...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="svc-hint">
+                        · 가입 신청자는 <b>승인</b> 전에는 로그인할 수 없습니다. 승인 시 권한(일반 사용자 / 관리자)을 선택합니다.<br>
+                        · 일반 사용자(USER)는 조회만 가능하며, 수정·삭제·제어·웹 콘솔·사용자 관리는 관리자(ADMIN)만 가능합니다.<br>
+                        · 자기 자신과 마지막 관리자는 사용 중지 / 권한 내림 / 삭제할 수 없습니다.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 승인 / 반려 확인 -->
+    <div class="modal-overlay" id="decisionModal">
+        <div class="modal-card ua-modal" role="dialog" aria-modal="true" aria-labelledby="decisionTitle">
+            <h3 id="decisionTitle">가입 승인</h3>
+            <div id="decisionTarget" class="cc-meta"></div>
+            <div id="approveBox">
+                <label class="ua-label" for="approveRole">부여할 권한</label>
+                <select id="approveRole" class="ua-select">
+                    <option value="USER">일반 사용자 (조회 전용)</option>
+                    <option value="ADMIN">관리자 (수정/삭제/제어)</option>
+                </select>
+            </div>
+            <div id="rejectBox" hidden>
+                <label class="ua-label" for="rejectReason">반려 사유 (필수, 200자 이내)</label>
+                <textarea id="rejectReason" class="svc-import-text" maxlength="200" rows="3"></textarea>
+            </div>
+            <div class="cc-error" id="decisionError"></div>
+            <div class="cc-btns">
+                <button type="button" class="btn svc-btn-light" id="decisionCancel">취소</button>
+                <button type="button" class="btn btn-primary" id="decisionOk">승인</button>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/js/script.js}"></script>
+    <script th:src="@{/js/admin_users.js}"></script>
+</body>
+</html>

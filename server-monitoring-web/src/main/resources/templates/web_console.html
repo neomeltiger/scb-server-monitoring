@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>웹 콘솔 - 통합 서버 관리 및 모니터링 시스템</title>
+    <!-- xterm.js 웹 터미널 (npm: @xterm/xterm, @xterm/addon-fit) -->
+    <link rel="stylesheet" th:href="@{/vendor/xterm/xterm.css}">
+    <script th:src="@{/vendor/xterm/xterm.js}"></script>
+    <script th:src="@{/vendor/xterm/addon-fit.js}"></script>
+    <!-- API 변경 요청용 CSRF 토큰 (script.js apiRequest) -->
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <link rel="stylesheet" th:href="@{/css/web_console.css}">
+</head>
+<body class="wc-body">
+    <div class="wc-app">
+        <!-- 상단: 대상 서버 정보 + 제어 버튼 -->
+        <header class="wc-header">
+            <div class="wc-server">
+                <span class="wc-led" id="wcLed" title="연결 상태"></span>
+                <div>
+                    <div class="wc-title">
+                        <span id="wcServerName">웹 콘솔</span>
+                        <span class="badge" id="wcServerStatus"></span>
+                    </div>
+                    <div class="wc-sub" id="wcServerSub"></div>
+                </div>
+            </div>
+            <div class="wc-tools">
+                <button type="button" class="wc-btn primary" onclick="wcOtherHost()" title="주소와 포트를 입력하여 다른 서버에 접속">주소 입력 접속</button>
+                <button type="button" class="wc-btn" onclick="wcReconnect()" title="세션을 끊고 다시 접속">재접속</button>
+                <button type="button" class="wc-btn danger" onclick="wcDisconnect()" title="현재 세션 종료">접속 종료</button>
+                <span class="wc-sep"></span>
+                <button type="button" class="wc-btn" onclick="wcClear()" title="화면 지우기">지우기</button>
+                <button type="button" class="wc-btn" onclick="wcFont(-1)" title="글자 작게" aria-label="글자 작게">A−</button>
+                <button type="button" class="wc-btn" onclick="wcFont(1)" title="글자 크게" aria-label="글자 크게">A+</button>
+                <button type="button" class="wc-btn" onclick="wcFullscreen()" title="전체 화면">전체화면</button>
+            </div>
+        </header>
+
+        <!-- 터미널 -->
+        <main class="wc-term-wrap">
+            <div id="wcTerminal" class="wc-term"></div>
+
+            <!-- 주소/포트 입력 화면 (등록되지 않은 서버 접속, 다른 서버 접속) -->
+            <div id="wcConnect" class="wc-connect" hidden>
+                <form id="wcConnectForm" class="wc-connect-card" novalidate>
+                    <h2>원격 접속 대상 입력</h2>
+                    <p>접속할 서버의 주소와 SSH 포트를 입력하세요.<br>등록된 서버의 IP/FQDN을 입력하면 해당 서버 정보로 접속합니다.</p>
+                    <div class="wc-connect-row">
+                        <label class="wc-connect-host">접속 주소 (IP / 호스트명)
+                            <input type="text" id="wcHostInput" placeholder="예: 10.0.13.217" autocomplete="off" spellcheck="false">
+                        </label>
+                        <label class="wc-connect-port">포트
+                            <input type="number" id="wcPortInput" min="1" max="65535" value="22">
+                        </label>
+                    </div>
+                    <div id="wcConnectError" class="wc-connect-error" role="alert"></div>
+                    <div class="wc-connect-btns">
+                        <button type="submit" class="wc-btn primary">접속</button>
+                        <button type="button" id="wcConnectCancel" class="wc-btn" onclick="hideConnectForm()">취소</button>
+                    </div>
+                </form>
+            </div>
+        </main>
+
+        <!-- 하단 상태바 -->
+        <footer class="wc-status">
+            <span id="wcMode" class="wc-mode"></span>
+            <span id="wcState">대기</span>
+            <span id="wcTarget"></span>
+            <span class="wc-grow"></span>
+            <span id="wcSize"></span>
+            <span id="wcElapsed">00:00:00</span>
+        </footer>
+    </div>
+
+    <script th:src="@{/js/script.js}"></script>
+    <script th:src="@{/js/web_console.js}"></script>
+</body>
+</html>

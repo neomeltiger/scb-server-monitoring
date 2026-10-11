@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 로그인 사용자 / 로그인 이력 / 가입 신청·승인 (ANSI SQL) -->
+<mapper namespace="com.scb.monitoring.auth.mapper.UserMapper">
+
+    <sql id="userColumns">
+        u.user_id, u.user_nm, u.password_hash, u.role_cd, u.use_yn, u.lock_yn, u.fail_cnt,
+        u.last_login_dt, u.last_login_ip, u.appr_status, u.email, u.dept_nm, u.req_reason,
+        u.appr_user, u.appr_dt, u.reject_reason, u.reg_dt
+    </sql>
+
+    <!-- =========================== 로그인 =========================== -->
+
+    <select id="selectUser" resultType="com.scb.monitoring.auth.domain.AppUser">
+        SELECT <include refid="userColumns"/>
+          FROM tb_user u
+         WHERE u.user_id = #{userId}
+    </select>
+
+    <update id="updateLoginSuccess">
+        UPDATE tb_user
+           SET fail_cnt      = 0,
+               last_login_dt = CURRENT_TIMESTAMP,
+               last_login_ip = #{clientIp},
+               upd_dt        = CURRENT_TIMESTAMP
+         WHERE user_id = #{userId}
+    </update>
+
+    <!--
+        lock_yn 을 fail_cnt 보다 먼저 SET 합니다.
+        (ANSI 는 SET 의 모든 식이 변경 전 값을 보지만, MySQL 은 앞에서 바꾼 값을 보므로 순서를 맞춰 두 DB 결과를 같게 함)
+    -->
+    <update id="increaseFailCount">
+        UPDATE tb_user
+           SET lock_yn  = CASE WHEN fail_cnt + 1 &gt;= #{maxFail} THEN 'Y' ELSE lock_yn END,
+               fail_cnt = fail_cnt + 1,
+               upd_dt   = CURRENT_TIMESTAMP
+         WHERE user_id = #{userId}
+    </update>
+
+    <insert id="insertLoginHist">
+        INSERT INTO tb_login_hist (user_id, login_dt, client_ip, result_cd, message)
+        VALUES (#{userId}, CURRENT_TIMESTAMP, #{clientIp}, #{resultCd}, #{message})
+    </insert>
+
+    <update id="updatePassword">
+        UPDATE tb_user
+           SET password_hash = #{passwordHash},
+               fail_cnt      = 0,
+               upd_dt        = CURRENT_TIMESTAMP
+         WHERE user_id = #{userId}
+    </update>
+
+    <!-- =========================== 가입 신청 =========================== -->
+
+    <select id="countUser" resultType="int">
+        SELECT COUNT(*)
+          FROM tb_user u
+         WHERE u.user_id = #{userId}
+    </select>
+
+    <insert id="insertSignup" parameterType="com.scb.monitoring.auth.domain.AppUser">
+        INSERT INTO tb_user (
+               user_id, user_nm, password_hash, role_cd, use_yn, lock_yn, fail_cnt,
+               appr_status, email, dept_nm, req_reason, reg_dt, upd_dt
+        ) VALUES (
+               #{userId}, #{userNm}, #{passwordHash}, 'USER', 'Y', 'N', 0,
+               'PENDING', #{email, jdbcType=VARCHAR}, #{deptNm, jdbcType=VARCHAR}, #{reqReason}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+    </insert>
+
+    <!-- =========================== 사용자 관리 (관리자) =========================== -->
+
+    <!-- 승인 대기 먼저, 그다음 최근 신청 순 -->
+    <select id="selectUserList" resultType="com.scb.monitoring.auth.domain.AppUser">
+        SELECT <include refid="userColumns"/>
+          FROM tb_user u
+        <if test="apprStatus != null">
+         WHERE u.appr_status = #{apprStatus}
+        </if>
+         ORDER BY CASE u.appr_status WHEN 'PENDING' THEN 0 WHEN 'APPROVED' THEN 1 ELSE 2 END,
+                  u.reg_dt DESC, u.user_id
+    </select>
+
+    <select id="countPending" resultType="int">
+        SELECT COUNT(*)
+          FROM tb_user u
+         WHERE u.appr_status = 'PENDING'
+    </select>
+
+    <select id="countActiveAdmins" resultType="int">
+        SELECT COUNT(*)
+          FROM tb_user u
+         WHERE u.role_cd     = 'ADMIN'
+           AND u.use_yn      = 'Y'
+           AND u.lock_yn     = 'N'
+           AND u.appr_status = 'APPROVED'
+    </select>
+
+    <!-- 승인 : 대기 중인 신청만 처리 (동시에 다른 관리자가 처리했으면 0건) -->
+    <update id="approveUser">
+        UPDATE tb_user
+           SET appr_status   = 'APPROVED',
+               role_cd       = #{roleCd},
+               appr_user     = #{apprUser},
+               appr_dt       = CURRENT_TIMESTAMP,
+               reject_reason = NULL,
+               upd_dt        = CURRENT_TIMESTAMP
+         WHERE user_id     = #{userId}
+           AND appr_status = 'PENDING'
+    </update>
+
+    <update id="rejectUser">
+        UPDATE tb_user
+           SET appr_status   = 'REJECTED',
+               appr_user     = #{apprUser},
+               appr_dt       = CURRENT_TIMESTAMP,
+               reject_reason = #{rejectReason},
+               upd_dt        = CURRENT_TIMESTAMP
+         WHERE user_id     = #{userId}
+           AND appr_status = 'PENDING'
+    </update>
+
+    <update id="unlockUser">
+        UPDATE tb_user
+           SET lock_yn  = 'N',
+               fail_cnt = 0,
+               upd_dt   = CURRENT_TIMESTAMP
+         WHERE user_id = #{userId}
+    </update>
+
+    <update id="updateUseYn">
+        UPDATE tb_user
+           SET use_yn = #{useYn},
+               upd_dt = CURRENT_TIMESTAMP
+         WHERE user_id = #{userId}
+    </update>
+
+    <update id="updateRole">
+        UPDATE tb_user
+           SET role_cd = #{roleCd},
+               upd_dt  = CURRENT_TIMESTAMP
+         WHERE user_id     = #{userId}
+           AND appr_status = 'APPROVED'
+    </update>
+
+    <delete id="deleteUser">
+        DELETE FROM tb_user
+         WHERE user_id = #{userId}
+    </delete>
+
+</mapper>

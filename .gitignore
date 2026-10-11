@@ -1,0 +1,22 @@
+# 빌드 결과 / 로그
+target/
+*.log
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+.metadata/
+
+# 에이전트 실행 파일 (서버에서 생성)
+krcasmrx11_client/etc/client.env
+krcasmrx11_client/run/
+krcasmrx11_client/log/
+*.tar
+
+# DB 백업 / 비밀 정보
+*.sql.bak
+backup/

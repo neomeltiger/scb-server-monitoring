@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>통합 서버 관리 및 모니터링 시스템</title>
+    <!-- API 변경 요청용 CSRF 토큰 (script.js apiRequest) -->
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <div id="dashboard-container">
+        <div class="app-layout">
+            <!-- LEFT : templates/fragments/left.html -->
+            <div th:replace="fragments/left :: left(${menu})"></div>
+
+            <div class="main-content-wrapper">
+                <!-- TOP : templates/fragments/top.html -->
+                <div th:replace="fragments/top :: top"></div>
+
+                <!-- ===== MAIN : 서버전체목록 ===== -->
+                <p><span class="icon">🏠</span> 메인 홈 &gt; 서버자원모니터링 &gt; 서버전체목록</p>
+
+                <div style="width: 100%;">
+                    <div id="tab-spec" class="tab-content active" style="display: flex; flex-direction: column; gap: 20px;">
+                        <div class="spec-container">
+                            <div class="spec-header">
+                                <h3>ITC &amp; DRC 서버 상세스펙 전체 리스트 <span class="svc-sub">행 클릭 : 프로세스 관리 화면 · [관리] : 서버별 주요 프로세스 등록/수정/삭제</span></h3>
+                                <input type="text" id="searchInput" class="search-box" placeholder="시스템명, FQDN, IP 검색..." onkeyup="filterSpecTable()">
+                            </div>
+                            <div class="svc-table-wrap">
+                            <table class="full-spec-table">
+                                <thead>
+                                    <tr>
+                                        <th>No</th>
+                                        <th>시스템명</th>
+                                        <th>FQDN</th>
+                                        <th>OS Type</th>
+                                        <th>설치장소</th>
+                                        <th>IP Address</th>
+                                        <th>시스템 구분</th>
+                                        <th>네트워크 상태</th>
+                                        <th>주요 프로세스</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="specTableBody">
+                                    <!-- Dynamic Rows -->
+                                </tbody>
+                            </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 서버별 주요 프로세스 (tb_server_process) : 메인 홈 카드 / 그래프 대상. 등록·수정·삭제는 ADMIN -->
+    <div id="specProcModal" class="modal-overlay">
+        <div class="modal-card" style="width: 820px; max-width: 94vw; max-height: 92vh;" role="dialog" aria-modal="true" aria-labelledby="specProcTitle">
+            <div class="modal-header">
+                <h2 id="specProcTitle">주요 프로세스</h2>
+                <button class="close-btn" type="button" onclick="closeSpecProc()" aria-label="닫기">&times;</button>
+            </div>
+            <p class="svc-modal-help">메인 홈 서버 카드의 주요 프로세스 / CPU 그래프 대상입니다. 실행 상태·PID·CPU 는 서버 에이전트가 보고합니다.</p>
+            <div class="svc-table-wrap sp-wrap">
+                <table class="full-spec-table sp-table">
+                    <thead><tr><th>No</th><th>프로세스명</th><th>실행 파일 경로</th><th>상태</th><th>PID</th><th>CPU / MEM</th><th class="admin-only">관리</th></tr></thead>
+                    <tbody id="specProcBody"></tbody>
+                </table>
+            </div>
+            <form id="specProcForm" class="sp-form admin-only" novalidate>
+                <input type="hidden" id="spId">
+                <div class="sp-form-title" id="spFormTitle">프로세스 등록</div>
+                <label>프로세스명 <input type="text" id="spName" maxlength="100" placeholder="예: mx_kernel_engine" spellcheck="false" autocomplete="off"></label>
+                <label>실행 파일 경로 <input type="text" id="spPath" maxlength="255" placeholder="예: /opt/murex/bin/mx_kernel" spellcheck="false" autocomplete="off"></label>
+                <div class="cc-error" id="spError" role="alert"></div>
+                <div class="sf-btns">
+                    <button type="button" class="btn svc-btn-light" id="spCancel" hidden>취소</button>
+                    <button type="submit" class="btn btn-primary" id="spSave">등록</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script th:src="@{/js/script.js}"></script>
+    <script th:src="@{/js/server_spec.js}"></script>
+</body>
+</html>

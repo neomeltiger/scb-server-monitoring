@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>서버 로그 - 통합 서버 관리 및 모니터링 시스템</title>
+    <!-- API 변경 요청용 CSRF 토큰 (script.js apiRequest) -->
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <!--
+        서버 로그 (serverlog.controller.ServerLogController, js/server_logs.js)
+        웹 서버가 서버별 요청 주기마다 krcasmrx11_client 에 로그를 요청 → 에이전트가 마지막 N줄 전송 → tb_log_snapshot (로그별 최근 20회)
+        요청 주기 / 지금 요청 / 로그 파일 등록은 ADMIN, 조회는 로그인 사용자
+    -->
+    <div class="app-layout">
+        <div th:replace="fragments/left :: left(${menu})"></div>
+
+        <div class="main-content-wrapper">
+            <div th:replace="fragments/top :: top"></div>
+
+            <p><span class="icon">🏠</span> 메인 홈 &gt; 서버자원모니터링 &gt; 서버 로그</p>
+
+            <div class="svc-page lg-page">
+                <!-- 서버 / 요청 주기 -->
+                <div class="spec-container">
+                    <div class="spec-header">
+                        <h3>서버 로그 <span class="svc-sub">웹 서버가 정한 주기마다 krcasmrx11_client 에 로그를 요청합니다</span></h3>
+                    </div>
+                    <div class="lg-toolbar">
+                        <label class="lg-field">
+                            <span>대상 서버</span>
+                            <select id="lgServer" class="lg-select">
+                                <option th:each="s : ${servers}" th:value="${s.id}"
+                                        th:text="${s.systemName} + ' (' + ${s.ip} + ')'">MUREX MXG AP #1 (10.0.13.217)</option>
+                            </select>
+                        </label>
+                        <label class="lg-field">
+                            <span>요청 주기</span>
+                            <select id="lgInterval" class="lg-select lg-interval" title="관리자만 바꿀 수 있습니다">
+                                <option value="0">사용 안 함</option>
+                                <option value="1">1분마다</option>
+                                <option value="5">5분마다</option>
+                                <option value="10">10분마다</option>
+                                <option value="30">30분마다</option>
+                                <option value="60">60분마다</option>
+                            </select>
+                        </label>
+                        <div class="lg-actions">
+                            <button type="button" class="btn btn-primary admin-only" id="lgRequestNow">지금 요청</button>
+                            <button type="button" class="btn svc-btn-light" id="lgReload">새로고침</button>
+                            <label class="lg-check"><input type="checkbox" id="lgAuto" checked> 자동 갱신 (15초)</label>
+                        </div>
+                    </div>
+                    <div class="lg-status" id="lgStatus" role="status">불러오는 중...</div>
+                    <p class="svc-hint">
+                        · 에이전트 데몬은 10초마다 웹 서버를 확인하므로, 요청이 서버에 전달되기까지 최대 10초 걸립니다. (에이전트 관리에서 수집 중지하면 로그도 요청하지 않음)<br>
+                        · 서버의 krcasmrx11_client 는 <code>etc/client.env</code> 의 <code>SCB_LOG_ALLOW</code> 에 있는 경로만 읽습니다. 목록 밖이면 "허용 안 됨" 으로 표시됩니다.
+                    </p>
+                </div>
+
+                <div class="lg-grid">
+                    <!-- 수집 대상 로그 -->
+                    <div class="spec-container lg-sources">
+                        <div class="spec-header"><h3>수집 대상 로그</h3></div>
+                        <ul class="lg-source-list" id="lgSources"></ul>
+
+                        <form class="lg-form admin-only" id="lgForm" novalidate>
+                            <div class="lg-form-title" id="lgFormTitle">로그 파일 추가</div>
+                            <input type="hidden" id="lgFormId">
+                            <label>이름 <input type="text" id="lgName" maxlength="50" placeholder="예: 시스템 로그"></label>
+                            <label>경로 <input type="text" id="lgPath" maxlength="255" placeholder="/var/adm/messages" spellcheck="false" autocomplete="off"></label>
+                            <div class="lg-presets" id="lgPresets">
+                                <span>자주 쓰는 경로 :</span>
+                                <button type="button" data-name="시스템 로그 (messages)" data-path="/var/adm/messages">/var/adm/messages</button>
+                                <button type="button" data-name="에이전트 클라이언트 로그" data-path="/shared/opt/agent/krcasmrx11_client/log/scb_client.log">client 로그</button>
+                            </div>
+                            <div class="lg-form-row">
+                                <label>가져올 줄 수
+                                    <select id="lgLines">
+                                        <option>50</option><option>100</option><option selected>200</option><option>500</option><option>1000</option>
+                                    </select>
+                                </label>
+                                <label class="lg-check"><input type="checkbox" id="lgUse" checked> 수집</label>
+                            </div>
+                            <div class="cc-error" id="lgFormError" role="alert"></div>
+                            <div class="lg-form-btns">
+                                <button type="button" class="btn svc-btn-light" id="lgFormCancel" hidden>취소</button>
+                                <button type="submit" class="btn btn-primary" id="lgFormSave">추가</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- 로그 내용 -->
+                    <div class="spec-container lg-viewer-box">
+                        <div class="lg-viewer-head">
+                            <h3 id="lgViewTitle">로그 내용</h3>
+                            <div class="lg-viewer-meta" id="lgViewMeta"></div>
+                        </div>
+                        <div class="lg-viewer-tools">
+                            <select id="lgSnap" class="lg-select" aria-label="수집 시각"></select>
+                            <input type="search" id="lgFilter" class="lg-filter" placeholder="검색 (포함된 줄만 표시)" aria-label="로그 검색">
+                            <div class="ua-tabs lg-levels" role="group" aria-label="수준">
+                                <button type="button" class="ua-tab active" data-level="all">전체</button>
+                                <button type="button" class="ua-tab" data-level="err">오류</button>
+                                <button type="button" class="ua-tab" data-level="warn">경고 이상</button>
+                            </div>
+                            <label class="lg-check"><input type="checkbox" id="lgWrap"> 줄바꿈</label>
+                            <button type="button" class="btn svc-btn-light" id="lgDownload">내려받기</button>
+                        </div>
+                        <div class="lg-viewer" id="lgViewer" tabindex="0" aria-label="로그 내용">
+                            <div class="lg-empty">왼쪽에서 로그를 선택하세요.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/js/script.js}"></script>
+    <script th:src="@{/js/server_logs.js}"></script>
+</body>
+</html>
