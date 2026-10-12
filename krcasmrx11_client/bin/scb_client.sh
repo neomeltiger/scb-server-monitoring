@@ -204,8 +204,14 @@ hb_ensure() {
         sp=`sed -n 's/^pid=//p' $HB_STATE_FILE 2>/dev/null`
         [ "$sp" = "$hp" ] || return 0
         hv=`sed -n 's/^ver=//p' $HB_STATE_FILE 2>/dev/null`
-        [ "$hv" = "$CLIENT_VER" ] && return 0
-        clog "하트비트 감시자 버전 갱신 (${hv:-1.8 이하} → $CLIENT_VER) - 감시자를 새 버전으로 다시 시작"
+        he=`sed -n 's/^env=//p' $HB_STATE_FILE 2>/dev/null`
+        if [ "$hv" = "$CLIENT_VER" ]; then
+            # 같은 버전 : 감시자가 읽은 client.env(토큰·웹 주소)가 지금과 같으면 그대로 (감시자도 변경을 스스로 다시 읽음)
+            [ -z "$he" ] || [ "$he" = "`env_sig`" ] && return 0
+            clog "하트비트 감시자 설정 변경 (client.env - 토큰 재발급 등) - 감시자를 다시 시작"
+        else
+            clog "하트비트 감시자 버전 갱신 (${hv:-1.8 이하} → $CLIENT_VER) - 감시자를 새 버전으로 다시 시작"
+        fi
         hb_stop > /dev/null
         sleep 1
     else

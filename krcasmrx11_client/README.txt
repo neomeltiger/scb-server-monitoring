@@ -120,3 +120,9 @@ krcasmrx11_client - 서버 → 통합 모니터링 웹 연동 에이전트 (Sola
   - 터미널이 EUC-KR 이면(로캘 ko, ko_KR.EUC 또는 etc/client.env 의 SCB_TERM_CHARSET=EUC-KR)
     scb_client.sh 의 화면 출력을 iconv 로 EUC-KR 로 바꿔 보여 줍니다. 데몬·로그 파일·웹 전송은 그대로 UTF-8.
   - 로그 파일을 EUC-KR 터미널에서 볼 때 : iconv -f UTF-8 -t ko_KR-euc log/scb_client.log | more
+
+[토큰 재발급 시 (1.10~)]
+  - 웹에서 토큰을 다시 발급하면 etc/client.env 의 SCB_AGENT_TOKEN 만 바꿔 저장하세요.
+    하트비트 감시자는 다음 주기에 자동으로 다시 읽고, 데몬은 bin/scb_client.sh restart 로 적용합니다.
+  - 1.9 이하에서 웹 로그에 AGENT AUTH FAIL ... /agent-api/v1/heartbeat 가 반복되면 감시자가 옛 토큰을 쓰는 상태입니다:
+      bin/scb_client.sh stopall ; bin/scb_client.sh start

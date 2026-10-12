@@ -162,10 +162,30 @@ public class AgentApiController {
 
     // ---- 내부 ----
 
+    /** 인증 실패 로그 : (주소, 경로)별 1분에 한 번 - 옛 토큰을 쓰는 감시자가 몇 초마다 보내도 로그가 쌓이지 않게 */
+    private final java.util.concurrent.ConcurrentHashMap<String, long[]> authFailLog = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final long AUTH_FAIL_LOG_MS = 60_000L;
+
+    private void logAuthFail(String token, HttpServletRequest req) {
+        String key = req.getRemoteAddr() + " " + req.getRequestURI();
+        long now = System.currentTimeMillis();
+        long[] st = authFailLog.computeIfAbsent(key, k -> new long[] {0L, 0L});   // [마지막 로그 시각, 그 뒤 실패 횟수]
+        synchronized (st) {
+            st[1]++;
+            if (now - st[0] < AUTH_FAIL_LOG_MS) return;
+            log.warn("AGENT AUTH FAIL from {} {} ({}회/1분, 토큰 {}) - 웹에서 토큰을 재발급했다면 그 서버의 etc/client.env 를 새 토큰으로 바꾸세요."
+                    + " 데몬만 새 토큰을 쓰고 하트비트 감시자가 옛 토큰이면 bin/scb_client.sh stopall → start (클라이언트 1.10 은 client.env 를 자동으로 다시 읽음)",
+                    req.getRemoteAddr(), req.getRequestURI(), st[1], token == null || token.trim().isEmpty() ? "없음" : "불일치");
+            st[0] = now;
+            st[1] = 0;
+        }
+        if (authFailLog.size() > 1000) authFailLog.clear();
+    }
+
     private Long auth(String token, HttpServletRequest req) {
         Long serverId = service.authenticate(token == null ? null : token.trim());
         if (serverId == null) {
-            log.warn("AGENT AUTH FAIL from {} {}", req.getRemoteAddr(), req.getRequestURI());
+            logAuthFail(token, req);
             throw new AgentAuthException();
         }
         return serverId;

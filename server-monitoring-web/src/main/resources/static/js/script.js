@@ -474,6 +474,15 @@ function drawTopoZone(ctx, pos, switchId, servers, fill, stroke, title) {
     ctx.restore();
 }
 
+/** 연결선 색 : 서버 상태 (Active 초록 / Standby 주황 / 데몬 재시작 필요 노랑 / Down 빨강) - 노드 색과 같은 판정 */
+const TOPO_LINE_COLOR = { Active: '#28a745', Standby: '#f0ad4e', Daemon: '#d97706', Down: '#dc3545' };
+function topoLineState(server) {
+    const v = topoViewStatus(server);
+    if (v === 'Down') return 'Down';
+    if (topoDaemonIssue(server)) return 'Daemon';
+    return v === 'Standby' ? 'Standby' : 'Active';
+}
+
 function drawTopoBus(ctx, pos, switchId, servers, dir) {
     const sw = pos[switchId];
     if (!sw) return;
@@ -492,10 +501,11 @@ function drawTopoBus(ctx, pos, switchId, servers, dir) {
     ctx.stroke();
     list.forEach(s => {
         const p = pos[s.id];
-        const down = topoIsDown(s);
+        const st = topoLineState(s);
         ctx.beginPath();
-        ctx.setLineDash(down ? [6, 4] : []);
-        ctx.strokeStyle = down ? '#dc3545' : '#64748b';
+        ctx.lineWidth = st === 'Down' ? 2.5 : 3;
+        ctx.setLineDash(st === 'Down' ? [6, 4] : []);
+        ctx.strokeStyle = TOPO_LINE_COLOR[st];
         ctx.moveTo(busX, p.y);
         ctx.lineTo(p.x - dir * 27, p.y);
         ctx.stroke();
@@ -544,11 +554,14 @@ function drawTopoLinks(ctx) {
         const pair = topoPairOf(s);
         if (!pair || !pos[s.id] || !pos[pair.id]) return;
         const a = pos[s.id], b = pos[pair.id];
-        const down = [s, pair].some(topoIsDown);
+        const states = [s, pair].map(topoLineState);
+        const down = states.indexOf('Down') !== -1;
+        // 둘 중 하나라도 Down → 빨강, 데몬 문제 → 노랑, 둘 다 정상 → 초록
+        const lineColor = down ? TOPO_LINE_COLOR.Down : states.indexOf('Daemon') !== -1 ? TOPO_LINE_COLOR.Daemon : TOPO_LINE_COLOR.Active;
         ctx.save();
         ctx.lineWidth = 2;
         ctx.setLineDash([7, 5]);
-        ctx.strokeStyle = down ? '#dc3545' : '#6c757d';
+        ctx.strokeStyle = lineColor;
         ctx.beginPath();
         ctx.moveTo(a.x + 27, a.y);
         ctx.lineTo(b.x - 27, b.y);
@@ -562,9 +575,9 @@ function drawTopoLinks(ctx) {
         ctx.fillStyle = '#ffffff';
         ctx.fill();
         ctx.lineWidth = 1;
-        ctx.strokeStyle = down ? '#dc3545' : '#adb5bd';
+        ctx.strokeStyle = lineColor;
         ctx.stroke();
-        ctx.fillStyle = down ? '#dc3545' : '#495057';
+        ctx.fillStyle = down ? TOPO_LINE_COLOR.Down : '#334155';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(text, mx, my + 1);
@@ -823,7 +836,8 @@ function renderTopoLegend() {
         ico(topoIconUri('ap', 'Active'), 'AP 서버') +
         ico(topoIconUri('db', 'Active'), 'DB 서버') +
         ico(topoIconUri('nfs', 'Active'), 'NFS 스토리지') +
-        dot('#28a745', 'Active') + dot('#f0ad4e', 'Standby') + dot('#dc3545', 'Down (하트비트·보고 없음)') +
+        dot('#28a745', 'Active') + dot('#f0ad4e', 'Standby') + dot('#d97706', '데몬 재시작 필요') + dot('#dc3545', 'Down (하트비트·보고 없음)') +
+        '<div class="legend-item"><span class="legend-line" style="background:#28a745"></span>연결선 = 서버 상태 색 (Down 은 빨간 점선)</div>' +
         '<div class="legend-item"><span class="legend-dash"></span>Sync 링크</div>';
 }
 

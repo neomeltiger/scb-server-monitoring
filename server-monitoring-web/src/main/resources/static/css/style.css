@@ -1414,3 +1414,6 @@ img, svg, canvas { max-width: 100%; }
     .m-hide-phone { display: none !important; }
     #network-container { height: 85vh; min-height: 260px; }
 }
+
+/* 구성도 범례 : 연결선 색 */
+.legend-line { display: inline-block; width: 26px; height: 4px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }

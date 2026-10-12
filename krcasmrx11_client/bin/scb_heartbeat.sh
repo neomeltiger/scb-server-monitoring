@@ -125,6 +125,7 @@ write_hb_state() {
         echo "last_ok=$LAST_OK"
         echo "fail=$FAIL"
         echo "ver=$CLIENT_VER"
+        echo "env=$ENV_SIG"
         echo "fb=$FB_STAT"
     } > $HB_STATE 2>/dev/null
 }
@@ -137,8 +138,19 @@ finish() {
 }
 trap finish 1 2 15
 clog "HEARTBEAT start pid=$$ (감시자 - 데몬과 따로 실행)"
+ENV_SIG=`env_sig`
+
+# client.env 가 바뀌었으면 다시 읽음 (토큰 재발급 / 웹 주소 변경을 감시자 재시작 없이 바로 적용)
+reload_env() {
+    new_sig=`env_sig`
+    [ -n "$new_sig" ] && [ "$new_sig" != "$ENV_SIG" ] || return 0
+    . $ENV_FILE
+    ENV_SIG=$new_sig
+    clog "HEARTBEAT client.env 변경 감지 - 토큰·웹 주소를 다시 읽음 (web=$SCB_WEB_URL)"
+}
 
 while :; do
+    reload_env
     check_daemon
     if [ "$DSTATE" != "$PREV_DSTATE" ]; then
         case "$DSTATE" in
@@ -178,7 +190,13 @@ while :; do
         LAST_OK=`date '+%Y-%m-%d %H:%M:%S'`
     else
         FAIL=`expr $FAIL + 1`
-        [ $FAIL -eq 1 ] && clog "HEARTBEAT 전송 실패 (HTTP $HTTP_STATUS) - 웹 서버 연결 / 토큰을 확인하세요"
+        if [ $FAIL -eq 1 ]; then
+            if [ "$HTTP_STATUS" = "401" ]; then
+                clog "HEARTBEAT 토큰 인증 실패 (HTTP 401) - etc/client.env 의 SCB_AGENT_TOKEN 을 웹에서 마지막으로 발급한 토큰으로 바꾸세요 (저장하면 자동으로 다시 읽음)"
+            else
+                clog "HEARTBEAT 전송 실패 (HTTP $HTTP_STATUS) - 웹 서버 연결 / 토큰을 확인하세요"
+            fi
+        fi
     fi
     write_hb_state
 
