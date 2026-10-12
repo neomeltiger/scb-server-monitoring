@@ -139,8 +139,9 @@ const TOPO_SWITCH_X = 380; // 스위치 x 좌표
 const TOPO_BUS_GAP = 95;   // 스위치-서버 버스 간격
 
 // 구성도 서버 상태 : 하트비트로만 판단 (데몬 scb_client 실행·보고 여부, 등록 상태와 관계없음)
-//   하트비트를 못 받으면 Down (빨강) : 끊김(3회 연속 미수신) / 없음(하트비트 셸 미설치·이전 클라이언트·에이전트 미설치)
-//   하트비트 수신 중 → 등록 상태(Active·Standby)
+//   살아 있음 = 생존 신호(하트비트 셸, 이전 클라이언트는 데몬의 웹 확인) 수신 중 또는 자원·프로세스 보고 정상 → 등록 상태(Active·Standby)
+//   Down (빨강) = 위 신호를 하나도 못 받음 : 하트비트 끊김(3회 연속 미수신) / 하트비트 없음(에이전트 미설치·받은 적 없음)
+//   서버 판정(AgentView.serverDown)과 같은 기준 - 서버 다운이면 프로세스도 종료로 표시됨
 //   데몬만 멈춘 경우는 Down 이 아니라 "데몬 재시작 필요" 표시 (topoDaemonIssue)
 const TOPO_NODATA_LABEL = { NONE: '에이전트 미설치', WAITING: '보고 대기', STALE: '보고 끊김', LOST: '하트비트 끊김', PAUSED: '수집 중지', STOPPED: '데몬 종료' };
 
@@ -190,24 +191,35 @@ function serverBaseDown(server) {
 }
 
 /**
- * 서버 자원 하트비트 상태 : ALIVE / LOST / NONE (에이전트 상태를 아직 못 읽었으면 null)
- *   서버의 하트비트 셸(bin/scb_heartbeat.sh, 클라이언트 1.4~)이 보낸 신호만 사용 - 데몬(scb_client.sh) 실행 여부와 무관.
- *   하트비트 셸이 없는 이전 클라이언트(1.3 이하는 데몬의 웹 확인을 생존 신호로 씀)·cron 방식·미설치는 NONE
+ * 서버 생존 상태 : ALIVE / LOST / NONE (에이전트 상태를 아직 못 읽었으면 null)
+ *   ALIVE : 하트비트 수신 중(하트비트 셸, 이전 클라이언트는 데몬의 웹 확인) 또는 자원·프로세스 보고가 정상
+ *           → 데몬만 멈춘 경우는 Down 이 아니라 "데몬 재시작 필요" (topoDaemonIssue)
+ *   LOST  : 생존 신호가 3회 연속 끊김 / NONE : 받은 적 없음 (에이전트 미설치 등)
  */
 function topoHb(server) {
     if (!agentStatesLoaded) return null;
-    const a = agentStates[server.id] || {};
-    if (!a.hbClient) return 'NONE';
-    return a.hbState === 'LOST' ? 'LOST' : a.hbState === 'ALIVE' ? 'ALIVE' : 'NONE';
+    const a = agentStates[server.id];
+    if (!a) return 'NONE';
+    if (!a.serverDown) return 'ALIVE';
+    return a.hbState === 'LOST' ? 'LOST' : 'NONE';
 }
 
-/** 구성도의 서버 Down = 하트비트를 못 받음 (끊김 / 없음). 데몬이 죽었거나 멈춰도, 자원 보고가 끊겨도 하트비트가 오면 Down 아님 */
+/** 생존 신호 출처 : 하트비트 셸 / 데몬 확인 / 자원 보고 */
+function topoAliveSource(server) {
+    const a = agentStates[server.id] || {};
+    if (a.hbClient && a.hbState === 'ALIVE') return '하트비트';
+    if (a.hbState === 'ALIVE') return '데몬 웹 확인 (이전 클라이언트)';
+    if (a.state === 'OK') return '자원·프로세스 보고';
+    return '수신 중';
+}
+
+/** 구성도의 서버 Down = 생존 신호·자원 보고를 하나도 못 받음 (끊김 / 없음) */
 function topoIsDown(server) {
     const hb = topoHb(server);
     return hb === 'LOST' || hb === 'NONE';
 }
 
-/** 하트비트를 받은 적 없음 (하트비트 셸 미설치 / 이전 클라이언트 / 에이전트 미설치) - Down 사유 "하트비트 없음" */
+/** 생존 신호를 받은 적 없음 (에이전트 미설치 / 보고 대기) - Down 사유 "하트비트 없음" */
 function topoNoHeartbeat(server) {
     return topoHb(server) === 'NONE';
 }
@@ -227,7 +239,7 @@ function topoViewStatus(server) {
 /** 하트비트 마지막 수신 (에이전트 상태 목록) */
 function topoLastHb(server) {
     const a = agentStates[server.id] || {};
-    return a.hbClient && a.lastHbDt ? a.lastHbDt + (a.lastHbAgoSec != null ? ' (' + a.lastHbAgoSec + '초 전)' : '') : null;
+    return a.lastHbDt ? a.lastHbDt + (a.lastHbAgoSec != null ? ' (' + a.lastHbAgoSec + '초 전)' : '') : null;
 }
 
 /** Down 사유 짧은 표시 : 정보 수신 안 됨이면 " (보고 끊김)" */
@@ -594,7 +606,7 @@ function topoDetailHtml(server) {
         '<tr><th>OS 종류</th><td>' + escapeHtml(server.os) + '</td></tr>' +
         '<tr><th>동기화 상태</th><td><span style="color:' + (isDown ? '#dc3545' : 'inherit') + ';font-weight:' + (isDown ? 'bold' : 'normal') + ';">' + escapeHtml(isDown ? 'DISCONNECTED (Link Down)' : server.sync) + '</span></td></tr>' +
         '<tr><th>동기화 대상</th><td>' + (pair ? escapeHtml(pair.systemName) + ' (' + escapeHtml(pair.ip) + ')' : '-') + '</td></tr>' +
-        '<tr><th>하트비트</th><td>' + (isDown ? '<b style="color:#dc3545;">' + (topoNoHeartbeat(server) ? '없음' : '끊김') + '</b>' : topoHb(server) === null ? '<span style="color:#64748b;">확인 중</span>' : '<span style="color:#155724;">수신 중</span>') +
+        '<tr><th>하트비트</th><td>' + (isDown ? '<b style="color:#dc3545;">' + (topoNoHeartbeat(server) ? '없음' : '끊김') + '</b>' : topoHb(server) === null ? '<span style="color:#64748b;">확인 중</span>' : '<span style="color:#155724;">수신 중 · ' + escapeHtml(topoAliveSource(server)) + '</span>') +
             (lastHb ? ' <small>' + escapeHtml(lastHb) + '</small>' : '') + '</td></tr>' +
         '<tr><th>활성 세션수</th><td>' + (isDown ? '0' : escapeHtml(server.sessions)) + ' 개</td></tr>' +
         '</table>' +
@@ -605,10 +617,8 @@ function topoDetailHtml(server) {
         '<div class="topo-section-title">주요 프로세스 <span>' + procs.filter(p => p.running).length + ' / ' + procs.length + ' 실행 중</span></div>' + procHtml +
         (isDown && !topoNoHeartbeat(server) ? '<div class="topo-down-warn">경고: 하트비트를 3회 연속 받지 못해 서버 다운(Down)으로 표시합니다'
                 + (lastHb ? ' (마지막 수신 ' + escapeHtml(lastHb) + ')' : '') + '. 서버 전원·네트워크를 확인하세요.</div>'
-        : isDown ? '<div class="topo-down-warn">경고: 하트비트를 받지 못해 서버 다운(Down)으로 표시합니다. ' + ((agentStates[server.id] || {}).lastPollDt
-                    ? '하트비트 셸이 없는 이전 클라이언트입니다 (데몬 신호는 구성도 판정에 쓰지 않음). '
-                    : '하트비트를 받은 적이 없습니다 (에이전트 미설치 또는 하트비트 감시자 미실행). ')
-                + '서버에 krcasmrx11_client 1.9 를 설치하고 bin/scb_client.sh start 로 하트비트 감시자를 실행하세요.</div>'
+        : isDown ? '<div class="topo-down-warn">경고: 하트비트·자원 보고를 받지 못해 서버 다운(Down)으로 표시합니다. '
+                + '에이전트(krcasmrx11_client 1.9)를 설치하고 bin/scb_client.sh start 로 실행하세요.</div>'
         : serverBaseDown(server) ? '<div class="topo-nohb-note">등록 상태는 Down 이지만 하트비트를 받고 있어 서버는 살아 있습니다.</div>' : '') +
         topoDaemonNoticeHtml(server, isDown) +
         '<div class="topo-actions admin-only"><button class="btn btn-primary" onclick="openServerEdit(' + server.id + ')">서버 정보 수정</button>' +
@@ -813,7 +823,7 @@ function renderTopoLegend() {
         ico(topoIconUri('ap', 'Active'), 'AP 서버') +
         ico(topoIconUri('db', 'Active'), 'DB 서버') +
         ico(topoIconUri('nfs', 'Active'), 'NFS 스토리지') +
-        dot('#28a745', 'Active') + dot('#f0ad4e', 'Standby') + dot('#dc3545', 'Down (하트비트 끊김 / 없음)') +
+        dot('#28a745', 'Active') + dot('#f0ad4e', 'Standby') + dot('#dc3545', 'Down (하트비트·보고 없음)') +
         '<div class="legend-item"><span class="legend-dash"></span>Sync 링크</div>';
 }
 
