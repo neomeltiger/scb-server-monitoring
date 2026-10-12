@@ -68,6 +68,9 @@ java -Dfile.encoding=UTF-8 -jar target/server-monitoring-web.war
 - springdoc-openapi-ui 1.8.0 (`config/OpenApiConfig`), 컨트롤러별 `@Tag` / `@Operation(summary)` 한글 설명
 - [Try it out] 은 로그인한 세션으로 호출. CSRF 는 쿠키 방식(`XSRF-TOKEN` → `X-XSRF-TOKEN` 헤더)이라 Swagger UI 가 자동 전달 (화면은 meta 태그 그대로)
 - 끄기 : 환경변수 `SWAGGER_ENABLED=false`
+- API 호출 예제 (Postman API 가이드 방식) : `config/ApiSampleCatalog` 가 등록된 매핑(/api, /agent-api, @Operation)에서 API 마다 cURL / Java / Postman 예제와 요청 본문 예시를 만들어 Swagger 설명·[Try it out] 에 넣음 (`OpenApiConfig` OperationCustomizer). 본문 예시는 `ApiSampleCatalog.BODY`, 쿼리 예시는 `QUERY_SAMPLE` / `QUERY_USE`
+- 복사해서 쓰는 Java 클라이언트 : `static/samples/ScbApiClient.java` (단일 파일, JDK 1.8, 로그인·세션·CSRF·JSON 처리, `main` 실행 예) - `/samples/ScbApiClient.java` 로 내려받기
+- Postman 컬렉션 v2.1 : `GET /api/docs/postman-collection` (`web/ApiDocsController`) - 태그별 폴더, 로그인 요청, CSRF 자동 스크립트, 변수 baseUrl / username / password / agentToken
 
 ### 데이터 API (로그인 필요, 변경 요청은 CSRF 토큰 필요)
 
