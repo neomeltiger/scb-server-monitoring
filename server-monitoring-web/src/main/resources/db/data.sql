@@ -1,7 +1,7 @@
 -- =============================================================
 --  scb_mon_agent 초기 데이터 (ANSI SQL)
 --  서버 10대 / 프로세스 27건 / 서비스 27건(krcasmrx11 service.list) / 그래프 샘플 이력
---  화면의 "서버 목록 기본값으로 초기화" 도 이 파일을 실행합니다. (사용자 계정은 users.sql - 초기화 대상 아님)
+--  (화면의 "서버 목록 기본값으로 초기화" 버튼은 삭제됨 - API POST /api/topology/reset (ADMIN) 만 남음, 사용자 계정 users.sql 은 초기화 대상 아님)
 -- =============================================================
 DELETE FROM tb_proc_fallback;
 DELETE FROM tb_heartbeat_hist;

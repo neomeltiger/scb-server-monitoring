@@ -111,18 +111,6 @@ function apiAlert(e) {
     alert(e.message || String(e));
 }
 
-async function resetServers() {
-    if (!confirm('모든 서버 변경 내용을 지우고 기본 서버 목록으로 되돌립니다. 계속하시겠습니까?')) return;
-    try {
-        serversData = await apiRequest('POST', TOPO_API + '/reset');
-    } catch (e) { apiAlert(e); return; }
-    if (nodes) rebuildTopology();
-    updateRemoveSelect();
-    const detail = document.getElementById('detail-content');
-    if (detail) detail.innerHTML = '<p style="color: #888; font-style: italic; font-size: 13px;">다이어그램에서 서버 노드를 클릭하세요.</p>';
-    alert('기본 서버 목록으로 초기화했습니다.');
-}
-
 let network = null;
 let nodes, edges;
 
