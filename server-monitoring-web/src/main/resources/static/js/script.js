@@ -188,23 +188,27 @@ function serverBaseDown(server) {
     return b === 'Down' || b === 'Stopped';
 }
 
-/** 하트비트 상태 : ALIVE / LOST / STOPPED / NONE, 에이전트 상태를 못 읽었으면 null */
+/**
+ * 서버 자원 하트비트 상태 : ALIVE / LOST / NONE
+ *   서버의 하트비트 셸(bin/scb_heartbeat.sh, 클라이언트 1.4~)이 보낸 신호만 사용 - 데몬(scb_client.sh) 실행 여부와 무관.
+ *   하트비트 셸이 없는 이전 클라이언트(1.3 이하는 데몬의 웹 확인을 생존 신호로 씀)·cron 방식·미설치,
+ *   에이전트 상태를 아직 못 읽은 경우는 NONE (판단 불가)
+ */
 function topoHb(server) {
-    if (!agentStatesLoaded) return null;
-    return (agentStates[server.id] || {}).hbState || 'NONE';
+    if (!agentStatesLoaded) return 'NONE';
+    const a = agentStates[server.id] || {};
+    if (!a.hbClient) return 'NONE';
+    return a.hbState === 'LOST' ? 'LOST' : a.hbState === 'ALIVE' ? 'ALIVE' : 'NONE';
 }
 
-/** 구성도의 서버 Down = 하트비트 끊김만 (데몬이 죽었거나 멈춰도 하트비트가 오면 Down 아님) */
+/** 구성도의 서버 Down = 하트비트 3회 연속 미수신만 (데몬이 죽었거나 멈춰도, 자원 보고가 끊겨도 하트비트가 오면 Down 아님) */
 function topoIsDown(server) {
-    const hb = topoHb(server);
-    if (hb === null) return serverBaseDown(server) || !!server.noData;   // 에이전트 상태를 못 읽었을 때만 이전 기준
-    return hb === 'LOST';
+    return topoHb(server) === 'LOST';
 }
 
-/** 하트비트를 받은 적 없음 (에이전트 미설치 / cron 방식 이전 클라이언트 / 이전 데몬의 종료 보고 뒤) → 서버 다운 여부 판단 불가 */
+/** 하트비트 없음 (하트비트 셸 미설치 / 이전 클라이언트 / 에이전트 미설치) → 서버 다운 여부 판단 불가 (회색) */
 function topoNoHeartbeat(server) {
-    const hb = topoHb(server);
-    return hb === 'NONE' || hb === 'STOPPED';
+    return topoHb(server) === 'NONE';
 }
 
 function topoViewStatus(server) {
@@ -217,7 +221,7 @@ function topoViewStatus(server) {
 /** 하트비트 마지막 수신 (에이전트 상태 목록) */
 function topoLastHb(server) {
     const a = agentStates[server.id] || {};
-    return a.lastHbDt ? a.lastHbDt + (a.lastHbAgoSec != null ? ' (' + a.lastHbAgoSec + '초 전)' : '') : null;
+    return a.hbClient && a.lastHbDt ? a.lastHbDt + (a.lastHbAgoSec != null ? ' (' + a.lastHbAgoSec + '초 전)' : '') : null;
 }
 
 /** Down 사유 짧은 표시 : 정보 수신 안 됨이면 " (보고 끊김)" */
@@ -341,9 +345,8 @@ function topoServerLook(s) {
     const down = view === 'Down';
     const unknown = view === 'Unknown';
     const issue = down || unknown ? null : topoDaemonIssue(s);
-    const hbKnown = topoHb(s) !== null;
     return {
-        label: s.systemName + '\n' + s.ip + '\n' + (down ? 'DOWN' + (hbKnown ? ' (하트비트 끊김)' : '')
+        label: s.systemName + '\n' + s.ip + '\n' + (down ? 'DOWN (하트비트 끊김)'
             : unknown ? serverBaseStatus(s) + ' · 하트비트 없음'
             : view + (issue ? ' · 데몬 재시작 필요' : '')),
         image: topoIconUri(getServerType(s), view),
@@ -599,8 +602,10 @@ function topoDetailHtml(server) {
         '<div class="topo-section-title">주요 프로세스 <span>' + procs.filter(p => p.running).length + ' / ' + procs.length + ' 실행 중</span></div>' + procHtml +
         (isDown ? '<div class="topo-down-warn">경고: 하트비트를 3회 연속 받지 못해 서버 다운(Down)으로 표시합니다'
                 + (lastHb ? ' (마지막 수신 ' + escapeHtml(lastHb) + ')' : '') + '. 서버 전원·네트워크를 확인하세요.</div>'
-        : unknown ? '<div class="topo-nohb-note">하트비트를 받은 적이 없어 서버 다운 여부를 판단할 수 없습니다. '
-                + '서버에 krcasmrx11_client 1.5 이상을 설치하고 bin/scb_client.sh start 로 하트비트 감시자를 실행하세요.</div>'
+        : unknown ? '<div class="topo-nohb-note">' + ((agentStates[server.id] || {}).lastPollDt
+                    ? '하트비트 셸이 없는 이전 클라이언트입니다. 구성도는 데몬 신호를 쓰지 않으므로 서버 다운 여부를 판단할 수 없습니다. '
+                    : '하트비트를 받은 적이 없어 서버 다운 여부를 판단할 수 없습니다. ')
+                + '서버에 krcasmrx11_client 1.9 를 설치하고 bin/scb_client.sh start 로 하트비트 감시자를 실행하세요.</div>'
         : serverBaseDown(server) ? '<div class="topo-nohb-note">등록 상태는 Down 이지만 하트비트를 받고 있어 서버는 살아 있습니다.</div>' : '') +
         topoDaemonNoticeHtml(server, isDown) +
         '<div class="topo-actions admin-only"><button class="btn btn-primary" onclick="openServerEdit(' + server.id + ')">서버 정보 수정</button>' +
