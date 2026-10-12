@@ -44,6 +44,7 @@ krcasmrx11_client - 서버 → 통합 모니터링 웹 연동 에이전트 (Sola
   bin/collect_net.sh      [net]      동기화 대상 서버 통신 (ping)         → 구성도 상세 "동기화 대상 통신"
   bin/exec_command.sh     제어 명령 1건 실행 : scb_main.sh <명령> <대상>
   bin/collect_log.sh      서버 로그 마지막 N줄 (웹 서버 요청, SCB_LOG_ALLOW 허용 경로만)
+  bin/collect_ps.sh       [ps] 서버 전체 실행 프로세스 - 데몬 중단 중 감시자가 대신 수집할 때만 (하트비트 감시자 제외, 1.8~)
   lib/scb_client_common.sh  공통 (설정, HTTP: curl 또는 /usr/sfw/bin/wget, 로그, 잠금)
   etc/client.env.sample   설정 예시 (SCB_WEB_URL, SCB_AGENT_TOKEN, SCB_AGENT_HOME ...)
   run/                    웹 설정(config.txt), 마지막 보고(report.txt) 등 작업 파일
@@ -88,7 +89,8 @@ krcasmrx11_client - 서버 → 통합 모니터링 웹 연동 에이전트 (Sola
                - 재부팅 후 자동으로 뜨려면 부팅 스크립트 필요 (bin/scb_client.sh install-boot)
   데몬 중단 중 프로세스 현황 (1.7~)
                데몬이 죽거나 멈춰도 서버의 프로세스는 살아 있을 수 있으므로, 감시자가 30초마다(SCB_FALLBACK_SEC)
-               collect_metric / collect_proc / collect_service 로 대신 수집해 POST /agent-api/v1/fallback
+               collect_metric / collect_proc / collect_service / collect_ps 로 대신 수집해 POST /agent-api/v1/fallback
+               (collect_ps : 서버에서 실행 중인 전체 프로세스, CPU 높은 순 최대 300건, 하트비트 감시자와 그 수집 작업은 제외)
                → 웹 화면 서버자원모니터링 → 데몬 중단 프로세스 현황 (기존 화면은 데몬 기준 그대로 "종료" 표시)
                데몬이 다시 시작되면 웹이 그 정보를 삭제합니다.
   확인       : 웹 화면 서버자원모니터링 → 하트비트 모니터링 (서버별 상태, 연속 미수신 횟수, 이벤트 이력)

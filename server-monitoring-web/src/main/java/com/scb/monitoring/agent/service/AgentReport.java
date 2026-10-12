@@ -27,6 +27,9 @@ public class AgentReport {
     final Map<String, String> metric = new HashMap<>();
     final List<ProcState> procs = new ArrayList<>();
     final List<String[]> services = new ArrayList<>();
+    /** [ps] 서버 전체 실행 프로세스 (감시자 대신 수집 1.8~) : pid, ppid, user, cpu, mem, etime, args */
+    final List<String[]> ps = new ArrayList<>();
+    boolean psSection;
     String peer;
 
     static class ProcState {
@@ -41,6 +44,8 @@ public class AgentReport {
     public Map<String, String> metrics() { return metric; }
     public List<String[]> serviceStates() { return services; }
     public int procCount() { return procs.size(); }
+    public List<String[]> psRows() { return ps; }
+    public boolean hasPs() { return psSection; }
     /** [procId, Y/N, pid, cpu, mem] */
     public List<Object[]> procStates() {
         List<Object[]> out = new ArrayList<>();
@@ -57,6 +62,7 @@ public class AgentReport {
             if (line.isEmpty() || line.startsWith("#")) continue;
             if (line.startsWith("[") && line.endsWith("]")) {
                 section = line.substring(1, line.length() - 1).trim().toLowerCase();
+                if ("ps".equals(section)) r.psSection = true;
                 continue;
             }
             switch (section) {
@@ -64,6 +70,7 @@ public class AgentReport {
                 case "metric":  putKv(r.metric, line); break;
                 case "proc":    r.addProc(line); break;
                 case "service": r.addService(line); break;
+                case "ps":      r.addPs(line); break;
                 case "net":
                     if (line.startsWith("peer=")) r.peer = clip(line.substring(5), 100);
                     break;
@@ -93,6 +100,14 @@ public class AgentReport {
         } catch (NumberFormatException e) {
             // 잘못된 줄 무시
         }
+    }
+
+    private void addPs(String line) {
+        String[] f = line.split("\\|", 7);
+        if (f.length < 7) return;
+        if (!f[0].trim().matches("\\d{1,10}") || !f[1].trim().matches("\\d{1,10}")) return;
+        ps.add(new String[] {f[0].trim(), f[1].trim(), clip(f[2].trim(), 30), clip(f[3].trim(), 10), clip(f[4].trim(), 10),
+                clip(f[5].trim(), 20), clip(f[6].trim(), 300)});
     }
 
     private void addService(String line) {

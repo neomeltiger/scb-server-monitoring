@@ -42,6 +42,9 @@ public class FallbackView {
     private int svcRunning;
     private List<Map<String, Object>> processes = new ArrayList<>();
     private List<Map<String, Object>> services = new ArrayList<>();
+    /** 서버 전체 실행 프로세스 (하트비트 감시자 제외) - 클라이언트 1.8 미만이면 psCollected=false */
+    private boolean psCollected;
+    private List<Map<String, Object>> psList = new ArrayList<>();
 
     public static FallbackView of(Server s, ProcFallback f, AgentReport r, AgentView av, Map<Long, ServerProcess> procMeta,
                                   Map<String, ServiceItem> svcMeta, List<String> svcOrder, long now, int staleSec) {
@@ -99,6 +102,30 @@ public class FallbackView {
             if ("RUNNING".equals(st[1])) v.svcRunning++;
             v.services.add(m);
         }
+        // 서버 전체 실행 프로세스 : 주요 프로세스(실행 경로)·서비스(스크립트 경로) 와 맞으면 표시
+        v.psCollected = r.hasPs();
+        for (String[] p : r.psRows()) {
+            String args = p[6];
+            String tag = null;
+            for (ServerProcess sp : procMeta.values()) {
+                if (sp.getExecPath() != null && !sp.getExecPath().isEmpty() && args.contains(sp.getExecPath())) { tag = "주요: " + sp.getProcNm(); break; }
+            }
+            if (tag == null) {
+                for (ServiceItem it : svcMeta.values()) {
+                    if (it.getScriptPath() != null && !it.getScriptPath().isEmpty() && args.contains(it.getScriptPath())) { tag = "서비스: " + it.getSvcNm(); break; }
+                }
+            }
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("pid", p[0]);
+            m.put("ppid", p[1]);
+            m.put("user", p[2]);
+            m.put("cpu", p[3]);
+            m.put("mem", p[4]);
+            m.put("etime", p[5]);
+            m.put("args", args);
+            m.put("tag", tag);
+            v.psList.add(m);
+        }
         return v;
     }
 
@@ -130,4 +157,6 @@ public class FallbackView {
     public int getSvcRunning() { return svcRunning; }
     public List<Map<String, Object>> getProcesses() { return processes; }
     public List<Map<String, Object>> getServices() { return services; }
+    public boolean isPsCollected() { return psCollected; }
+    public List<Map<String, Object>> getPsList() { return psList; }
 }

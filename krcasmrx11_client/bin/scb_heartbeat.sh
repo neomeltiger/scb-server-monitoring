@@ -13,7 +13,8 @@
 #       boot      : 서버 부팅 시 자동 시작(rc 스크립트) 설치 여부, btime : 서버 부팅 시각 (바뀌면 웹이 재부팅 감지)
 #   서버 복구 : 서버가 되살아나 하트비트가 다시 가면 웹이 감지 → 데몬이 멈춰 있으면 restart=Y (자동 재시작)
 #   데몬 중단 중 프로세스 현황 (1.7~) : 데몬이 DEAD / STOPPED 이면 SCB_FALLBACK_SEC(기본 30초)마다
-#     collect_metric / collect_proc / collect_service 로 대신 수집해 POST /agent-api/v1/fallback (백그라운드 - 하트비트는 늦어지지 않음)
+#     collect_metric / collect_proc / collect_service / collect_ps(1.8~ 서버 전체 실행 프로세스, 감시자 제외) 로
+#     대신 수집해 POST /agent-api/v1/fallback (백그라운드 - 하트비트는 늦어지지 않음)
 #     → 웹 "데몬 중단 프로세스 현황" 화면에 표시, 데몬이 다시 뜨면 웹이 삭제
 #   데몬과 따로 돌기 때문에 데몬이 죽어도 하트비트는 계속 갑니다.
 #     → 웹은 "서버는 정상, 데몬만 문제" 로 보고 서버를 Down 으로 표시하지 않고 데몬 재시작 알림을 띄움
@@ -70,6 +71,7 @@ fallback_collect() {
             sh $BIN_DIR/collect_metric.sh
             sh $BIN_DIR/collect_proc.sh
             sh $BIN_DIR/collect_service.sh
+            sh $BIN_DIR/collect_ps.sh
         } > $RUN_DIR/fallback.txt 2>> $LOG_FILE
         if http_call POST /agent-api/v1/fallback $RUN_DIR/fallback.resp $RUN_DIR/fallback.txt; then
             if [ ! -f $RUN_DIR/fallback.sent ]; then

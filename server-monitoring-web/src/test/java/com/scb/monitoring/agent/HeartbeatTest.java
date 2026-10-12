@@ -273,7 +273,10 @@ class HeartbeatTest {
         agent.pullCommands(11L, "RUNNING", 900, "1.7");
         heartbeat.beat(11L, 900, "RUNNING");
         String fb = "[metric]\ncpu=12.5\nmem=40\ndisk=50\n[proc]\n1|Y|100|1.5|2.5\n2|N|||\n13|Y|1|1|1\n"
-                + "[service]\nSCB_fs_app1|RUNNING|5555|3.0|4.0\nSCB_xml_app1|STOPPED|\n";
+                + "[service]\nSCB_fs_app1|RUNNING|5555|3.0|4.0\nSCB_xml_app1|STOPPED|\n"
+                + "[ps]\n24102|1|murex|6.4|12.8|01:02:03|/opt/murex/bin/mx_kernel -d\n"
+                + "5555|1|murex|3.0|4.0|10:00|/bin/sh /shared/opt/pos/SCB_fs_app1/mxg_fs.sh start\n"
+                + "77|1|root|0.1|0.2|5-01:00:00|/usr/sbin/sshd -o a|b\nbad|line\n";
 
         // 데몬이 돌고 있으면 받지 않음
         assertFalse(fallback.ingest(11L, fb));
@@ -298,6 +301,13 @@ class HeartbeatTest {
         assertEquals("SCB_fs_app1", v.getServices().get(0).get("name"), "service.list 순서");
         assertEquals(1, v.getSvcRunning());
         assertFalse(v.isStale());
+        // 서버 전체 실행 프로세스 (감시자 제외는 클라이언트 collect_ps.sh 가 함)
+        assertTrue(v.isPsCollected());
+        assertEquals(3, v.getPsList().size(), "형식이 틀린 줄은 무시");
+        assertEquals("주요: mx_kernel_engine", v.getPsList().get(0).get("tag"));
+        assertEquals("서비스: SCB_fs_app1", v.getPsList().get(1).get("tag"));
+        assertEquals(null, v.getPsList().get(2).get("tag"));
+        assertEquals("/usr/sbin/sshd -o a|b", v.getPsList().get(2).get("args"), "명령행 안의 | 는 그대로");
 
         // 데몬이 다시 뜨면(데몬의 웹 확인) 삭제
         agent.pullCommands(11L, "RUNNING", 901, "1.7");

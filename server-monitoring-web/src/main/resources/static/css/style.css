@@ -1272,3 +1272,13 @@ img, svg, canvas { max-width: 100%; }
 .fb-table td, .fb-table th { font-size: 12px; }
 .fb-none { font-size: 12px; color: #64748b; padding: 8px 0; }
 .fb-empty small { color: #64748b; }
+.fb-ps { border-top: 1px dashed #e2e8f0; padding-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.fb-ps h4 { margin: 0; font-size: 14px; color: #203a43; }
+.fb-ps-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.fb-ps-body { overflow-x: auto; }
+.fb-ps-table { min-width: 720px; }
+.fb-ps-table td { vertical-align: top; }
+.fb-ps-args { font-family: Consolas, monospace; font-size: 11px; overflow-wrap: anywhere; max-width: 640px; }
+.fb-ps-main td { background: #f0f7ff; }
+.fb-ps-tag { display: inline-block; padding: 0 6px; border-radius: 8px; font-size: 10px; font-family: inherit; background: #d6e9ff; color: #0b4a8b; font-weight: bold; }
+.fb-ps-more { align-self: flex-start; }
