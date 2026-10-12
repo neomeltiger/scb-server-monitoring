@@ -1288,3 +1288,7 @@ img, svg, canvas { max-width: 100%; }
 .fb-card.blocked .fb-pending-msg { color: #721c24; font-weight: bold; }
 .fb-pending-act { font-size: 12px; color: #334155; }
 .fb-pending-act code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; overflow-wrap: anywhere; }
+
+/* ---- 네트워크 구성도 : 하트비트로만 판단 ---- */
+.badge-unknown { background: #e2e8f0; color: #475569; }
+.topo-nohb-note { background: #f1f5f9; color: #334155; padding: 8px; border-radius: 4px; font-size: 12px; margin-top: 8px; line-height: 1.5; }

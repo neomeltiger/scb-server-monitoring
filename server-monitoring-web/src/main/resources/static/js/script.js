@@ -130,15 +130,17 @@ let nodes, edges;
 const TOPO_STATUS = {
     Active:  { fill: '#e7f1ff', stroke: '#007bff', led: '#28a745' },
     Standby: { fill: '#fff8e1', stroke: '#c79100', led: '#f0ad4e' },
-    Down:    { fill: '#fde8ea', stroke: '#dc3545', led: '#dc3545' }
+    Down:    { fill: '#fde8ea', stroke: '#dc3545', led: '#dc3545' },
+    Unknown: { fill: '#f1f5f9', stroke: '#94a3b8', led: '#94a3b8' }     // 하트비트 없음 (판단 불가)
 };
 const TOPO_ROW = 105;      // 서버 행 간격
 const TOPO_SERVER_X = 190; // 서버 열 x 좌표 (ITC는 -, DRC는 +)
 const TOPO_SWITCH_X = 380; // 스위치 x 좌표
 const TOPO_BUS_GAP = 95;   // 스위치-서버 버스 간격
 
-// 구성도 표시 상태 : DB 상태가 Down 이거나, 에이전트로 서버 기본 정보를 받아오지 못하면(OK 외) Down 색으로 표시
-//   (에이전트 상태를 못 읽었으면 DB 상태만 사용)
+// 구성도 서버 상태 : 하트비트로만 판단 (데몬 scb_client 실행·보고 여부, 등록 상태와 관계없음)
+//   하트비트 끊김(3회 연속 미수신) → Down / 하트비트 수신 중 → 등록 상태(Active·Standby) / 하트비트 없음 → 회색 (판단 불가)
+//   데몬만 멈춘 경우는 Down 이 아니라 "데몬 재시작 필요" 표시 (topoDaemonIssue)
 const TOPO_NODATA_LABEL = { NONE: '에이전트 미설치', WAITING: '보고 대기', STALE: '보고 끊김', LOST: '하트비트 끊김', PAUSED: '수집 중지', STOPPED: '데몬 종료' };
 
 /**
@@ -186,12 +188,36 @@ function serverBaseDown(server) {
     return b === 'Down' || b === 'Stopped';
 }
 
+/** 하트비트 상태 : ALIVE / LOST / STOPPED / NONE, 에이전트 상태를 못 읽었으면 null */
+function topoHb(server) {
+    if (!agentStatesLoaded) return null;
+    return (agentStates[server.id] || {}).hbState || 'NONE';
+}
+
+/** 구성도의 서버 Down = 하트비트 끊김만 (데몬이 죽었거나 멈춰도 하트비트가 오면 Down 아님) */
 function topoIsDown(server) {
-    return serverBaseDown(server) || topoNoDataReason(server) !== null;
+    const hb = topoHb(server);
+    if (hb === null) return serverBaseDown(server) || !!server.noData;   // 에이전트 상태를 못 읽었을 때만 이전 기준
+    return hb === 'LOST';
+}
+
+/** 하트비트를 받은 적 없음 (에이전트 미설치 / cron 방식 이전 클라이언트 / 이전 데몬의 종료 보고 뒤) → 서버 다운 여부 판단 불가 */
+function topoNoHeartbeat(server) {
+    const hb = topoHb(server);
+    return hb === 'NONE' || hb === 'STOPPED';
 }
 
 function topoViewStatus(server) {
-    return topoIsDown(server) ? 'Down' : serverBaseStatus(server);
+    if (topoIsDown(server)) return 'Down';
+    if (topoNoHeartbeat(server)) return 'Unknown';
+    const b = serverBaseStatus(server);
+    return b === 'Down' || b === 'Stopped' ? 'Active' : b;     // 등록 상태가 Down 이어도 하트비트가 오면 살아 있음
+}
+
+/** 하트비트 마지막 수신 (에이전트 상태 목록) */
+function topoLastHb(server) {
+    const a = agentStates[server.id] || {};
+    return a.lastHbDt ? a.lastHbDt + (a.lastHbAgoSec != null ? ' (' + a.lastHbAgoSec + '초 전)' : '') : null;
 }
 
 /** Down 사유 짧은 표시 : 정보 수신 안 됨이면 " (보고 끊김)" */
@@ -202,6 +228,8 @@ function serverDownNote(server) {
 function topoStatusStyle(status) {
     return TOPO_STATUS[status === 'Stopped' ? 'Down' : status] || TOPO_STATUS.Active;
 }
+
+const TOPO_STATUS_LABEL = { Active: 'Active', Standby: 'Standby', Down: 'DOWN', Unknown: '하트비트 없음' };
 
 function getServerType(s) {
     const n = String(s.systemName || '');
@@ -309,14 +337,17 @@ function buildTopoNodes() {
 
 /** 서버 노드의 글자·아이콘 (상태가 바뀌면 이 값만 바꿔 위치는 유지) */
 function topoServerLook(s) {
-    const down = topoIsDown(s);
-    const reason = serverBaseDown(s) ? null : topoNoDataReason(s);
-    const issue = down ? null : topoDaemonIssue(s);
+    const view = topoViewStatus(s);
+    const down = view === 'Down';
+    const unknown = view === 'Unknown';
+    const issue = down || unknown ? null : topoDaemonIssue(s);
+    const hbKnown = topoHb(s) !== null;
     return {
-        label: s.systemName + '\n' + s.ip + '\n' + (down ? 'DOWN' + (reason ? ' (' + reason + ')' : '')
-            : serverBaseStatus(s) + (issue ? ' · 데몬 재시작 필요' : '')),
-        image: topoIconUri(getServerType(s), topoViewStatus(s)),
-        font: { size: 12, face: 'Segoe UI', color: down ? '#dc3545' : issue ? '#b45309' : '#203a43' }
+        label: s.systemName + '\n' + s.ip + '\n' + (down ? 'DOWN' + (hbKnown ? ' (하트비트 끊김)' : '')
+            : unknown ? serverBaseStatus(s) + ' · 하트비트 없음'
+            : view + (issue ? ' · 데몬 재시작 필요' : '')),
+        image: topoIconUri(getServerType(s), view),
+        font: { size: 12, face: 'Segoe UI', color: down ? '#dc3545' : unknown ? '#64748b' : issue ? '#b45309' : '#203a43' }
     };
 }
 
@@ -530,16 +561,17 @@ function topoBar(label, value, color) {
 }
 
 function topoDetailHtml(server) {
-    const isDown = topoIsDown(server);
-    const noData = serverBaseDown(server) ? null : topoNoDataReason(server);
-    const lastReport = (agentStates[server.id] || {}).lastReportDt;
+    const view = topoViewStatus(server);
+    const isDown = view === 'Down';
+    const unknown = view === 'Unknown';
+    const lastHb = topoLastHb(server);
     const type = getServerType(server);
     const typeLabel = { ap: 'AP 서버', db: 'DB 서버', nfs: 'NFS 스토리지' }[type];
-    const badgeClass = isDown ? 'badge-stopped' : (serverBaseStatus(server) === 'Active' ? 'badge-active' : 'badge-standby');
-    const headColor = isDown ? '#dc3545' : '#203a43';
+    const badgeClass = isDown ? 'badge-stopped' : unknown ? 'badge-unknown' : (view === 'Active' ? 'badge-active' : 'badge-standby');
+    const headColor = isDown ? '#dc3545' : unknown ? '#64748b' : '#203a43';
     const pair = topoPairOf(server);
     const procs = (Array.isArray(server.processes) ? server.processes : [])
-        .map(p => noData ? Object.assign({}, p, { running: false, pid: '-' }) : p);   // 서버 정보 수신 안 됨 → 종료
+        .map(p => isDown ? Object.assign({}, p, { running: false, pid: '-' }) : p);   // 서버 다운(하트비트 끊김) → 종료
     const procHtml = procs.length
         ? '<ul class="topo-proc">' + procs.map(p =>
             '<li><span class="' + (p.running ? 'on' : 'off') + '">' + (p.running ? '● 실행 중' : '○ 종료') + '</span> ' +
@@ -549,13 +581,15 @@ function topoDetailHtml(server) {
         '<img src="' + topoIconUri(type, topoViewStatus(server)) + '" width="44" height="44" alt="' + typeLabel + ' 아이콘">' +
         '<div><div class="topo-detail-name" style="color:' + headColor + ';">' + escapeHtml(server.systemName) + '</div>' +
         '<div class="topo-detail-sub">' + typeLabel + ' · ' + escapeHtml(server.location) + '</div></div>' +
-        '<span class="badge ' + badgeClass + '">' + escapeHtml(isDown ? 'Down' : serverBaseStatus(server)) + '</span></div>' +
+        '<span class="badge ' + badgeClass + '">' + escapeHtml(isDown ? 'Down' : unknown ? '하트비트 없음' : view) + '</span></div>' +
         '<table class="detail-table">' +
         '<tr><th>FQDN</th><td>' + escapeHtml(server.fqdn) + '</td></tr>' +
         '<tr><th>IP 주소</th><td><code>' + escapeHtml(server.ip) + '</code></td></tr>' +
         '<tr><th>OS 종류</th><td>' + escapeHtml(server.os) + '</td></tr>' +
         '<tr><th>동기화 상태</th><td><span style="color:' + (isDown ? '#dc3545' : 'inherit') + ';font-weight:' + (isDown ? 'bold' : 'normal') + ';">' + escapeHtml(isDown ? 'DISCONNECTED (Link Down)' : server.sync) + '</span></td></tr>' +
         '<tr><th>동기화 대상</th><td>' + (pair ? escapeHtml(pair.systemName) + ' (' + escapeHtml(pair.ip) + ')' : '-') + '</td></tr>' +
+        '<tr><th>하트비트</th><td>' + (isDown ? '<b style="color:#dc3545;">끊김</b>' : unknown ? '<span style="color:#64748b;">없음</span>' : '<span style="color:#155724;">수신 중</span>') +
+            (lastHb ? ' <small>' + escapeHtml(lastHb) + '</small>' : '') + '</td></tr>' +
         '<tr><th>활성 세션수</th><td>' + (isDown ? '0' : escapeHtml(server.sessions)) + ' 개</td></tr>' +
         '</table>' +
         '<div class="topo-bars">' +
@@ -563,9 +597,11 @@ function topoDetailHtml(server) {
         topoBar('MEM', isDown ? '0.0%' : server.mem, '#0275d8') +
         topoBar('DISK', isDown ? 'N/A' : server.disk, '#6f42c1') + '</div>' +
         '<div class="topo-section-title">주요 프로세스 <span>' + procs.filter(p => p.running).length + ' / ' + procs.length + ' 실행 중</span></div>' + procHtml +
-        (noData ? '<div class="topo-down-warn">경고: 원격 서버에서 기본 정보를 받아오지 못해 Down 으로 표시합니다. (' + escapeHtml(noData) +
-            (lastReport ? ', 마지막 보고 ' + escapeHtml(lastReport) : '') + ') 서버 상태와 에이전트(krcasmrx11_client)를 확인하세요.</div>'
-        : isDown ? '<div class="topo-down-warn">경고: 해당 서버가 다운(Down) 상태입니다. 네트워크 연결 및 전원 상태를 확인하세요.</div>' : '') +
+        (isDown ? '<div class="topo-down-warn">경고: 하트비트를 3회 연속 받지 못해 서버 다운(Down)으로 표시합니다'
+                + (lastHb ? ' (마지막 수신 ' + escapeHtml(lastHb) + ')' : '') + '. 서버 전원·네트워크를 확인하세요.</div>'
+        : unknown ? '<div class="topo-nohb-note">하트비트를 받은 적이 없어 서버 다운 여부를 판단할 수 없습니다. '
+                + '서버에 krcasmrx11_client 1.5 이상을 설치하고 bin/scb_client.sh start 로 하트비트 감시자를 실행하세요.</div>'
+        : serverBaseDown(server) ? '<div class="topo-nohb-note">등록 상태는 Down 이지만 하트비트를 받고 있어 서버는 살아 있습니다.</div>' : '') +
         topoDaemonNoticeHtml(server, isDown) +
         '<div class="topo-actions admin-only"><button class="btn btn-primary" onclick="openServerEdit(' + server.id + ')">서버 정보 수정</button>' +
         '<button class="btn btn-danger" onclick="deleteServerFromDetail(' + server.id + ')">서버 삭제</button></div>' +
@@ -591,7 +627,8 @@ function topoNodeInfoHtml(id) {
     const cnt = st => list.filter(s => topoViewStatus(s) === st).length;
     return '<div class="topo-detail-head" style="border-bottom:2px solid ' + (isLeft ? '#28a745' : '#dc3545') + ';"><img src="' + topoIconUri(isLeft ? 'switch-itc' : 'switch-drc') + '" width="44" height="44" alt="스위치 아이콘">' +
         '<div><div class="topo-detail-name">' + escapeHtml(n.name) + '</div><div class="topo-detail-sub">' + escapeHtml(n.desc || n.location || '') + '</div></div></div>' +
-        '<p style="font-size:13px;color:#444;line-height:1.6;">연결 서버 ' + list.length + '대 · Active ' + cnt('Active') + ' / Standby ' + cnt('Standby') + ' / Down ' + cnt('Down') + '</p>' + topoManualConsoleBtn();
+        '<p style="font-size:13px;color:#444;line-height:1.6;">연결 서버 ' + list.length + '대 · Active ' + cnt('Active') + ' / Standby ' + cnt('Standby') + ' / Down ' + cnt('Down') +
+        (cnt('Unknown') ? ' / 하트비트 없음 ' + cnt('Unknown') : '') + '</p>' + topoManualConsoleBtn();
 }
 
 // ---------- 서버 에이전트 (krcasmrx11_client) : 상태 / 토큰 발급 ----------
@@ -736,17 +773,18 @@ function openConsoleConnectById(serverId) {
 }
 
 function openServerModal(server) {
-    const isDown = server.status === 'Down' || server.status === 'Stopped';
+    const view = topoViewStatus(server);
+    const isDown = view === 'Down';
     const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
     set('modalServerName', server.systemName + ' 서버 상태 정보');
-    set('modalHealth', isDown ? 'Down (' + (server.noData && !serverBaseDown(server) ? '서버 정보 수신 안 됨 - ' + server.noData : 'Unreachable') + ')' : (server.status === 'Standby' ? 'Standby (Ready)' : 'Normal (Healthy)'));
+    set('modalHealth', isDown ? 'Down (하트비트 끊김)' : view === 'Unknown' ? 'Unknown (하트비트 없음)' : (view === 'Standby' ? 'Standby (Ready)' : 'Normal (Healthy)'));
     set('modalCpu', isDown ? '0.0% (DOWN)' : server.cpu);
     set('modalMemory', isDown ? '0.0% (DOWN)' : server.mem);
     set('modalDisk', isDown ? 'N/A (Unreachable)' : server.disk);
     set('modalSync', isDown ? 'DISCONNECTED (Link Down)' : server.sync);
     set('modalSessions', (isDown ? '0' : server.sessions) + ' 개');
     const dot = document.querySelector('#statusModal .health-indicator');
-    if (dot) dot.style.backgroundColor = isDown ? '#dc3545' : (server.status === 'Standby' ? '#f0ad4e' : '#28a745');
+    if (dot) dot.style.backgroundColor = isDown ? '#dc3545' : view === 'Unknown' ? '#94a3b8' : (view === 'Standby' ? '#f0ad4e' : '#28a745');
     document.getElementById('statusModal').style.display = 'flex';
 }
 
@@ -767,7 +805,7 @@ function renderTopoLegend() {
         ico(topoIconUri('ap', 'Active'), 'AP 서버') +
         ico(topoIconUri('db', 'Active'), 'DB 서버') +
         ico(topoIconUri('nfs', 'Active'), 'NFS 스토리지') +
-        dot('#28a745', 'Active') + dot('#f0ad4e', 'Standby') + dot('#dc3545', 'Down (다운 / 서버 정보 수신 안 됨)') +
+        dot('#28a745', 'Active') + dot('#f0ad4e', 'Standby') + dot('#dc3545', 'Down (하트비트 끊김)') + dot('#94a3b8', '하트비트 없음') +
         '<div class="legend-item"><span class="legend-dash"></span>Sync 링크</div>';
 }
 
