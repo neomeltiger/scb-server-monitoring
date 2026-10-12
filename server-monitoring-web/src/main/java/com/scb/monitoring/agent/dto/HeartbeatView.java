@@ -28,6 +28,13 @@ public class HeartbeatView {
     private Integer hbPid;
     private String agentVer;
     private String daemonState;
+    private Integer hbMisses;
+    private int hbMissLimit;
+    private boolean serverDown;
+    private String daemonIssue;
+    private boolean canRestart;
+    private boolean restartPending;
+    private boolean watchdog;
 
     public static HeartbeatView of(Server s, Agent a, int staleAfterSec) {
         HeartbeatView v = new HeartbeatView();
@@ -41,12 +48,19 @@ public class HeartbeatView {
         v.hbState = av.getHbState();
         v.hbClient = av.isHbClient();
         v.hbIntervalSec = av.getHbIntervalSec();
-        v.hbTimeoutSec = a == null ? Agent.DEFAULT_HB_INTERVAL * 2 + 3 : av.getHbTimeoutSec();
+        v.hbTimeoutSec = a == null ? Agent.DEFAULT_HB_INTERVAL * Agent.HB_MISS_LIMIT + Agent.HB_GRACE_SEC : av.getHbTimeoutSec();
         v.lastHbDt = av.getLastHbDt();
         v.lastHbAgoSec = av.getLastHbAgoSec();
         v.hbPid = av.getHbPid();
         v.agentVer = av.getAgentVer();
         v.daemonState = av.getDaemonState();
+        v.hbMisses = av.getHbMisses();
+        v.hbMissLimit = av.getHbMissLimit();
+        v.serverDown = av.isServerDown();
+        v.daemonIssue = av.getDaemonIssue();
+        v.canRestart = av.isCanRestart();
+        v.restartPending = av.isRestartPending();
+        v.watchdog = av.isWatchdog();
         return v;
     }
 
@@ -65,4 +79,11 @@ public class HeartbeatView {
     public Integer getHbPid() { return hbPid; }
     public String getAgentVer() { return agentVer; }
     public String getDaemonState() { return daemonState; }
+    public Integer getHbMisses() { return hbMisses; }
+    public int getHbMissLimit() { return hbMissLimit; }
+    public boolean isServerDown() { return serverDown; }
+    public String getDaemonIssue() { return daemonIssue; }
+    public boolean isCanRestart() { return canRestart; }
+    public boolean isRestartPending() { return restartPending; }
+    public boolean isWatchdog() { return watchdog; }
 }

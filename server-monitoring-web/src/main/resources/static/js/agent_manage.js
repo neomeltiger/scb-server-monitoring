@@ -9,7 +9,8 @@
         RUNNING: ['실행 중', 'green', ''],
         PAUSED: ['실행 중 · 수집 중지', 'yellow', ''],
         STOPPING: ['종료 중', 'yellow', '종료 요청을 전달했습니다.'],
-        STOPPED: ['종료됨', 'red', '서버에서 bin/scb_client.sh start 로 다시 시작'],
+        STOPPED: ['종료됨', 'red', '서버에서 bin/scb_client.sh start 로 다시 시작 (클라이언트 1.5 는 [재시작])'],
+        DEAD: ['비정상 종료', 'red', '하트비트 감시자가 감지 - 서버는 정상, [재시작] 으로 다시 시작'],
         NO_RESPONSE: ['응답 없음', 'red', '서버에서 bin/scb_client.sh status 로 확인']
     };
     const INTERVAL_LABEL = { 10: '10초', 30: '30초', 60: '1분', 120: '2분', 300: '5분', 600: '10분' };
@@ -100,7 +101,9 @@
         const ctl = admin
             ? btn('start', 'start', '시작', a.collectOn && !a.shutdownPending, a.collectOn ? '이미 수집 중입니다' : '자료 수집 시작') +
               btn('stop', 'stop', '중지', !a.collectOn, a.collectOn ? '자료 수집 중지 (데몬은 유지)' : '이미 중지됨') +
-              btn('shutdown', 'kill', '종료', !alive || a.shutdownPending, alive ? '데몬 프로세스 종료' : '실행 중인 데몬이 없습니다')
+              btn('shutdown', 'kill', '종료', !alive || a.shutdownPending, alive ? '데몬 프로세스 종료' : '실행 중인 데몬이 없습니다') +
+              (a.canRestart && a.daemonIssue ? btn('restart', 'daemon-restart', '재시작', a.restartPending,
+                  a.restartPending ? '재시작 요청 전달 중' : '하트비트 감시자가 서버에서 bin/scb_client.sh start') : '')
             : '-';
         return '<tr data-id="' + sid + '"><td class="ua-left">' + server + '</td><td>' + daemon + '</td><td>' + collect + collectSub + '</td>' +
             '<td>' + interval + '</td><td class="svc-time">' + pid + '</td><td class="svc-time">' + poll + '</td>' +
@@ -115,6 +118,11 @@
             stop: '[' + name + '] 자료 수집을 중지하시겠습니까?\n데몬은 계속 실행되며 언제든 다시 시작할 수 있습니다.',
             shutdown: '[' + name + '] 서버의 데몬 프로세스를 종료하시겠습니까?\n\n종료 후에는 웹에서 다시 켤 수 없습니다.\n서버에서 bin/scb_client.sh start 로 시작해야 합니다.'
         }[action];
+        if (action === 'restart') {
+            const a = await restartDaemon(id);
+            if (a && v) { v.agent = a; render(); }
+            return;
+        }
         if (!confirm(msg)) return;
         busy = true;
         try {

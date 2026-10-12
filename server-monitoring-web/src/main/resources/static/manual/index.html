@@ -332,7 +332,7 @@ footer { text-align: center; color: var(--sub); font-size: 12px; padding: 20px; 
         <li><b>서버 관리 (추가 / 제거)</b> 패널 : 시스템명, FQDN, OS, IP, 설치장소, 시스템 구분 입력 후 [서버 추가하기] / 선택 서버 제거 / [서버 목록 기본값으로 초기화]</li>
         <li>상세의 <b>[서버 정보 수정]</b>, <b>[서버 삭제]</b> - 상태를 Down 으로 바꾸면 즉시 서버 다운 알람이 생깁니다.</li>
         <li><b>서버 에이전트 › [에이전트 토큰 발급 / 재발급]</b> - 토큰과 <code>client.env</code> 내용이 <b>한 번만</b> 표시됩니다. [복사] 후 서버에 붙여 넣으세요. 재발급하면 이전 토큰은 바로 무효가 됩니다.</li>
-        <li><b>서버 에이전트 › 하트비트 주기</b> - 3 / 5 / 10 / 15 / 30 / 60초 중에서 고르고 [적용]. 서버 작업 없이 다음 하트비트부터 바로 적용됩니다. 끊김 기준은 <b>주기 x 2 + 3초</b> 입니다. (예: 5초 → 13초) <a href="#heartbeat">10-4장</a></li>
+        <li><b>서버 에이전트 › 하트비트 주기</b> - 3 / 5 / 10 / 15 / 30 / 60초 중에서 고르고 [적용]. 서버 작업 없이 다음 하트비트부터 바로 적용됩니다. <b>3회 연속</b> 못 받으면(주기 x 3 + 2초, 예: 5초 → 17초) 서버 다운입니다. 데몬만 멈춘 경우는 서버 상세에 <b>데몬 재시작</b> 안내·버튼이 나옵니다. <a href="#heartbeat">10-4장</a></li>
     </ul>
     <div class="note warn"><b>빨간색(Down) 표시 기준</b> : 서버 상태가 Down 이거나, <b>원격 서버에서 기본 정보를 받아오지 못하면</b>(에이전트 정상 보고가 아님) Down 색으로 바뀝니다. 서버 이름 아래에 사유가 함께 표시됩니다 - <code>DOWN (에이전트 미설치 / 보고 대기 / 보고 끊김 / 수집 중지 / 데몬 종료)</code>. 서버를 누르면 상세에 마지막 보고 시각이 나옵니다. 상태는 60초마다 다시 확인하며, 보고가 다시 들어오면 원래 색(Active·Standby)으로 돌아옵니다.</div>
     <div class="note bad">[서버 목록 기본값으로 초기화] 는 서버·프로세스·서비스·수집 이력·알람을 <b>모두 초기 데이터로 되돌립니다</b>. 운영 중에는 사용하지 마세요.</div>
@@ -381,21 +381,23 @@ footer { text-align: center; color: var(--sub); font-size: 12px; padding: 20px; 
 <!-- 10-3 -->
 <section id="heartbeat">
     <h2>10-4. 하트비트 모니터링 (원격 서버 구동 유무)</h2>
-    <p>좌측 메뉴 <b>서버자원모니터링 › 하트비트 모니터링</b>. 서버의 krcasmrx11_client 1.4 는 데몬과 함께 <b>하트비트 셸</b>(<code>bin/scb_heartbeat.sh</code>)을 실행해 정한 주기마다 웹으로 생존 신호를 보냅니다. 데몬이 죽으면 하트비트도 바로 멈추므로, 웹은 서버 다운·데몬 비정상 종료를 몇 초 안에 알아챕니다.</p>
+    <p>좌측 메뉴 <b>서버자원모니터링 › 하트비트 모니터링</b>. 서버의 krcasmrx11_client 1.5 는 데몬과 <b>따로</b> 도는 <b>하트비트 감시자</b>(<code>bin/scb_heartbeat.sh</code>)가 정한 주기마다 웹으로 생존 신호와 데몬 상태를 보냅니다. 그래서 웹은 <b>서버 다운</b>과 <b>데몬(scb_client)만 문제</b>인 경우를 구분합니다.</p>
     <div class="tbl"><table>
         <tr><th>상태</th><th>뜻</th><th>화면 처리</th></tr>
-        <tr><td><span class="chip green">수신 중</span></td><td>끊김 기준 안에 하트비트를 받고 있음</td><td>-</td></tr>
-        <tr><td><span class="chip red">끊김</span></td><td><b>주기 x 2 + 3초</b> 동안 못 받음 (서버 다운, 네트워크 단절, 데몬 강제 종료)</td><td rowspan="2">그 서버의 모니터링 대상 프로세스·서비스를 <b>즉시 종료</b>, 서버는 <b>Down</b> 으로 표시하고 알람. 열려 있는 화면(메인 홈, 구성도, 서버 전체 목록, 프로세스 관리)은 3초 안에 저절로 바뀝니다.</td></tr>
-        <tr><td><span class="chip red">데몬 종료</span></td><td>데몬이 종료를 보고함 (웹 [종료] / <code>scb_client.sh stop</code>)</td></tr>
+        <tr><td><span class="chip green">수신 중</span></td><td>하트비트를 받고 있고 데몬도 정상</td><td>-</td></tr>
+        <tr><td><span class="chip red">서버 다운</span></td><td>하트비트를 <b>3회 연속</b>(주기 x 3 + 2초) 못 받음 - 서버 전원·네트워크 문제</td><td>그 서버의 모니터링 대상 프로세스·서비스를 <b>즉시 종료</b>, 서버는 <b>Down</b> 으로 표시하고 알람</td></tr>
+        <tr><td><span class="chip yellow">데몬 문제</span></td><td>하트비트는 오는데 데몬만 멈춤 / 비정상 종료 / 응답 없음</td><td><b>서버는 Down 으로 표시하지 않음</b>. 프로세스는 정보가 없어 종료로 표시하고 <b>“데몬 중단” 알람</b> + <b>[데몬 재시작]</b> 버튼 <span class="chip blue">관리자</span></td></tr>
+        <tr><td><span class="chip red">데몬 종료</span></td><td>이전 클라이언트(1.4 이하)가 종료를 보고함</td><td>서버는 Down 아님, 서버에서 <code>bin/scb_client.sh start</code></td></tr>
         <tr><td><span class="chip gray">없음</span></td><td>토큰 미발급, 데몬 미실행, crontab 방식 이전 클라이언트</td><td>-</td></tr>
     </table></div>
     <ul>
-        <li>서버 카드 : 마지막 수신 시각과 경과 시간(매초 갱신), 끊김 기준 대비 경과 막대(초록 → 주황 → 빨강), 주기·기준, 데몬 PID, 에이전트 상태·버전. 화면은 2초마다 갱신됩니다.</li>
-        <li><b>하트비트 이벤트 이력</b> : 수신 시작 / 끊김(끊긴 시간) / 복구 / 데몬 종료 / 주기 변경. 서버·종류로 거를 수 있습니다. (웹 서버 <code>logs/heartbeat.log</code> 에도 기록)</li>
+        <li>서버 카드 : 상태, 마지막 수신 시각과 경과 시간(매초 갱신), <b>연속 미수신 ●●● (n / 3회)</b>, 다운 기준 대비 경과 막대, 주기·기준, 데몬 PID, 에이전트 상태·버전. 화면은 2초마다 갱신되고 다른 화면(메인 홈, 구성도, 서버 전체 목록, 프로세스 관리, 알람)도 3초 안에 저절로 바뀝니다.</li>
+        <li><b>[데몬 재시작]</b> : 데몬 문제 카드, 네트워크 구성도 서버 상세, 메인 홈 “데몬 중단” 알람, 에이전트 관리 화면에 나옵니다. 누르면 다음 하트비트 응답으로 서버의 감시자가 <code>bin/scb_client.sh start</code> 를 실행합니다. (서버 작업 불필요, 클라이언트 1.5 이상)</li>
+        <li>일부러 멈춘 경우(웹 [종료], 서버 <code>scb_client.sh stop</code>)는 알람 없이 화면 안내와 [데몬 재시작] 만 나옵니다.</li>
+        <li><b>하트비트 이벤트 이력</b> : 수신 시작 / 서버 다운(끊긴 시간) / 복구 / 데몬 중단 / 데몬 다시 실행 / 재시작 요청 / 데몬 종료 / 주기 변경. (웹 서버 <code>logs/heartbeat.log</code> 에도 기록)</li>
         <li>주기 변경 : <a href="#network">네트워크 구성도</a> › 서버 › 서버 에이전트 › 하트비트 주기 <span class="chip blue">관리자</span></li>
-        <li>다시 받으면 “복구” 로 바뀌고, 다음 자료 보고부터 프로세스가 실제 상태로 돌아옵니다.</li>
     </ul>
-    <div class="note warn">클라이언트 1.3 이하(하트비트 셸 없음)는 데몬의 웹 확인(10초)을 하트비트로 쓰며 끊김 기준은 45초입니다. 카드에 <b>이전 방식</b> 으로 표시됩니다. 즉시 감지를 쓰려면 서버를 1.4 로 교체하세요. (<a href="#agent">14장</a> 업그레이드)</div>
+    <div class="note warn">클라이언트 1.4 는 하트비트가 데몬과 함께 멈추므로 데몬이 죽으면 서버 다운으로 보입니다. 1.3 이하(하트비트 셸 없음)는 데몬의 웹 확인(10초)을 하트비트로 쓰며 기준은 45초입니다(<b>이전 방식</b> 표시). 데몬 문제 구분과 웹 재시작을 쓰려면 1.5 로 교체하세요. (<a href="#agent">14장</a>)</div>
 </section>
 
 <!-- 10-3 -->
@@ -508,7 +510,7 @@ vi etc/client.env          # 복사한 SCB_WEB_URL, SCB_AGENT_TOKEN 붙여 넣�
 chmod 600 etc/client.env</pre></li>
         <li><b>(서버)</b> 확인 : <code>bin/scb_client.sh ping</code> → <code>ok server_id=…</code>, <code>bin/scb_client.sh run</code> → 수집 전송</li>
         <li><b>(서버)</b> 데몬 시작 : <code>bin/scb_client.sh start</code> (상태 <code>status</code>, 정지 <code>stop</code>) - <b>crontab 은 사용하지 않습니다.</b> 이전 버전에서 crontab 에 등록했다면 그 줄을 지우세요.</li>
-        <li><b>(서버) 업그레이드</b> : <code>bin/scb_client.sh stop</code> → 같은 위치에 새 tar 풀기 → <code>bin/scb_client.sh start</code> (<code>etc/client.env</code> 는 그대로 유지). 1.4 부터 하트비트 셸(<code>bin/scb_heartbeat.sh</code>)이 함께 실행되며 <code>bin/scb_client.sh status</code> 에 하트비트 상태가 나옵니다.</li>
+        <li><b>(서버) 업그레이드</b> : <code>bin/scb_client.sh stop</code> → 같은 위치에 새 tar 풀기 → <code>bin/scb_client.sh start</code> (<code>etc/client.env</code> 는 그대로 유지). 1.5 부터 하트비트 감시자(<code>bin/scb_heartbeat.sh</code>)가 데몬과 따로 실행되며 <code>bin/scb_client.sh status</code> 에 상태가 나옵니다. <code>stop</code> 은 데몬만, <code>stopall</code> 은 데몬과 감시자를 모두 멈춥니다. 부팅 스크립트(<code>etc/scb_client.init</code>)도 새로 복사하세요.</li>
         <li><b>(서버)</b> 부팅 시 자동 시작 (한 번) : <code>cp etc/scb_client.init /etc/init.d/scb_client</code>, <code>chmod 744 /etc/init.d/scb_client</code>, <code>ln -s /etc/init.d/scb_client /etc/rc3.d/S99scb_client</code>, <code>ln -s /etc/init.d/scb_client /etc/rc0.d/K01scb_client</code></li>
         <li><b>(웹)</b> 메인 홈 “에이전트 미등록 서버” 에서 해당 서버의 <b>[등록 확인]</b> → “✔ 등록 확인됨”</li>
     </ol>

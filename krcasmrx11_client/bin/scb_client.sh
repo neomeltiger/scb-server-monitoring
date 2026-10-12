@@ -5,10 +5,11 @@
 # 실행 방식 : 데몬 (crontab 사용 안 함)
 #
 # Usage: scb_client.sh <command>
-#   start      자료수집 데몬 시작 (백그라운드)
-#   stop       데몬 정지 (웹에 종료 보고 후 끝남)
+#   start      자료수집 데몬 + 하트비트 감시자 시작 (백그라운드)
+#   stop       데몬 정지 (웹에 종료 보고 후 끝남) - 하트비트 감시자는 계속 실행 (서버 정상, 데몬 정지로 표시)
 #   restart    데몬 다시 시작
-#   status     데몬 실행 여부 / 수집 상태 / 수집 주기 / 마지막 확인·보고
+#   stopall    데몬 + 하트비트 감시자 모두 정지 (서버 종료 / 점검 시, rc 스크립트 stop)
+#   status     데몬 실행 여부 / 수집 상태 / 수집 주기 / 마지막 확인·보고 / 하트비트
 #   daemon     데몬을 이 터미널에서 실행 (start 가 내부적으로 사용, 점검용)
 #   ping       웹 서버 연결 / 토큰 확인
 #   heartbeat  하트비트 1회 전송 (점검용) - 응답 hb|interval=주기|timeout=끊김 기준
@@ -26,9 +27,10 @@
 #     cmd|...  서비스 제어 명령 실행 (수집 중지 중에도 처리)
 #     log|...  서버 로그 요청 (수집 중일 때만)
 #   수집 주기마다 자료 수집 → POST /agent-api/v1/report
-#   하트비트 (1.4~) : bin/scb_heartbeat.sh 를 함께 실행 → 웹이 정한 주기(기본 10초)마다 GET /agent-api/v1/heartbeat
-#     데몬이 죽으면 하트비트도 바로 끝나므로, 웹은 서버 다운·데몬 비정상 종료를 하트비트 끊김으로 감지해
-#     감시 프로세스를 즉시 종료로 표시합니다. 하트비트 셸이 죽으면 데몬이 다시 띄웁니다.
+#   하트비트 감시자 (1.5~) : bin/scb_heartbeat.sh 가 데몬과 따로 실행 → 웹이 정한 주기(기본 10초)마다
+#     GET /agent-api/v1/heartbeat?pid=&daemon=RUNNING|PAUSED|STOPPED|DEAD
+#     데몬이 죽어도 하트비트는 계속 → 웹은 서버는 정상, 데몬만 문제로 보고 재시작 알림 (웹 [데몬 재시작] → 감시자가 start)
+#     하트비트가 3회 연속 안 오면(서버 전원·네트워크) 서버 다운. 감시자가 죽으면 데몬이 다시 띄웁니다.
 #
 # 수집 스크립트 (종류별)
 #   collect_sys.sh      [sys]      호스트명, OS
@@ -177,26 +179,26 @@ write_state() {
 }
 
 # ------------------------------------------------------------
-# 하트비트 셸 (데몬과 함께 실행 / 종료)
+# 하트비트 감시자 (데몬과 따로 실행 - 데몬이 죽어도 계속 웹에 알림)
 # ------------------------------------------------------------
-hb_start() {
-    sh $BIN_DIR/scb_heartbeat.sh $$ > /dev/null 2>&1 < /dev/null &
-    HB_PID=$!
-    echo $HB_PID > $HB_PID_FILE
+hb_running() {
+    hp=`cat $HB_PID_FILE 2>/dev/null`
+    [ -n "$hp" ] && kill -0 $hp 2>/dev/null
 }
 
-# 하트비트 셸이 죽었으면 다시 실행
-hb_check() {
-    if [ -n "$HB_PID" ] && kill -0 $HB_PID 2>/dev/null; then
-        return 0
-    fi
-    clog "WARN: 하트비트 셸이 없어 다시 시작합니다"
-    hb_start
+# 감시자가 없으면 시작 (start, 데몬 루프에서 확인)
+hb_ensure() {
+    hb_running && return 0
+    [ -n "$1" ] && clog "$1"
+    nohup sh $BIN_DIR/scb_heartbeat.sh > /dev/null 2>&1 < /dev/null &
 }
 
 hb_stop() {
     hp=`cat $HB_PID_FILE 2>/dev/null`
-    [ -n "$hp" ] && kill $hp 2>/dev/null
+    if [ -n "$hp" ] && kill -0 $hp 2>/dev/null; then
+        kill $hp 2>/dev/null
+        echo "하트비트 감시자 정지 (pid $hp)"
+    fi
     rm -f $HB_PID_FILE
 }
 
@@ -215,7 +217,7 @@ daemon_main() {
     DSTATE=RUNNING
     [ "$CFG_COLLECT" = "off" ] && DSTATE=PAUSED
     clog "DAEMON start pid=$$ ver=$CLIENT_VER interval=${CFG_INTERVAL}s collect=$DSTATE web=$SCB_WEB_URL"
-    hb_start
+    hb_ensure
     elapsed=$CFG_INTERVAL     # 시작하면 바로 1회 보고
 
     while [ $STOP_REQ -eq 0 ]; do
@@ -262,7 +264,7 @@ daemon_main() {
             elapsed=0
         fi
         write_state
-        hb_check
+        hb_ensure "WARN: 하트비트 감시자가 없어 다시 시작합니다"
 
         # 3) 다음 확인까지 대기 (1초 단위 - 정지 신호에 바로 반응)
         i=0
@@ -273,8 +275,7 @@ daemon_main() {
         elapsed=`expr $elapsed + $POLL_SEC`
     done
 
-    # 종료 : 하트비트를 먼저 멈춘 뒤 웹에 알림 (종료 보고 뒤에 하트비트가 도착하지 않게)
-    hb_stop
+    # 종료 : 웹에 알림 (하트비트 감시자는 계속 실행 - 웹은 서버 정상 / 데몬 정지로 표시)
     : > $RUN_DIR/empty.txt
     http_call POST "/agent-api/v1/daemon?state=STOPPED" $RUN_DIR/daemon.resp $RUN_DIR/empty.txt
     DSTATE=STOPPED
@@ -288,6 +289,7 @@ daemon_main() {
 daemon_start() {
     if p=`daemon_pid`; then
         echo "이미 실행 중입니다 (pid $p)"
+        hb_ensure
         return 0
     fi
     [ -n "$SCB_WEB_URL" ] && [ -n "$SCB_AGENT_TOKEN" ] || { echo "etc/client.env 의 SCB_WEB_URL / SCB_AGENT_TOKEN 을 먼저 설정하세요."; return 1; }
@@ -297,6 +299,8 @@ daemon_start() {
         sleep 1
         if p=`daemon_pid`; then
             echo "자료수집 데몬 시작 (pid $p) - 로그 : $LOG_FILE"
+            hb_ensure
+            hb_running && echo "하트비트 감시자 실행 중 (pid `cat $HB_PID_FILE`)"
             return 0
         fi
         n=`expr $n + 1`
@@ -321,7 +325,6 @@ daemon_stop() {
         n=`expr $n + 1`
     done
     kill -9 $p 2>/dev/null
-    hb_stop
     rm -f $PID_FILE
     release_lock
     clog "DAEMON 강제 정지 (pid $p)"
@@ -340,14 +343,13 @@ daemon_status() {
     if [ -f $STATE_FILE ]; then
         sed -n 's/^state=/  수집 상태   : /p; s/^interval=\(.*\)/  수집 주기   : \1초/p; s/^last_poll=/  마지막 확인 : /p; s/^last_report=/  마지막 보고 : /p; s/^web=/  웹 서버     : /p' $STATE_FILE
     fi
-    hp=`cat $HB_PID_FILE 2>/dev/null`
-    if [ -n "$hp" ] && kill -0 $hp 2>/dev/null; then
-        echo "하트비트     : 실행 중 (pid $hp)"
+    if hb_running; then
+        echo "하트비트 감시자 : 실행 중 (pid $hp)"
     else
-        echo "하트비트     : 정지"
+        echo "하트비트 감시자 : 정지  (시작 : bin/scb_client.sh start)"
     fi
     if [ -f $HB_STATE_FILE ]; then
-        sed -n 's/^interval=\(.*\)/  하트비트 주기   : \1초/p; s/^last_ok=/  마지막 전송 성공 : /p; s/^fail=/  연속 실패       : /p' $HB_STATE_FILE
+        sed -n 's/^interval=\(.*\)/  하트비트 주기   : \1초/p; s/^daemon=/  알린 데몬 상태  : /p; s/^last_ok=/  마지막 전송 성공 : /p; s/^fail=/  연속 실패       : /p' $HB_STATE_FILE
     fi
     return $rc
 }
@@ -355,11 +357,13 @@ daemon_status() {
 case "$CMD" in
     start)   daemon_start; exit $? ;;
     stop)    daemon_stop; exit $? ;;
+    stopall) daemon_stop; hb_stop; exit 0 ;;
     restart) daemon_stop; sleep 1; daemon_start; exit $? ;;
     status)  daemon_status; exit $? ;;
     daemon|loop) daemon_main ;;
     heartbeat)
-        http_call GET "/agent-api/v1/heartbeat?pid=`cat $PID_FILE 2>/dev/null`" $RUN_DIR/hb_test.txt || exit 1
+        if p=`daemon_pid`; then hd=RUNNING; else hd=STOPPED; fi
+        http_call GET "/agent-api/v1/heartbeat?pid=`cat $PID_FILE 2>/dev/null`&daemon=$hd" $RUN_DIR/hb_test.txt || exit 1
         cat $RUN_DIR/hb_test.txt
         rm -f $RUN_DIR/hb_test.txt
         exit 0

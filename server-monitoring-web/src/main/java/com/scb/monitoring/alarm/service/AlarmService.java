@@ -38,6 +38,8 @@ import com.scb.monitoring.topology.service.TopologyException;
  *   <li>AGENT_STALE (WARNING)  : 에이전트가 보고하다가 app.agent.stale-after-sec 이상 끊김 (서버가 Down 이면 SERVER_DOWN 만)</li>
  *   <li>조건이 풀리면 자동 해소(CLOSED). 같은 서버·종류의 진행 중 알람은 하나만 유지</li>
  *   <li>서버 정보를 받아오지 못하는 서버(에이전트 상태 OK 아님)는 실행 중 프로세스·서비스를 종료로 표시 (ProcessStatusService)</li>
+ *   <li>DAEMON_DOWN (WARNING) : 하트비트는 오는데 데몬만 멈춤/응답 없음 - 서버는 정상, 데몬 재시작 알림
+ *       (관리자가 일부러 멈춘 경우 - 웹 [종료], 서버 scb_client.sh stop - 는 알람 아님)</li>
  *   <li>점검 : app.alarm.check-interval-ms 주기(기본 60초) + 서버 수정/에이전트 보고 직후</li>
  *   <li>확인/조치 기록(ACK) 은 ADMIN 만 (SecurityConfig : /api/** 변경 요청)</li>
  * </ul>
@@ -218,15 +220,24 @@ public class AlarmService {
             agoSec = Math.max(0, (System.currentTimeMillis() - agent.getLastReportDt().getTime()) / 1000);
         }
         // 웹에서 수집 중지 / 데몬 종료한 경우는 알람 아님, 기준은 max(설정값, 수집 주기 x3)
-        // 하트비트 끊김(LOST)은 수집 주기와 관계없이 바로 알람
-        String state = AgentView.of(agent, agentProps.getStaleAfterSec()).getState();
+        // 하트비트 3회 연속 끊김(LOST) = 서버 다운 → 수집 주기와 관계없이 바로 알람
+        // 하트비트가 오는데 보고만 끊기면 서버 문제가 아니라 데몬 문제 → DAEMON_DOWN 으로 알림
+        AgentView av = AgentView.of(agent, agentProps.getStaleAfterSec());
+        String state = av.getState();
+        boolean hbAlive = "ALIVE".equals(av.getHbState());
         boolean hbLost = !down && "LOST".equals(state);
-        boolean stale = !down && (hbLost || (agoSec != null && !agent.isIntentionallyIdle()
+        boolean stale = !down && (hbLost || (!hbAlive && agoSec != null && !agent.isIntentionallyIdle()
                 && agoSec > agent.staleLimitSec(agentProps.getStaleAfterSec())));
         if (sync(s.getServerId(), Alarm.TYPE_AGENT_STALE, stale, active, Alarm.LEVEL_WARNING,
-                (hbLost ? "에이전트 하트비트 끊김 : " + name + " - 서버 다운 또는 데몬 비정상 종료, 서버와 krcasmrx11_client 를 확인하세요."
+                (hbLost ? "하트비트 " + Agent.HB_MISS_LIMIT + "회 연속 미수신 : " + name + " - 서버 다운으로 보고 감시 프로세스를 종료로 표시했습니다. 서버 전원·네트워크를 확인하세요."
                         : "에이전트 보고 끊김 : " + name + " - 마지막 보고 " + (agoSec == null ? "-" : (agoSec / 60) + "분 전")
                         + ", krcasmrx11_client 실행 상태를 확인하세요."))) opened++;
+
+        // 데몬만 문제 (서버 정상) : 재시작 알림 - 일부러 멈춘 경우는 화면 안내만
+        boolean daemonDown = !down && av.getDaemonIssue() != null && !agent.isDaemonStopIntended();
+        if (sync(s.getServerId(), Alarm.TYPE_DAEMON_DOWN, daemonDown, active, Alarm.LEVEL_WARNING,
+                "데몬(scb_client) 중단 : " + name + " - " + av.getDaemonIssue() + ". 서버는 정상(하트비트 수신 중)입니다. "
+                        + (av.isCanRestart() ? "[데몬 재시작] 을 누르거나 " : "") + "서버에서 bin/scb_client.sh start 로 시작하세요.")) opened++;
 
         // 서버 정보 수신 안 됨 → 프로세스·서비스 종료 표시 (실행 중 → 종료로 바뀔 때만 기록)
         if (!"OK".equals(state)) {

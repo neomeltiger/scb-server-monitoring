@@ -48,7 +48,11 @@ public interface AgentMapper {
 
     // ---- 하트비트 (v6) ----
 
-    int updateHbBeat(@Param("serverId") Long serverId, @Param("pid") Integer pid);
+    int updateHbBeat(@Param("serverId") Long serverId, @Param("pid") Integer pid, @Param("daemonState") String daemonState);
+
+    int updateHbDaemonState(@Param("serverId") Long serverId, @Param("daemonState") String daemonState);
+
+    int updateRestartReq(@Param("serverId") Long serverId, @Param("yn") String yn, @Param("user") String user);
 
     int updateHbState(@Param("serverId") Long serverId, @Param("hbState") String hbState);
 

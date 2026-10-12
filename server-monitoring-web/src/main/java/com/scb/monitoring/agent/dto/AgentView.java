@@ -12,7 +12,8 @@ public class AgentView {
      * 수집(보고) 상태
      * NONE: 토큰 미발급 / STOPPED: 데몬 종료(웹에서 종료) / PAUSED: 수집 중지(웹에서 중지)
      * WAITING: 발급 후 보고 없음 / OK: 정상 보고 / STALE: 보고 끊김
-     * LOST: 하트비트 끊김 (서버 다운 또는 데몬 비정상 종료 - 감시 프로세스는 종료로 표시)
+     * LOST: 하트비트 3회 연속 끊김 = 서버 다운 (감시 프로세스는 종료, 서버 Down 표시)
+     * STOPPED 는 데몬만 멈춘 상태 (웹 [종료] / 서버 stop / 비정상 종료) - 하트비트가 오면 서버는 정상, 재시작 알림
      */
     private String state;
     /** 데몬 상태 : NONE(확인 기록 없음) / RUNNING / PAUSED / STOPPING / STOPPED / NO_RESPONSE */
@@ -48,12 +49,26 @@ public class AgentView {
     private String lastHbDt;
     private Long lastHbAgoSec;
     private Integer hbPid;
+    /** 연속 미수신 횟수 / 서버 다운 기준 횟수(3) */
+    private Integer hbMisses;
+    private int hbMissLimit = Agent.HB_MISS_LIMIT;
+    /** 서버 다운으로 볼지 (하트비트 끊김, 또는 생존 신호 자체가 없음) - 데몬만 문제면 false */
+    private boolean serverDown;
+    /** 데몬 문제 알림 (서버는 정상) : 데몬 종료 / 데몬 비정상 종료 / 데몬 응답 없음 - 없으면 null */
+    private String daemonIssue;
+    /** 웹에서 데몬 재시작 가능 (하트비트 감시자 1.5~, 하트비트 수신 중) */
+    private boolean canRestart;
+    private boolean restartPending;
+    private String restartReqUser;
+    private String restartReqDt;
+    private boolean watchdog;
 
     public static AgentView of(Agent a, int staleAfterSec) {
         AgentView v = new AgentView();
         if (a == null) {
             v.state = "NONE";
             v.daemonState = "NONE";
+            v.serverDown = true;
             v.staleLimitSec = staleAfterSec;
             return v;
         }
@@ -82,6 +97,11 @@ public class AgentView {
         v.lastHbDt = fmt(a.lastBeatDt());
         v.lastHbAgoSec = a.heartbeatAgoSec(now);
         v.hbPid = a.isHeartbeatClient() ? a.getHbPid() : a.getDaemonPid();
+        v.hbMisses = a.heartbeatMisses(now);
+        v.watchdog = a.isWatchdogClient();
+        v.restartPending = a.isRestartPending();
+        v.restartReqUser = a.getRestartReqUser();
+        v.restartReqDt = fmt(a.getRestartReqDt());
 
         // 데몬 상태
         if (a.getLastPollDt() == null) {
@@ -89,7 +109,9 @@ public class AgentView {
         } else {
             v.lastPollAgoSec = Math.max(0, (now - a.getLastPollDt().getTime()) / 1000);
             String d = a.getDaemonState();
-            if (Agent.D_STOPPED.equals(d)) v.daemonState = Agent.D_STOPPED;
+            if (a.isDaemonDead()) v.daemonState = Agent.HD_DEAD;
+            else if (a.isWatchdogClient() && Agent.HD_STOPPED.equals(a.getHbDaemonState())) v.daemonState = Agent.D_STOPPED;
+            else if (Agent.D_STOPPED.equals(d)) v.daemonState = Agent.D_STOPPED;
             else if (v.lastPollAgoSec > Agent.POLL_TIMEOUT_SEC) v.daemonState = "NO_RESPONSE";
             else v.daemonState = d != null ? d : Agent.D_RUNNING;   // 데몬 정보가 없는 이전 클라이언트
         }
@@ -98,10 +120,10 @@ public class AgentView {
         if (a.getLastReportDt() != null) {
             v.lastReportAgoSec = Math.max(0, (now - a.getLastReportDt().getTime()) / 1000);
         }
-        if (Agent.D_STOPPED.equals(a.getDaemonState()) || Agent.D_STOPPING.equals(a.getDaemonState())) {
-            v.state = "STOPPED";
-        } else if (Agent.HB_LOST.equals(v.hbState)) {
+        if (Agent.HB_LOST.equals(v.hbState)) {
             v.state = "LOST";
+        } else if (a.isDaemonDown()) {
+            v.state = "STOPPED";
         } else if (!a.isCollectOn()) {
             v.state = "PAUSED";
         } else if (a.getLastReportDt() == null) {
@@ -109,6 +131,16 @@ public class AgentView {
         } else {
             v.state = v.lastReportAgoSec > v.staleLimitSec ? "STALE" : "OK";
         }
+
+        // 서버 다운 / 데몬 문제 구분 : 생존 신호(하트비트)가 오면 서버는 정상
+        boolean alive = Agent.HB_ALIVE.equals(v.hbState) || Agent.HB_STOPPED.equals(v.hbState);
+        v.serverDown = !"OK".equals(v.state) && !alive;
+        if (alive && "STOPPED".equals(v.state)) {
+            v.daemonIssue = a.isDaemonDead() ? "데몬 비정상 종료" : "데몬 종료";
+        } else if (Agent.HB_ALIVE.equals(v.hbState) && "STALE".equals(v.state)) {
+            v.daemonIssue = "데몬 응답 없음 (보고 끊김)";
+        }
+        v.canRestart = a.isWatchdogClient() && Agent.HB_ALIVE.equals(v.hbState);
         return v;
     }
 
@@ -146,4 +178,13 @@ public class AgentView {
     public Long getLastHbAgoSec() { return lastHbAgoSec; }
     public Integer getHbPid() { return hbPid; }
     public int[] getHbIntervals() { return Agent.HB_INTERVALS; }
+    public Integer getHbMisses() { return hbMisses; }
+    public int getHbMissLimit() { return hbMissLimit; }
+    public boolean isServerDown() { return serverDown; }
+    public String getDaemonIssue() { return daemonIssue; }
+    public boolean isCanRestart() { return canRestart; }
+    public boolean isRestartPending() { return restartPending; }
+    public String getRestartReqUser() { return restartReqUser; }
+    public String getRestartReqDt() { return restartReqDt; }
+    public boolean isWatchdog() { return watchdog; }
 }

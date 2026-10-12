@@ -103,15 +103,15 @@ public class TopologyService {
         List<ServerView> list = new ArrayList<>();
         for (Server s : mapper.selectServerList()) {
             list.add(ServerView.of(s, byServer.getOrDefault(s.getServerId(), Collections.emptyList()),
-                    AgentView.of(agents.get(s.getServerId()), staleAfterSec).getState()));
+                    AgentView.of(agents.get(s.getServerId()), staleAfterSec)));
         }
         return list;
     }
 
-    /** 서버 응답 : 서버 정보를 받아오지 못하면(에이전트 상태 OK 아님) 화면 상태 Down */
+    /** 서버 응답 : 서버 다운(하트비트 끊김 등)이면 화면 상태 Down, 데몬만 멈췄으면 daemonIssue (AgentView.serverDown) */
     public ServerView getServer(Long serverId) {
         return ServerView.of(findServer(serverId), mapper.selectProcessListByServer(serverId),
-                AgentView.of(agentMapper.selectAgent(serverId), staleAfterSec).getState());
+                AgentView.of(agentMapper.selectAgent(serverId), staleAfterSec));
     }
 
     // ===================== 서버 =====================

@@ -64,11 +64,12 @@ function renderAlarmBanner(data) {
     ok.hidden = true;
     banner.hidden = false;
     const crit = data.criticalCount || 0;
-    const warn = activeAlarms.length - crit;
+    const daemon = activeAlarms.filter(a => a.alarmType === 'DAEMON_DOWN').length;
+    const warn = activeAlarms.length - crit - daemon;
     banner.classList.toggle('critical', crit > 0);
     document.getElementById('alarmTitle').textContent = crit > 0 ? '서버 장애 발생' : '주의 알람';
     document.getElementById('alarmSummary').textContent =
-        '서버 다운 ' + crit + '건 · 에이전트 보고 끊김 ' + warn + '건 · 미확인 ' + (data.openCount || 0) + '건';
+        '서버 다운 ' + crit + '건 · 에이전트 보고 끊김 ' + warn + '건 · 데몬 중단 ' + daemon + '건 · 미확인 ' + (data.openCount || 0) + '건';
 
     const admin = isAdminUser();
     document.getElementById('alarmList').innerHTML = activeAlarms.map(a => {
@@ -87,6 +88,9 @@ function renderAlarmBanner(data) {
             (a.location ? ' · ' + escapeHtml(a.location) : '') + '</div>' + ackInfo +
             '</div>' +
             '<div class="alarm-actions">' +
+            (a.alarmType === 'DAEMON_DOWN' && admin
+                ? '<button type="button" class="alarm-act restart" onclick="restartFromAlarm(' + sid + ')">데몬 재시작</button>' : '') +
+            (a.alarmType === 'DAEMON_DOWN' ? '<a class="alarm-act" href="heartbeat">하트비트</a>' : '') +
             '<a class="alarm-act" href="network?server=' + sid + '">구성도</a>' +
             '<button type="button" class="alarm-act" onclick="jumpToProcessTab(' + sid + ')">프로세스 관리</button>' +
             (admin ? '<button type="button" class="alarm-act" onclick="openWebConsole({ serverId: ' + sid + ' })">웹 콘솔</button>' +
@@ -94,6 +98,10 @@ function renderAlarmBanner(data) {
                 (a.stateCd === 'ACK' ? '조치 수정' : '확인 / 조치') + '</button>' : '') +
             '</div></li>';
     }).join('');
+}
+
+async function restartFromAlarm(serverId) {
+    if (await restartDaemon(serverId)) loadAlarms();
 }
 
 // 메인 홈 서버 카드에 알람 표시 (script.js renderProcessSection 뒤에도 호출됨)
@@ -243,6 +251,8 @@ function agentRegRow(v) {
         '<td class="ua-reason">' + escapeHtml(v.reason || '-') + '</td>' +
         '<td class="svc-time">' + escapeHtml(a.lastReportDt || '-') + '</td>' +
         '<td class="agent-reg-act"><button type="button" class="svc-btn status" onclick="recheckAgent(' + sid + ')">등록 확인</button>' +
+        (isAdminUser() && a.daemonIssue && a.canRestart
+            ? '<button type="button" class="svc-btn daemon-restart" onclick="restartFromAlarm(' + sid + ').then(loadAgentRegistrations)">데몬 재시작</button>' : '') +
         (isAdminUser() ? '<a class="svc-btn start" href="network?server=' + sid + '">' + (a.state === 'NONE' ? '토큰 발급' : '구성도') + '</a>' : '') +
         '<div class="agent-reg-result" id="agentRegResult-' + sid + '"></div></td></tr>';
 }
@@ -264,7 +274,9 @@ async function recheckAgent(serverId) {
                 (a.state === 'NONE' ? ' - 관리자가 토큰을 발급해야 합니다.'
                     : a.state === 'WAITING' ? ' - 서버에서 bin/scb_client.sh start 로 데몬을 시작하세요.'
                     : a.state === 'PAUSED' ? ' - 에이전트 관리 화면에서 [시작] 하세요.'
-                    : a.state === 'STOPPED' ? ' - 데몬이 종료되었습니다. 서버에서 bin/scb_client.sh start 로 시작하세요.'
+                    : a.state === 'STOPPED' ? ' - ' + (a.daemonIssue || '데몬 종료') + '. 서버는 정상입니다. ' +
+                        (a.canRestart ? '[데몬 재시작] 을 누르거나 ' : '') + '서버에서 bin/scb_client.sh start 로 시작하세요.'
+                    : a.state === 'LOST' ? ' - 하트비트 3회 연속 미수신 (서버 다운). 서버 전원·네트워크를 확인하세요.'
                     : ' - 클라이언트 프로세스와 네트워크를 확인하세요.');
         }
     } catch (e) {

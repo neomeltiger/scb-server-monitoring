@@ -38,6 +38,7 @@ import com.scb.monitoring.agent.service.AgentService;
  * GET  /api/agents/heartbeat                                           하트비트 상태 (화면 즉시 갱신용, 가벼운 조회)
  * GET  /api/agents/heartbeat/events?serverId=&rows=100                 하트비트 이벤트 이력
  * PUT  /api/agents/{serverId}/heartbeat-interval {"sec":10}            하트비트 주기 (3/5/10/15/30/60초)
+ * POST /api/agents/{serverId}/restart                                  데몬 재시작 요청 (감시자 1.5~ 가 다음 하트비트 때 실행)
  * </pre>
  */
 @Tag(name = "5. 에이전트 관리", description = "에이전트 상태·데몬 제어·수집 주기·토큰 발급")
@@ -99,6 +100,12 @@ public class AgentAdminController {
             throw com.scb.monitoring.topology.service.TopologyException.badRequest("하트비트 주기 값이 올바르지 않습니다.");
         }
         return heartbeat.changeInterval(serverId, sec, auth.getName());
+    }
+
+    @Operation(summary = "데몬 재시작 요청 - ADMIN (하트비트 감시자 1.5~ 가 다음 하트비트 때 bin/scb_client.sh start)")
+    @PostMapping("/{serverId}/restart")
+    public AgentView restart(@PathVariable("serverId") Long serverId, Authentication auth) {
+        return heartbeat.requestRestart(serverId, auth.getName());
     }
 
     @Operation(summary = "에이전트 상세")

@@ -11,6 +11,7 @@
 #   ln -s /etc/init.d/scb_client /etc/rcS.d/K01scb_client
 #
 # 사용 : /etc/init.d/scb_client start | stop | restart | status
+#   start : 데몬 + 하트비트 감시자 시작 / stop : 둘 다 정지 (서버 종료 시) / restart : 데몬만 다시 시작
 #=============================================================
 CLIENT_HOME=/shared/opt/agent/krcasmrx11_client
 MAIN=$CLIENT_HOME/bin/scb_client.sh
@@ -18,8 +19,11 @@ MAIN=$CLIENT_HOME/bin/scb_client.sh
 [ -f $MAIN ] || { echo "scb_client: $MAIN 없음"; exit 0; }
 
 case "$1" in
-    start|stop|restart|status)
+    start|restart|status)
         /bin/sh $MAIN $1
+        ;;
+    stop)
+        /bin/sh $MAIN stopall
         ;;
     *)
         echo "Usage: $0 { start | stop | restart | status }"

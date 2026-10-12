@@ -193,6 +193,10 @@ CREATE TABLE tb_agent (
     hb_state             VARCHAR(10)      NULL COMMENT '하트비트 상태 (ALIVE: 수신 중 / LOST: 끊김 / STOPPED: 데몬 종료)',
     last_hb_dt           TIMESTAMP        NULL COMMENT '마지막 하트비트 수신 일시',
     hb_pid               INT              NULL COMMENT '하트비트를 보낸 데몬 PID',
+    hb_daemon_state      VARCHAR(10)      NULL COMMENT '하트비트가 알린 데몬 상태 (RUNNING / PAUSED / STOPPED / DEAD) - 클라이언트 1.5~',
+    restart_req_yn       CHAR(1)      NOT NULL DEFAULT 'N' COMMENT '데몬 재시작 요청 (Y: 요청 / S: 서버에 전달 / N: 없음)',
+    restart_req_user     VARCHAR(30)      NULL COMMENT '재시작 요청자',
+    restart_req_dt       TIMESTAMP        NULL COMMENT '재시작 요청 일시',
     PRIMARY KEY (server_id),
     CONSTRAINT uk_agent_token  UNIQUE (token_hash),
     CONSTRAINT fk_agent_server FOREIGN KEY (server_id) REFERENCES tb_server (server_id),
@@ -201,7 +205,9 @@ CREATE TABLE tb_agent (
     CONSTRAINT ck_agent_shutdown CHECK (shutdown_req_yn IN ('Y', 'N')),
     CONSTRAINT ck_agent_dstate   CHECK (daemon_state IN ('RUNNING', 'PAUSED', 'STOPPING', 'STOPPED')),
     CONSTRAINT ck_agent_hb_interval CHECK (hb_interval_sec IN (3, 5, 10, 15, 30, 60)),
-    CONSTRAINT ck_agent_hb_state    CHECK (hb_state IN ('ALIVE', 'LOST', 'STOPPED'))
+    CONSTRAINT ck_agent_hb_state    CHECK (hb_state IN ('ALIVE', 'LOST', 'STOPPED')),
+    CONSTRAINT ck_agent_hb_dstate   CHECK (hb_daemon_state IN ('RUNNING', 'PAUSED', 'STOPPED', 'DEAD')),
+    CONSTRAINT ck_agent_restart     CHECK (restart_req_yn IN ('Y', 'S', 'N'))
 ) ENGINE = InnoDB COMMENT = '서버 에이전트 (토큰, 마지막 보고, 데몬 제어/상태)';
 
 -- -------------------------------------------------------------
@@ -297,7 +303,7 @@ CREATE INDEX ix_service_cmd_server ON tb_service_cmd (server_id, state_cd, req_d
 CREATE TABLE tb_alarm (
     alarm_id        BIGINT       NOT NULL AUTO_INCREMENT COMMENT '알람 ID',
     server_id       BIGINT       NOT NULL                COMMENT '서버 ID',
-    alarm_type      VARCHAR(20)  NOT NULL                COMMENT '종류 (SERVER_DOWN / AGENT_STALE)',
+    alarm_type      VARCHAR(20)  NOT NULL                COMMENT '종류 (SERVER_DOWN / AGENT_STALE / DAEMON_DOWN)',
     alarm_level     VARCHAR(10)  NOT NULL                COMMENT '등급 (CRITICAL / WARNING)',
     message         VARCHAR(200) NOT NULL                COMMENT '알람 내용',
     state_cd        VARCHAR(10)  NOT NULL DEFAULT 'OPEN' COMMENT '상태 (OPEN / ACK / CLOSED)',
@@ -308,7 +314,7 @@ CREATE TABLE tb_alarm (
     close_dt        TIMESTAMP        NULL                COMMENT '해소 일시',
     PRIMARY KEY (alarm_id),
     CONSTRAINT fk_alarm_server FOREIGN KEY (server_id) REFERENCES tb_server (server_id),
-    CONSTRAINT ck_alarm_type   CHECK (alarm_type IN ('SERVER_DOWN', 'AGENT_STALE')),
+    CONSTRAINT ck_alarm_type   CHECK (alarm_type IN ('SERVER_DOWN', 'AGENT_STALE', 'DAEMON_DOWN')),
     CONSTRAINT ck_alarm_level  CHECK (alarm_level IN ('CRITICAL', 'WARNING')),
     CONSTRAINT ck_alarm_state  CHECK (state_cd IN ('OPEN', 'ACK', 'CLOSED'))
 ) ENGINE = InnoDB COMMENT = '서버 장애 알람';
@@ -398,14 +404,14 @@ CREATE INDEX ix_svchist_server ON tb_service_metric_hist (server_id, collect_dt)
 CREATE TABLE tb_heartbeat_hist (
     hist_id         BIGINT       NOT NULL AUTO_INCREMENT COMMENT '이력 ID',
     server_id       BIGINT       NOT NULL                COMMENT '서버 ID',
-    event_cd        VARCHAR(10)  NOT NULL                COMMENT '이벤트 (START: 수신 시작 / LOST: 끊김 / RECOVER: 복구 / STOP: 데몬 종료 / INTERVAL: 주기 변경)',
+    event_cd        VARCHAR(10)  NOT NULL                COMMENT '이벤트 (START 수신 시작 / LOST 끊김 / RECOVER 복구 / STOP 데몬 종료 / INTERVAL 주기 변경 / D_DOWN 데몬 중단 / D_UP 데몬 다시 실행 / RESTART 재시작 요청)',
     event_dt        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '발생 일시',
     daemon_pid      INT              NULL                COMMENT '데몬 PID',
     gap_sec         INT              NULL                COMMENT '마지막 수신 후 경과 (초)',
     detail          VARCHAR(200)     NULL                COMMENT '내용',
     PRIMARY KEY (hist_id),
     CONSTRAINT fk_hbhist_server FOREIGN KEY (server_id) REFERENCES tb_server (server_id),
-    CONSTRAINT ck_hbhist_event  CHECK (event_cd IN ('START', 'LOST', 'RECOVER', 'STOP', 'INTERVAL'))
+    CONSTRAINT ck_hbhist_event  CHECK (event_cd IN ('START', 'LOST', 'RECOVER', 'STOP', 'INTERVAL', 'D_DOWN', 'D_UP', 'RESTART'))
 ) ENGINE = InnoDB COMMENT = '하트비트 이벤트 이력';
 
 CREATE INDEX ix_hbhist_server ON tb_heartbeat_hist (server_id, event_dt);

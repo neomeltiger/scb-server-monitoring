@@ -44,15 +44,18 @@
 
                 <div class="spec-container">
                     <div class="spec-header">
-                        <h3>하트비트 이벤트 이력 <span class="svc-sub">수신 시작 / 끊김 / 복구 / 데몬 종료 / 주기 변경</span></h3>
+                        <h3>하트비트 이벤트 이력 <span class="svc-sub">수신 시작 / 서버 다운 / 복구 / 데몬 중단·다시 실행 / 재시작 요청 / 주기 변경</span></h3>
                         <div class="svc-toolbar">
                             <select id="hbEventServer" class="am-interval" aria-label="서버 선택">
                                 <option value="">전체 서버</option>
                             </select>
                             <select id="hbEventType" class="am-interval" aria-label="이벤트 종류">
                                 <option value="">전체 이벤트</option>
-                                <option value="LOST">끊김</option>
+                                <option value="LOST">서버 다운</option>
                                 <option value="RECOVER">복구</option>
+                                <option value="D_DOWN">데몬 중단</option>
+                                <option value="D_UP">데몬 다시 실행</option>
+                                <option value="RESTART">재시작 요청</option>
                                 <option value="STOP">데몬 종료</option>
                                 <option value="START">수신 시작</option>
                                 <option value="INTERVAL">주기 변경</option>
@@ -85,10 +88,10 @@
                         <div>
                             <b>판정 기준</b>
                             <ul>
-                                <li><span class="hb-badge ALIVE">수신 중</span> 끊김 기준 안에 하트비트를 받고 있음</li>
-                                <li><span class="hb-badge LOST">끊김</span> <b>주기 x 2 + 3초</b> 동안 못 받음 → 서버 다운 또는 데몬 비정상 종료로 보고
-                                    그 서버의 모니터링 대상 프로세스·서비스를 <b>즉시 종료</b>로, 서버를 <b>Down</b> 으로 표시하고 알람</li>
-                                <li><span class="hb-badge STOPPED">데몬 종료</span> 데몬이 종료를 보고함 (웹 [종료] / scb_client.sh stop) - 같은 방식으로 즉시 종료 표시</li>
+                                <li><span class="hb-badge ALIVE">수신 중</span> 하트비트를 받고 있고 데몬도 정상</li>
+                                <li><span class="hb-badge LOST">서버 다운</span> 하트비트를 <b>3회 연속</b>(주기 x 3 + 2초) 못 받음 → 그 서버의 모니터링 대상 프로세스·서비스를 <b>즉시 종료</b>, 서버를 <b>Down</b> 으로 표시하고 알람. 카드의 <b>연속 미수신 ●●●</b> 로 진행 상황 확인</li>
+                                <li><span class="hb-badge DAEMON">데몬 문제</span> 하트비트는 오는데 데몬(scb_client)만 멈춤·비정상 종료·응답 없음 → <b>서버는 Down 이 아님</b>. 프로세스는 정보가 없어 종료로 표시하고 "데몬 중단" 알람과 함께 <b>[데몬 재시작]</b> 버튼 표시 (관리자, 클라이언트 1.5 이상)</li>
+                                <li><span class="hb-badge STOPPED">데몬 종료</span> 이전 클라이언트(1.4 이하)가 종료를 보고함 - 서버에서 <code>bin/scb_client.sh start</code></li>
                                 <li><span class="hb-badge NONE">없음</span> 토큰 미발급, 아직 데몬이 시작되지 않음, 또는 cron 방식 이전 클라이언트</li>
                             </ul>
                         </div>
@@ -96,7 +99,7 @@
                             <b>주기 설정 / 서버</b>
                             <ul>
                                 <li>하트비트 주기 : <b>네트워크 구성도 → 서버 클릭 → 서버 에이전트 → 하트비트 주기</b> (관리자, 3 / 5 / 10 / 15 / 30 / 60초). 다음 하트비트부터 바로 적용</li>
-                                <li>하트비트 셸 : 클라이언트 1.4 의 <code>bin/scb_heartbeat.sh</code> - 데몬(<code>bin/scb_client.sh start</code>)이 함께 실행하고, 데몬이 죽으면 같이 끝납니다.</li>
+                                <li>하트비트 감시자 : 클라이언트 1.5 의 <code>bin/scb_heartbeat.sh</code> - <code>bin/scb_client.sh start</code> 가 데몬과 <b>따로</b> 실행해 데몬이 죽어도 계속 하트비트와 데몬 상태를 보냅니다. [데몬 재시작] 요청도 이 감시자가 받아 실행합니다. (모두 끄기 : <code>bin/scb_client.sh stopall</code>)</li>
                                 <li>1.3 이하 클라이언트는 데몬의 웹 확인(10초)을 하트비트로 쓰며 끊김 기준은 45초입니다. (<span class="hb-tag">이전 방식</span> 표시)</li>
                                 <li>이벤트는 웹 서버 <code>logs/heartbeat.log</code> 에도 남습니다.</li>
                             </ul>

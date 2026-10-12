@@ -159,6 +159,10 @@ CREATE TABLE tb_agent (
     hb_state             VARCHAR(10),
     last_hb_dt           TIMESTAMP,
     hb_pid               INT,
+    hb_daemon_state      VARCHAR(10),
+    restart_req_yn       CHAR(1)      DEFAULT 'N' NOT NULL,
+    restart_req_user     VARCHAR(30),
+    restart_req_dt       TIMESTAMP,
     PRIMARY KEY (server_id),
     CONSTRAINT uk_agent_token  UNIQUE (token_hash),
     CONSTRAINT fk_agent_server FOREIGN KEY (server_id) REFERENCES tb_server (server_id),
@@ -167,7 +171,9 @@ CREATE TABLE tb_agent (
     CONSTRAINT ck_agent_shutdown CHECK (shutdown_req_yn IN ('Y', 'N')),
     CONSTRAINT ck_agent_dstate   CHECK (daemon_state IN ('RUNNING', 'PAUSED', 'STOPPING', 'STOPPED')),
     CONSTRAINT ck_agent_hb_interval CHECK (hb_interval_sec IN (3, 5, 10, 15, 30, 60)),
-    CONSTRAINT ck_agent_hb_state    CHECK (hb_state IN ('ALIVE', 'LOST', 'STOPPED'))
+    CONSTRAINT ck_agent_hb_state    CHECK (hb_state IN ('ALIVE', 'LOST', 'STOPPED')),
+    CONSTRAINT ck_agent_hb_dstate   CHECK (hb_daemon_state IN ('RUNNING', 'PAUSED', 'STOPPED', 'DEAD')),
+    CONSTRAINT ck_agent_restart     CHECK (restart_req_yn IN ('Y', 'S', 'N'))
 );
 
 -- -------------------------------------------------------------
@@ -274,7 +280,7 @@ CREATE TABLE tb_alarm (
     close_dt        TIMESTAMP,
     PRIMARY KEY (alarm_id),
     CONSTRAINT fk_alarm_server FOREIGN KEY (server_id) REFERENCES tb_server (server_id),
-    CONSTRAINT ck_alarm_type   CHECK (alarm_type IN ('SERVER_DOWN', 'AGENT_STALE')),
+    CONSTRAINT ck_alarm_type   CHECK (alarm_type IN ('SERVER_DOWN', 'AGENT_STALE', 'DAEMON_DOWN')),
     CONSTRAINT ck_alarm_level  CHECK (alarm_level IN ('CRITICAL', 'WARNING')),
     CONSTRAINT ck_alarm_state  CHECK (state_cd IN ('OPEN', 'ACK', 'CLOSED'))
 );
@@ -362,7 +368,7 @@ CREATE TABLE tb_heartbeat_hist (
     detail          VARCHAR(200),
     PRIMARY KEY (hist_id),
     CONSTRAINT fk_hbhist_server FOREIGN KEY (server_id) REFERENCES tb_server (server_id),
-    CONSTRAINT ck_hbhist_event  CHECK (event_cd IN ('START', 'LOST', 'RECOVER', 'STOP', 'INTERVAL'))
+    CONSTRAINT ck_hbhist_event  CHECK (event_cd IN ('START', 'LOST', 'RECOVER', 'STOP', 'INTERVAL', 'D_DOWN', 'D_UP', 'RESTART'))
 );
 
 CREATE INDEX ix_hbhist_server ON tb_heartbeat_hist (server_id, event_dt);

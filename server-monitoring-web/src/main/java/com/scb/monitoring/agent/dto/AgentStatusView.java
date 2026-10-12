@@ -29,8 +29,8 @@ public class AgentStatusView {
         v.statusCd = s.getStatusCd();
         v.location = s.getLocationNm();
         v.agent = AgentView.of(a, staleAfterSec);
-        // 서버 정보를 받아오지 못하면(에이전트 상태 OK 아님) 화면 상태 Down
-        if (!"OK".equals(v.agent.getState())) v.statusCd = "Down";
+        // 서버 다운(하트비트 끊김 등)이면 화면 상태 Down - 데몬만 멈춘 경우는 등록 상태 그대로
+        if (v.agent.isServerDown()) v.statusCd = "Down";
         String st = v.agent.getState();
         v.registered = "OK".equals(st);
         if ("NONE".equals(st)) v.reason = "토큰 미발급 (에이전트 미등록)";
@@ -38,7 +38,8 @@ public class AgentStatusView {
         else if ("STALE".equals(st)) v.reason = "보고 끊김 (데몬 중단 또는 네트워크 단절)";
         else if ("LOST".equals(st)) v.reason = "하트비트 끊김 (서버 다운 또는 데몬 비정상 종료)";
         else if ("PAUSED".equals(st)) v.reason = "수집 중지 (웹 에이전트 관리에서 중지함)";
-        else if ("STOPPED".equals(st)) v.reason = "데몬 종료 (웹에서 종료함 - 서버에서 다시 시작 필요)";
+        else if ("STOPPED".equals(st)) v.reason = v.agent.getDaemonIssue() != null
+                ? v.agent.getDaemonIssue() + " - 서버는 정상, 데몬 재시작 필요" : "데몬 종료 (서버에서 다시 시작 필요)";
         return v;
     }
 

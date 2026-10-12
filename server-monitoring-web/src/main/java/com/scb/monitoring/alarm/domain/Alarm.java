@@ -7,6 +7,8 @@ public class Alarm {
 
     public static final String TYPE_SERVER_DOWN = "SERVER_DOWN";
     public static final String TYPE_AGENT_STALE = "AGENT_STALE";
+    /** 데몬 중단 (서버는 정상 - 하트비트 수신 중) : 재시작 알림 */
+    public static final String TYPE_DAEMON_DOWN = "DAEMON_DOWN";
     public static final String LEVEL_CRITICAL = "CRITICAL";
     public static final String LEVEL_WARNING = "WARNING";
     public static final String STATE_OPEN = "OPEN";

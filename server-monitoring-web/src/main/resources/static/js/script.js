@@ -141,11 +141,38 @@ const TOPO_BUS_GAP = 95;   // 스위치-서버 버스 간격
 //   (에이전트 상태를 못 읽었으면 DB 상태만 사용)
 const TOPO_NODATA_LABEL = { NONE: '에이전트 미설치', WAITING: '보고 대기', STALE: '보고 끊김', LOST: '하트비트 끊김', PAUSED: '수집 중지', STOPPED: '데몬 종료' };
 
-/** 원격 서버에서 기본 정보를 못 받아오는 사유 (받고 있으면 null) - 화면에서 읽은 에이전트 상태, 없으면 서버 응답(noData) */
+/**
+ * 서버 다운 사유 (서버가 정상이면 null) - 화면에서 읽은 에이전트 상태, 없으면 서버 응답(noData).
+ * 하트비트가 오는데 데몬만 멈춘 경우(serverDown=false)는 서버 다운이 아님 → topoDaemonIssue 로 재시작 알림
+ */
 function topoNoDataReason(server) {
     if (!agentStatesLoaded) return server.noData || null;
-    const st = (agentStates[server.id] || { state: 'NONE' }).state;
-    return st === 'OK' ? null : (TOPO_NODATA_LABEL[st] || st);
+    const a = agentStates[server.id] || { state: 'NONE', serverDown: true };
+    if (a.state === 'OK' || a.serverDown === false) return null;
+    return TOPO_NODATA_LABEL[a.state] || a.state;
+}
+
+/** 데몬 문제 (서버 정상) : 데몬 종료 / 데몬 비정상 종료 / 데몬 응답 없음, 없으면 null */
+function topoDaemonIssue(server) {
+    if (!agentStatesLoaded) return server.daemonIssue || null;
+    return (agentStates[server.id] || {}).daemonIssue || null;
+}
+
+function topoCanRestart(server) {
+    return agentStatesLoaded ? !!(agentStates[server.id] || {}).canRestart : !!server.canRestart;
+}
+
+/** 데몬 재시작 요청 (ADMIN) - 하트비트 감시자(클라이언트 1.5~)가 다음 하트비트 때 서버에서 bin/scb_client.sh start */
+async function restartDaemon(serverId) {
+    const server = (typeof serversData !== 'undefined' ? serversData : []).find(s => s.id === serverId);
+    const name = server ? server.systemName : serverId;
+    if (!confirm('[' + name + '] 의 데몬(scb_client)을 재시작합니다.\n다음 하트비트 때 서버의 하트비트 감시자가 bin/scb_client.sh start 를 실행합니다.\n\n계속하시겠습니까?')) return null;
+    let a;
+    try {
+        a = await apiRequest('POST', 'api/agents/' + encodeURIComponent(serverId) + '/restart');
+    } catch (e) { alert(e.message); return null; }
+    alert('재시작 요청을 보냈습니다. 다음 하트비트(최대 ' + (a.hbIntervalSec || 10) + '초) 때 서버에서 데몬을 시작합니다.');
+    return a;
 }
 
 /** 등록된 상태 (서버 응답 status 는 정보 수신 안 되면 Down 으로 바뀌어 옴) */
@@ -284,10 +311,12 @@ function buildTopoNodes() {
 function topoServerLook(s) {
     const down = topoIsDown(s);
     const reason = serverBaseDown(s) ? null : topoNoDataReason(s);
+    const issue = down ? null : topoDaemonIssue(s);
     return {
-        label: s.systemName + '\n' + s.ip + '\n' + (down ? 'DOWN' + (reason ? ' (' + reason + ')' : '') : serverBaseStatus(s)),
+        label: s.systemName + '\n' + s.ip + '\n' + (down ? 'DOWN' + (reason ? ' (' + reason + ')' : '')
+            : serverBaseStatus(s) + (issue ? ' · 데몬 재시작 필요' : '')),
         image: topoIconUri(getServerType(s), topoViewStatus(s)),
-        font: { size: 12, face: 'Segoe UI', color: down ? '#dc3545' : '#203a43' }
+        font: { size: 12, face: 'Segoe UI', color: down ? '#dc3545' : issue ? '#b45309' : '#203a43' }
     };
 }
 
@@ -537,6 +566,7 @@ function topoDetailHtml(server) {
         (noData ? '<div class="topo-down-warn">경고: 원격 서버에서 기본 정보를 받아오지 못해 Down 으로 표시합니다. (' + escapeHtml(noData) +
             (lastReport ? ', 마지막 보고 ' + escapeHtml(lastReport) : '') + ') 서버 상태와 에이전트(krcasmrx11_client)를 확인하세요.</div>'
         : isDown ? '<div class="topo-down-warn">경고: 해당 서버가 다운(Down) 상태입니다. 네트워크 연결 및 전원 상태를 확인하세요.</div>' : '') +
+        topoDaemonNoticeHtml(server, isDown) +
         '<div class="topo-actions admin-only"><button class="btn btn-primary" onclick="openServerEdit(' + server.id + ')">서버 정보 수정</button>' +
         '<button class="btn btn-danger" onclick="deleteServerFromDetail(' + server.id + ')">서버 삭제</button></div>' +
         '<button class="btn btn-primary" style="margin-top:8px;width:100%;" onclick="jumpToProcessTab(' + server.id + ')">이 서버의 프로세스 관리 화면으로 이동</button>' +
@@ -599,13 +629,33 @@ async function loadTopoAgent(serverId) {
 
 const HB_STATE_LABEL = { ALIVE: '수신 중', LOST: '끊김', STOPPED: '데몬 종료', NONE: '없음' };
 
+/** 구성도 상세 : 데몬만 멈춘 경우 (서버 정상) 재시작 알림 */
+function topoDaemonNoticeHtml(server, isDown) {
+    const issue = isDown ? null : topoDaemonIssue(server);
+    if (!issue) return '';
+    const btn = isAdminUser() && topoCanRestart(server)
+        ? '<button type="button" class="btn btn-restart" onclick="restartFromTopo(' + server.id + ')">데몬 재시작</button>'
+        : '<div class="topo-daemon-cmd">서버에서 <code>bin/scb_client.sh start</code>' + (isAdminUser() ? ' (웹 재시작은 클라이언트 1.5 이상)' : '') + '</div>';
+    return '<div class="topo-daemon-warn" role="alert">⚠ ' + escapeHtml(issue) + ' - 서버는 정상입니다 (하트비트 수신 중). 데몬(scb_client)만 재시작하면 됩니다.' + btn + '</div>';
+}
+
+async function restartFromTopo(serverId) {
+    if (await restartDaemon(serverId)) topoRefreshNow(false);
+}
+
 /** 구성도 상세의 하트비트 행 : 상태·마지막 수신·주기, 관리자는 주기 변경 */
 function topoHeartbeatHtml(serverId, a) {
     const st = HB_STATE_LABEL[a.hbState] ? a.hbState : 'NONE';
     let html = '<span class="hb-badge ' + st + '">' + HB_STATE_LABEL[st] + '</span>';
     if (a.lastHbDt) html += ' <small>' + escapeHtml(a.lastHbDt) + (a.lastHbAgoSec != null ? ' (' + a.lastHbAgoSec + '초 전)' : '') + '</small>';
-    html += '<div class="topo-hb-sub">주기 <b>' + a.hbIntervalSec + '초</b> · 끊김 기준 ' +
-        (a.hbClient ? a.hbTimeoutSec + '초 (주기 x 2 + 3)' : a.hbTimeoutSec + '초') +
+    if (a.hbMisses != null && a.hbState !== 'NONE') {
+        html += ' <span class="hb-miss' + (a.hbMisses >= (a.hbMissLimit || 3) ? ' bad' : a.hbMisses > 0 ? ' warn' : '') + '">연속 미수신 ' +
+            Math.min(a.hbMisses, a.hbMissLimit || 3) + ' / ' + (a.hbMissLimit || 3) + '</span>';
+    }
+    if (a.daemonIssue) html += '<div class="topo-hb-daemon">⚠ ' + escapeHtml(a.daemonIssue) + ' (서버 정상)' +
+        (a.restartPending ? ' · 재시작 요청 전달 중' : '') + '</div>';
+    html += '<div class="topo-hb-sub">주기 <b>' + a.hbIntervalSec + '초</b> · 서버 다운 기준 ' +
+        (a.hbClient ? a.hbTimeoutSec + '초 (3회 연속 미수신)' : a.hbTimeoutSec + '초') +
         (!a.hbClient && a.lastHbDt ? ' · <span class="hb-tag" title="하트비트 셸이 없는 1.3 이하 - 데몬의 웹 확인(10초)으로 판단">이전 방식</span>' : '') + '</div>';
     if (isAdminUser()) {
         const opts = (a.hbIntervals || [3, 5, 10, 15, 30, 60]).map(s =>

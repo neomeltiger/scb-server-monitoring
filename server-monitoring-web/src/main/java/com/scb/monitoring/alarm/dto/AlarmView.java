@@ -32,7 +32,8 @@ public class AlarmView {
         v.alarmId = a.getAlarmId();
         v.serverId = a.getServerId();
         v.alarmType = a.getAlarmType();
-        v.typeLabel = Alarm.TYPE_SERVER_DOWN.equals(a.getAlarmType()) ? "서버 다운" : "에이전트 보고 끊김";
+        v.typeLabel = Alarm.TYPE_SERVER_DOWN.equals(a.getAlarmType()) ? "서버 다운"
+                : Alarm.TYPE_DAEMON_DOWN.equals(a.getAlarmType()) ? "데몬 중단 (재시작 필요)" : "에이전트 보고 끊김";
         v.alarmLevel = a.getAlarmLevel();
         v.message = a.getMessage();
         v.stateCd = a.getStateCd();

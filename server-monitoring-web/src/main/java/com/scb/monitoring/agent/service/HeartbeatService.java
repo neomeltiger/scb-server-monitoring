@@ -26,13 +26,15 @@ import com.scb.monitoring.topology.mapper.TopologyMapper;
 import com.scb.monitoring.topology.service.TopologyException;
 
 /**
- * 하트비트 : 원격 서버(에이전트 데몬)가 살아 있는지 확인.
+ * 하트비트 : 원격 서버가 살아 있는지 확인하고, 서버 다운과 데몬 문제를 구분.
  * <ul>
- *   <li>수신 : 클라이언트 1.4 bin/scb_heartbeat.sh 가 hb_interval_sec 마다 GET /agent-api/v1/heartbeat
- *       (이전 데몬 1.2 / 1.3 은 웹 확인 /commands 를 하트비트로 사용)</li>
- *   <li>감시 : app.agent.heartbeat-check-ms (기본 2초) 마다 - 마지막 수신 후 끊김 기준(주기 x 2 + 3초) 이 지나면 LOST
- *       → 그 서버의 실행 중 프로세스·서비스를 즉시 종료로 표시 (ProcessStatusService) + 알람 점검</li>
- *   <li>데몬 종료 보고(POST /daemon?state=STOPPED) → STOPPED, 같은 방식으로 즉시 종료 표시</li>
+ *   <li>수신 : 클라이언트 bin/scb_heartbeat.sh 가 hb_interval_sec 마다 GET /agent-api/v1/heartbeat?pid=&amp;daemon=
+ *       - 1.5~ 는 데몬과 따로 도는 감시자라 데몬이 죽어도 계속 보내며 데몬 상태(RUNNING / PAUSED / STOPPED / DEAD)를 알림
+ *       (1.4 는 데몬과 함께 멈춤, 이전 데몬 1.2 / 1.3 은 웹 확인 /commands 를 하트비트로 사용)</li>
+ *   <li>서버 다운 : app.agent.heartbeat-check-ms (기본 2초) 마다 감시 - <b>3회 연속 미수신</b>(주기 x 3 + 2초) 이면 LOST
+ *       → 그 서버의 실행 중 프로세스·서비스를 즉시 종료 + 서버 Down + 알람</li>
+ *   <li>데몬 문제 : 하트비트는 오는데 데몬이 DEAD / STOPPED → 서버는 정상(Down 아님), 프로세스·서비스 종료 표시,
+ *       데몬 중단 알람(DAEMON_DOWN) + 웹 [데몬 재시작] → 다음 하트비트 응답 restart=Y → 감시자가 scb_client.sh start</li>
  *   <li>주기 변경 : 네트워크 구성도 서버 상세 (ADMIN) → 다음 하트비트 응답(hb|interval=N)으로 클라이언트에 전달</li>
  *   <li>이벤트(수신 시작 / 끊김 / 복구 / 데몬 종료 / 주기 변경)는 tb_heartbeat_hist 와 logs/heartbeat.log 에 기록</li>
  * </ul>
@@ -67,30 +69,71 @@ public class HeartbeatService {
 
     // ===================== 수신 =====================
 
-    /**
-     * 하트비트 수신 (클라이언트 1.4). 끊겼다가 다시 오면 RECOVER, 처음·데몬 재시작이면 START.
-     * @return 클라이언트에 줄 응답 : hb|interval=10|timeout=23
-     */
+    /** 1.4 호환 (데몬 상태를 보내지 않는 하트비트) */
     public String beat(Long serverId, Integer pid) {
-        Boolean recovered = tx.execute(st -> {
+        return beat(serverId, pid, null);
+    }
+
+    /**
+     * 하트비트 수신. 끊겼다가 다시 오면 RECOVER, 처음이면 START.
+     * daemonState (1.5~ 감시자) : RUNNING / PAUSED → 데몬 정상, STOPPED / DEAD → 데몬 중단(D_DOWN, 서버는 정상)
+     * @return 클라이언트에 줄 응답 : hb|interval=10|timeout=32|restart=N  (restart=Y 면 감시자가 데몬을 시작)
+     */
+    public String beat(Long serverId, Integer pid, String daemonState) {
+        String ds = normalizeDaemonState(daemonState);
+        String[] restart = {"N"};
+        Boolean changed = tx.execute(st -> {
             Agent a = mapper.selectAgent(serverId);
             if (a == null) return false;
+            boolean alarmCheck = false;
             String before = a.getHbState();
+            String prevDaemon = a.getHbDaemonState();
             Long gap = a.getLastHbDt() == null ? null : (System.currentTimeMillis() - a.getLastHbDt().getTime()) / 1000;
-            mapper.updateHbBeat(serverId, pid);
+            mapper.updateHbBeat(serverId, pid, ds);
             if (!Agent.HB_ALIVE.equals(before)) {
                 boolean lost = Agent.HB_LOST.equals(before);
                 event(serverId, lost ? HeartbeatHist.E_RECOVER : HeartbeatHist.E_START, pid,
-                        lost ? gap : null, lost ? "하트비트 다시 수신" : "하트비트 수신 시작 (주기 " + a.getHbIntervalSec() + "초)");
-                return lost;
+                        lost ? gap : null, lost ? "하트비트 다시 수신 - 서버 연결 복구" : "하트비트 수신 시작 (주기 " + a.getHbIntervalSec() + "초)");
+                alarmCheck = lost;
             }
-            return false;
+            if (ds != null) {
+                boolean down = Agent.HD_DEAD.equals(ds) || Agent.HD_STOPPED.equals(ds);
+                boolean wasDown = Agent.HD_DEAD.equals(prevDaemon) || Agent.HD_STOPPED.equals(prevDaemon);
+                if (down && !wasDown) {
+                    // 데몬만 멈춤 : 서버는 정상 - 감시 프로세스는 정보가 없으므로 종료 표시, 재시작 알림
+                    boolean dead = Agent.HD_DEAD.equals(ds);
+                    event(serverId, HeartbeatHist.E_D_DOWN, a.getDaemonPid(), null,
+                            dead ? "데몬 비정상 종료 감지 - 서버는 정상 (하트비트 수신 중), 데몬 재시작 필요"
+                                 : "데몬 정지 - 서버는 정상 (하트비트 수신 중)");
+                    processStatus.stopAllNoData(serverId, serverName(serverId), dead ? "데몬 비정상 종료" : "데몬 종료");
+                    alarmCheck = true;
+                } else if (!down && wasDown) {
+                    event(serverId, HeartbeatHist.E_D_UP, pid, null, "데몬 다시 실행 (pid " + (pid == null ? "-" : pid) + ")"
+                            + (a.isRestartPending() ? " - 웹 재시작 요청 처리됨" : ""));
+                    alarmCheck = true;
+                }
+                // 재시작 요청 : 데몬이 멈춰 있으면 이번 응답으로 전달(S), 데몬이 돌고 있으면 요청 해제
+                if ("Y".equals(a.getRestartReqYn()) && down) {
+                    restart[0] = "Y";
+                    mapper.updateRestartReq(serverId, "S", null);
+                    hbLog.info("HEARTBEAT RESTART server=" + serverId + " [" + serverName(serverId) + "] : 재시작 명령을 감시자에 전달");
+                } else if (a.isRestartPending() && !down) {
+                    mapper.updateRestartReq(serverId, "N", null);
+                }
+            }
+            return alarmCheck;
         });
-        if (Boolean.TRUE.equals(recovered)) alarmService.checkAfterCommit(serverId);
+        if (Boolean.TRUE.equals(changed)) alarmService.checkAfterCommit(serverId);
         Agent a = readTx.execute(st -> mapper.selectAgent(serverId));
         int interval = a == null ? Agent.DEFAULT_HB_INTERVAL : a.getHbIntervalSec();
-        int timeout = interval * 2 + 3;
-        return "hb|interval=" + interval + "|timeout=" + timeout + "\n";
+        int timeout = interval * Agent.HB_MISS_LIMIT + Agent.HB_GRACE_SEC;
+        return "hb|interval=" + interval + "|timeout=" + timeout + "|restart=" + restart[0] + "\n";
+    }
+
+    private static String normalizeDaemonState(String s) {
+        if (s == null) return null;
+        String v = s.trim().toUpperCase();
+        return Agent.HD_RUNNING.equals(v) || Agent.HD_PAUSED.equals(v) || Agent.HD_STOPPED.equals(v) || Agent.HD_DEAD.equals(v) ? v : null;
     }
 
     /**
@@ -98,12 +141,25 @@ public class HeartbeatService {
      * AgentService.pullCommands 의 트랜잭션 안에서 호출.
      */
     void legacyBeat(Agent before, Integer pid, String ver) {
+        daemonPolled(before, pid);
         if (before == null || before.isHeartbeatClient() || Agent.HB_ALIVE.equals(before.getHbState())) return;
         if (hasHeartbeatShell(ver)) return;     // 1.4~ : 하트비트 셸이 곧 보냄 (웹 확인이 먼저 와도 기다림)
         boolean lost = Agent.HB_LOST.equals(before.getHbState());
         mapper.updateHbState(before.getServerId(), Agent.HB_ALIVE);
         event(before.getServerId(), lost ? HeartbeatHist.E_RECOVER : HeartbeatHist.E_START, pid, null,
                 (lost ? "웹 확인 다시 수신" : "웹 확인 수신 시작") + " (하트비트 셸 없는 이전 클라이언트)");
+    }
+
+    /**
+     * 데몬이 웹을 확인함 = 데몬은 실행 중. 감시자(1.5~)가 아직 다음 하트비트로 알리기 전이라도 바로 "데몬 다시 실행" 으로 반영
+     * (재시작 직후 데몬의 첫 보고가 "데몬 중단" 상태로 처리되어 프로세스가 다시 종료로 바뀌지 않게)
+     */
+    private void daemonPolled(Agent before, Integer pid) {
+        if (before == null || !before.isWatchdogClient() || !before.isDaemonDown()) return;
+        mapper.updateHbDaemonState(before.getServerId(), Agent.HD_RUNNING);
+        event(before.getServerId(), HeartbeatHist.E_D_UP, pid, null, "데몬 다시 실행 (pid " + (pid == null ? "-" : pid) + ")"
+                + (before.isRestartPending() ? " - 웹 재시작 요청 처리됨" : ""));
+        if (before.isRestartPending()) mapper.updateRestartReq(before.getServerId(), "N", null);
     }
 
     /** 클라이언트 1.4 이상 = 하트비트 셸(bin/scb_heartbeat.sh) 있음 */
@@ -119,12 +175,42 @@ public class HeartbeatService {
         }
     }
 
-    /** 데몬 종료 보고 : 감시 프로세스·서비스 즉시 종료 표시. AgentService.daemonStopped 트랜잭션 안에서 호출 */
+    /**
+     * 데몬 종료 보고 : 감시 프로세스·서비스 즉시 종료 표시. AgentService.daemonStopped 트랜잭션 안에서 호출.
+     * 감시자(1.5~)가 있으면 하트비트는 계속 오므로 서버는 정상 - 데몬 상태만 STOPPED 로.
+     */
     void daemonStopped(Long serverId) {
         Agent a = mapper.selectAgent(serverId);
-        mapper.updateHbState(serverId, Agent.HB_STOPPED);
-        event(serverId, HeartbeatHist.E_STOP, a == null ? null : a.getDaemonPid(), null, "데몬 종료 보고");
+        boolean watchdog = a != null && a.isWatchdogClient();
+        if (watchdog) {
+            mapper.updateHbDaemonState(serverId, Agent.HD_STOPPED);
+        } else {
+            mapper.updateHbState(serverId, Agent.HB_STOPPED);
+        }
+        event(serverId, HeartbeatHist.E_STOP, a == null ? null : a.getDaemonPid(), null,
+                watchdog ? "데몬 종료 보고 - 서버는 정상 (하트비트 계속 수신)" : "데몬 종료 보고");
         processStatus.stopAllNoData(serverId, serverName(serverId), "데몬 종료");
+    }
+
+    /**
+     * 데몬 재시작 요청 (ADMIN) : 다음 하트비트 응답(restart=Y)으로 감시자가 서버에서 bin/scb_client.sh start 실행.
+     * 감시자(클라이언트 1.5~)가 하트비트를 보내고 있고 데몬이 멈춰 있을 때만.
+     */
+    public AgentView requestRestart(Long serverId, String user) {
+        return tx.execute(st -> {
+            Agent a = mapper.selectAgent(serverId);
+            if (a == null) throw TopologyException.badRequest("에이전트 토큰을 먼저 발급하세요. (server_id=" + serverId + ")");
+            if (!a.isWatchdogClient()) {
+                throw TopologyException.badRequest("웹 재시작은 하트비트 감시자가 있는 클라이언트 1.5 이상에서만 됩니다. 서버에서 bin/scb_client.sh start 로 시작하세요.");
+            }
+            if (!Agent.HB_ALIVE.equals(a.heartbeatState(System.currentTimeMillis()))) {
+                throw TopologyException.badRequest("하트비트가 끊겨 재시작 명령을 전달할 수 없습니다. 서버 상태를 확인하세요.");
+            }
+            if (!a.isDaemonDown()) throw TopologyException.conflict("데몬이 실행 중입니다.");
+            mapper.updateRestartReq(serverId, "Y", user);
+            event(serverId, HeartbeatHist.E_RESTART, a.getDaemonPid(), null, "데몬 재시작 요청 (" + user + ") - 다음 하트비트에 전달");
+            return AgentView.of(mapper.selectAgent(serverId), props.getStaleAfterSec());
+        });
     }
 
     // ===================== 감시 =====================
@@ -156,7 +242,7 @@ public class HeartbeatService {
                         Long gap = a.heartbeatAgoSec(now);
                         event(a.getServerId(), HeartbeatHist.E_LOST, a.isHeartbeatClient() ? a.getHbPid() : a.getDaemonPid(),
                                 gap == null ? null : gap.intValue(),
-                                "하트비트 끊김 - " + gap + "초 동안 수신 없음 (기준 " + a.heartbeatTimeoutSec() + "초)");
+                                "하트비트 " + Agent.HB_MISS_LIMIT + "회 연속 미수신 - 서버 다운 (" + gap + "초 동안 수신 없음, 기준 " + a.heartbeatTimeoutSec() + "초)");
                         processStatus.stopAllNoData(a.getServerId(), serverName(a.getServerId()), "하트비트 끊김");
                         ids.add(a.getServerId());
                     }

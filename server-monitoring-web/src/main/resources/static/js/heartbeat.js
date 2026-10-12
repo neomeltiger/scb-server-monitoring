@@ -5,13 +5,22 @@
     const API = 'api/agents/heartbeat';
     const AUTO_MS = 2000;
     const EVENT_ROWS = 200;
+    // 카드 상태 : 수신 중 / 데몬 문제(서버 정상) / 서버 다운(3회 연속 미수신) / 데몬 종료(이전 클라이언트) / 없음
     const HB = {
-        ALIVE: ['수신 중', 'ALIVE'], LOST: ['끊김', 'LOST'], STOPPED: ['데몬 종료', 'STOPPED'], NONE: ['없음', 'NONE']
+        ALIVE: ['수신 중', 'ALIVE'], DAEMON: ['데몬 문제', 'DAEMON'], LOST: ['서버 다운', 'LOST'],
+        STOPPED: ['데몬 종료', 'STOPPED'], NONE: ['없음', 'NONE']
     };
     const EVENT = {
-        START: ['수신 시작', 'ALIVE'], RECOVER: ['복구', 'ALIVE'], LOST: ['끊김', 'LOST'],
-        STOP: ['데몬 종료', 'STOPPED'], INTERVAL: ['주기 변경', 'NONE']
+        START: ['수신 시작', 'ALIVE'], RECOVER: ['복구', 'ALIVE'], LOST: ['서버 다운', 'LOST'],
+        STOP: ['데몬 종료', 'STOPPED'], INTERVAL: ['주기 변경', 'NONE'],
+        D_DOWN: ['데몬 중단', 'DAEMON'], D_UP: ['데몬 다시 실행', 'ALIVE'], RESTART: ['재시작 요청', 'NONE']
     };
+
+    function cardState(v) {
+        if (v.hbState === 'LOST') return 'LOST';
+        if (v.daemonIssue) return 'DAEMON';
+        return HB[v.hbState] ? v.hbState : 'NONE';
+    }
     const AGENT = { NONE: '토큰 미발급', WAITING: '보고 대기', OK: '정상 보고', STALE: '보고 끊김', LOST: '하트비트 끊김', PAUSED: '수집 중지', STOPPED: '데몬 종료' };
 
     const $ = id => document.getElementById(id);
@@ -67,23 +76,33 @@
     }
 
     function summary() {
-        const n = { ALIVE: 0, LOST: 0, STOPPED: 0, NONE: 0 };
-        list.forEach(v => { n[HB[v.hbState] ? v.hbState : 'NONE']++; });
-        $('hbSummary').innerHTML = ['ALIVE', 'LOST', 'STOPPED', 'NONE'].map(k =>
+        const n = { ALIVE: 0, DAEMON: 0, LOST: 0, STOPPED: 0, NONE: 0 };
+        list.forEach(v => { n[cardState(v)]++; });
+        $('hbSummary').innerHTML = ['ALIVE', 'DAEMON', 'LOST', 'STOPPED', 'NONE'].map(k =>
             '<span class="hb-sum ' + k + '"><span class="hb-badge ' + k + '">' + HB[k][0] + '</span> <b>' + n[k] + '</b>대</span>').join('') +
-            '<span class="hb-sum-note">전체 ' + list.length + '대 · 끊김은 주기 x 2 + 3초 동안 수신이 없을 때</span>';
+            '<span class="hb-sum-note">전체 ' + list.length + '대 · 서버 다운 = 하트비트 3회 연속 미수신 · 데몬 문제 = 서버 정상, 데몬만 재시작</span>';
+    }
+
+    function missHtml(v) {
+        if (v.hbMisses == null || v.hbState === 'NONE') return '-';
+        const lim = v.hbMissLimit || 3;
+        const n = Math.min(v.hbMisses, lim);
+        let dots = '';
+        for (let i = 1; i <= lim; i++) dots += '<i class="' + (i <= n ? (n >= lim ? 'bad' : 'warn') : '') + '"></i>';
+        return '<span class="hb-miss-dots" aria-label="연속 미수신 ' + n + ' / ' + lim + '">' + dots + '</span> ' + n + ' / ' + lim + '회';
     }
 
     function card(v) {
-        const st = HB[v.hbState] ? v.hbState : 'NONE';
+        const st = cardState(v);
         const ago = agoNow(v);
         const limit = v.hbTimeoutSec || 23;
         const pct = ago == null ? 0 : Math.min(100, Math.round(ago * 100 / limit));
-        const barCls = st === 'LOST' || pct >= 100 ? 'bad' : pct >= 60 ? 'warn' : 'ok';
+        const barCls = st === 'LOST' || pct >= 100 ? 'bad' : pct >= 34 ? 'warn' : 'ok';
         const legacy = v.agentState !== 'NONE' && !v.hbClient && v.lastHbDt;
         const lines = [
             ['마지막 수신', v.lastHbDt ? escapeHtml(v.lastHbDt) + ' <b class="hb-ago">(' + fmtGap(ago) + ' 전)</b>' : '-'],
-            ['주기 / 끊김 기준', v.hbClient ? v.hbIntervalSec + '초 / ' + limit + '초' : (legacy ? '웹 확인 10초 / ' + limit + '초' : v.hbIntervalSec + '초 (설정)')],
+            ['연속 미수신', missHtml(v)],
+            ['주기 / 다운 기준', v.hbClient ? v.hbIntervalSec + '초 / ' + limit + '초' : (legacy ? '웹 확인 10초 / ' + limit + '초' : v.hbIntervalSec + '초 (설정)')],
             ['데몬 PID', v.hbPid != null ? escapeHtml(v.hbPid) : '-'],
             ['에이전트', escapeHtml(AGENT[v.agentState] || v.agentState) + (v.agentVer ? ' · ' + escapeHtml(v.agentVer) : '') +
                 (legacy ? ' <span class="hb-tag" title="하트비트 셸이 없는 1.3 이하 - 데몬의 웹 확인으로 판단">이전 방식</span>' : '')]
@@ -94,10 +113,19 @@
             '<span class="hb-badge ' + st + '">' + HB[st][0] + '</span></div>' +
             '<div class="hb-bar" role="img" aria-label="끊김 기준 대비 경과 ' + pct + '%"><i class="' + barCls + '" style="width:' + (st === 'NONE' ? 0 : pct) + '%"></i></div>' +
             '<table class="hb-info">' + lines.map(r => '<tr><th>' + r[0] + '</th><td>' + r[1] + '</td></tr>').join('') + '</table>' +
-            (st === 'LOST' ? '<div class="hb-alert">서버 다운 또는 데몬 비정상 종료 - 모니터링 대상 프로세스를 종료로 표시했습니다.</div>' : '') +
-            (st === 'STOPPED' ? '<div class="hb-alert gray">데몬이 종료되었습니다. 서버에서 <code>bin/scb_client.sh start</code> 로 시작하세요.</div>' : '') +
+            (st === 'LOST' ? '<div class="hb-alert">하트비트 ' + (v.hbMissLimit || 3) + '회 연속 미수신 - 서버 다운으로 보고 모니터링 대상 프로세스를 종료로 표시했습니다. 서버 전원·네트워크를 확인하세요.</div>' : '') +
+            (st === 'DAEMON' || st === 'STOPPED' ? daemonNotice(v) : '') +
             '<a class="hb-link" href="network?server=' + v.serverId + '">네트워크 구성도에서 보기' + (isAdminUser() ? ' · 주기 변경' : '') + ' →</a>' +
             '</div>';
+    }
+
+    function daemonNotice(v) {
+        const issue = v.daemonIssue || '데몬 종료';
+        let act;
+        if (v.restartPending) act = '<div class="hb-restart-wait">재시작 요청을 보냈습니다 - 다음 하트비트 때 서버에서 시작합니다.</div>';
+        else if (isAdminUser() && v.canRestart) act = '<button type="button" class="btn btn-restart" data-restart="' + v.serverId + '">데몬 재시작</button>';
+        else act = '<div>서버에서 <code>bin/scb_client.sh start</code>' + (v.watchdog ? '' : ' (웹 재시작은 클라이언트 1.5 이상)') + '</div>';
+        return '<div class="hb-alert daemon">⚠ ' + escapeHtml(issue) + ' - 서버는 정상입니다(하트비트 수신 중). 데몬(scb_client)만 재시작하면 됩니다.' + act + '</div>';
     }
 
     function render() {
@@ -178,6 +206,13 @@
         $('hbEventServer').addEventListener('change', () => { store('hbEventServer', $('hbEventServer').value); loadEvents(); });
         $('hbEventType').addEventListener('change', renderEvents);
         $('hbEventReload').addEventListener('click', loadEvents);
+        $('hbGrid').addEventListener('click', async e => {
+            const b = e.target.closest('button[data-restart]');
+            if (!b) return;
+            b.disabled = true;
+            if (await restartDaemon(Number(b.getAttribute('data-restart')))) { await load(); loadEvents(); }
+            else b.disabled = false;
+        });
         load().then(loadEvents);
         setAuto($('hbAuto').checked);
         tickTimer = setInterval(tick, 1000);

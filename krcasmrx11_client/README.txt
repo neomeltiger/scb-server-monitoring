@@ -17,10 +17,11 @@ krcasmrx11_client - 서버 → 통합 모니터링 웹 연동 에이전트 (Sola
                 연결 실패면 : ping 웹서버IP, 웹 서버 PC 방화벽의 포트 허용 확인
                 bin/scb_client.sh collect     → 수집 결과 화면 출력 (전송 안 함)
   5) 데몬 시작 (crontab 사용 안 함)
-                bin/scb_client.sh start       → 자료수집 데몬 시작 (백그라운드)
+                bin/scb_client.sh start       → 자료수집 데몬 + 하트비트 감시자 시작 (백그라운드)
                 bin/scb_client.sh status      → 실행 여부, 수집 상태, 수집 주기, 마지막 확인·보고, 하트비트
                 bin/scb_client.sh heartbeat   → 하트비트 1회 전송 (hb|interval=10|timeout=23)
-                bin/scb_client.sh stop        → 데몬 정지 (웹에 종료 보고)
+                bin/scb_client.sh stop        → 데몬 정지 (웹에 종료 보고, 하트비트 감시자는 계속 → 웹은 서버 정상·데몬 정지로 표시)
+                bin/scb_client.sh stopall     → 데몬 + 하트비트 감시자 모두 정지 (서버 점검·종료 시)
      ※ 이전 버전에서 crontab 에 scb_client.sh run 을 등록했다면 crontab -e 로 그 줄을 지우세요.
   6) 부팅 시 자동 시작 (root, 한 번)
                 cp etc/scb_client.init /etc/init.d/scb_client ; chmod 744 /etc/init.d/scb_client
@@ -32,7 +33,7 @@ krcasmrx11_client - 서버 → 통합 모니터링 웹 연동 에이전트 (Sola
 
 구성
   bin/scb_client.sh       메인 (start | stop | restart | status | daemon | heartbeat | ping | config | collect | report | commands)
-  bin/scb_heartbeat.sh    하트비트(생존 신호) - 데몬이 함께 실행, 데몬이 죽으면 같이 끝남 (1.4~)
+  bin/scb_heartbeat.sh    하트비트 감시자 - 데몬과 따로 실행, 데몬 상태를 함께 알리고 웹 재시작 요청 처리 (1.5~)
   etc/scb_client.init     부팅 시 자동 시작 rc 스크립트 (/etc/init.d/scb_client)
   bin/collect_sys.sh      [sys]      호스트명, OS                        → 구성도 상세 "서버 에이전트"
   bin/collect_metric.sh   [metric]   CPU / 메모리 / 디스크 / 세션         → 구성도 상세·상태 팝업, 메인 홈 그래프
@@ -71,15 +72,19 @@ krcasmrx11_client - 서버 → 통합 모니터링 웹 연동 에이전트 (Sola
   수집 주기  10초 / 30초 / 1분 / 2분 / 5분 / 10분 (서버별)
   상태 파일  run/daemon.pid, run/daemon.state
 
-하트비트 (1.4~)
-  데몬이 시작하면 bin/scb_heartbeat.sh 가 함께 떠서 웹이 정한 주기마다 GET /agent-api/v1/heartbeat 를 보냅니다.
-  주기     : 기본 10초, 웹 화면 네트워크 구성도 → 서버 → 서버 에이전트 → 하트비트 주기 (3 / 5 / 10 / 15 / 30 / 60초)
-             응답 hb|interval=N 으로 다음 전송부터 바로 적용 (서버 작업 불필요)
-  끊김     : 웹이 "주기 x 2 + 3초" 동안 못 받으면 하트비트 끊김 → 그 서버의 모니터링 대상 프로세스·서비스를
-             즉시 종료로, 서버를 Down 으로 표시하고 알람. 데몬 [종료] / scb_client.sh stop 은 종료 보고로 바로 반영
-  복구     : 다시 받으면 복구 이벤트, 다음 보고부터 실제 상태로 돌아옴
-  확인     : 웹 화면 서버자원모니터링 → 하트비트 모니터링 (서버별 마지막 수신, 끊김·복구 이력)
-  상태 파일 run/heartbeat.pid, run/heartbeat.state
+하트비트 감시자 (1.5~)
+  bin/scb_client.sh start 가 데몬과 함께 bin/scb_heartbeat.sh 를 따로 띄웁니다. 감시자는 웹이 정한 주기마다
+  GET /agent-api/v1/heartbeat?pid=데몬PID&daemon=데몬상태 를 보냅니다. (데몬이 죽어도 계속 보냄)
+  주기       : 기본 10초, 웹 화면 네트워크 구성도 → 서버 → 서버 에이전트 → 하트비트 주기 (3 / 5 / 10 / 15 / 30 / 60초)
+               응답 hb|interval=N 으로 다음 전송부터 바로 적용 (서버 작업 불필요)
+  서버 다운  : 웹이 하트비트를 3회 연속(주기 x 3 + 2초) 못 받으면 → 서버 Down, 모니터링 대상 프로세스·서비스 즉시 종료, 알람
+  데몬 문제  : 하트비트는 오는데 데몬이 멈춤(daemon=STOPPED / DEAD) → 서버는 정상(Down 아님), 프로세스·서비스는 종료 표시,
+               "데몬 중단" 알람 + 웹 [데몬 재시작] → 다음 하트비트 응답 restart=Y → 감시자가 bin/scb_client.sh start
+               (데몬 [종료] / scb_client.sh stop 처럼 일부러 멈춘 경우는 알람 없이 화면 안내만)
+  복구       : 다시 받으면 복구 / 데몬 다시 실행 이벤트, 다음 보고부터 실제 상태로 돌아옴
+  확인       : 웹 화면 서버자원모니터링 → 하트비트 모니터링 (서버별 상태, 연속 미수신 횟수, 이벤트 이력)
+  상태 파일  run/heartbeat.pid, run/heartbeat.state
+  ※ 1.4 는 하트비트가 데몬과 함께 멈추므로 데몬이 죽으면 서버 다운으로 보입니다. 1.5 로 교체하세요.
   ※ 1.3 이하(하트비트 셸 없음)는 데몬의 웹 확인(10초)을 하트비트로 쓰며 끊김 기준은 45초입니다.
 
 서버 로그 (웹 서버 주기 요청)

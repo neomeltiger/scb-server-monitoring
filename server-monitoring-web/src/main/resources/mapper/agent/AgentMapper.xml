@@ -8,7 +8,8 @@
         a.agent_host, a.agent_os, a.agent_ver, a.peer_status,
         a.collect_yn, a.collect_interval_sec, a.shutdown_req_yn, a.daemon_state, a.daemon_pid,
         a.daemon_start_dt, a.last_poll_dt, a.ctl_user, a.ctl_dt,
-        a.hb_interval_sec, a.hb_state, a.last_hb_dt, a.hb_pid
+        a.hb_interval_sec, a.hb_state, a.last_hb_dt, a.hb_pid,
+        a.hb_daemon_state, a.restart_req_yn, a.restart_req_user, a.restart_req_dt
     </sql>
 
     <select id="selectAgent" resultType="com.scb.monitoring.agent.domain.Agent">
@@ -113,9 +114,25 @@
     <!-- 하트비트 수신 (클라이언트 1.4 bin/scb_heartbeat.sh) -->
     <update id="updateHbBeat">
         UPDATE tb_agent
-           SET last_hb_dt = CURRENT_TIMESTAMP,
-               hb_pid     = #{pid, jdbcType=INTEGER},
-               hb_state   = 'ALIVE'
+           SET last_hb_dt      = CURRENT_TIMESTAMP,
+               hb_pid          = #{pid, jdbcType=INTEGER},
+               hb_state        = 'ALIVE',
+               hb_daemon_state = COALESCE(#{daemonState, jdbcType=VARCHAR}, hb_daemon_state)
+         WHERE server_id = #{serverId}
+    </update>
+
+    <update id="updateHbDaemonState">
+        UPDATE tb_agent
+           SET hb_daemon_state = #{daemonState}
+         WHERE server_id = #{serverId}
+    </update>
+
+    <!-- 데몬 재시작 요청 : Y 요청 / S 서버에 전달 / N 없음 -->
+    <update id="updateRestartReq">
+        UPDATE tb_agent
+           SET restart_req_yn   = #{yn},
+               restart_req_user = CASE WHEN #{yn} = 'Y' THEN #{user, jdbcType=VARCHAR} ELSE restart_req_user END,
+               restart_req_dt   = CASE WHEN #{yn} = 'Y' THEN CURRENT_TIMESTAMP ELSE restart_req_dt END
          WHERE server_id = #{serverId}
     </update>
 

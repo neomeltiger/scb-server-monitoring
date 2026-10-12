@@ -23,8 +23,12 @@ public class ServerView {
     private String status;
     /** 등록된 상태 (tb_server.status_cd - 서버 수정 화면 기본값) */
     private String baseStatus;
-    /** 서버 정보 수신 안 됨 사유 (에이전트 미설치 / 보고 대기 / 보고 끊김 / 수집 중지 / 데몬 종료), 정상이면 null */
+    /** 서버 정보 수신 안 됨 사유 (에이전트 미설치 / 보고 대기 / 보고 끊김 / 하트비트 끊김 ...), 서버가 정상이면 null */
     private String noData;
+    /** 데몬 문제 (서버는 정상 - 하트비트 수신 중) : 데몬 종료 / 데몬 비정상 종료 / 데몬 응답 없음, 없으면 null */
+    private String daemonIssue;
+    /** 웹에서 데몬 재시작 가능 */
+    private boolean canRestart;
     private String sync;
     private Long pairId;
     private String cpu;
@@ -50,12 +54,17 @@ public class ServerView {
     }
 
     /**
-     * @param agentState 에이전트 상태 (AgentView.state) - OK 가 아니면 서버 정보 수신 안 됨 → 화면 상태 Down
+     * 화면 상태 : 서버 다운(하트비트 끊김, 생존 신호 없음)이면 Down + 사유.
+     * 데몬만 멈췄고 하트비트가 오면 서버는 등록 상태 그대로 두고 daemonIssue 로 재시작 알림.
      */
-    public static ServerView of(Server s, List<ServerProcess> processes, String agentState) {
+    public static ServerView of(Server s, List<ServerProcess> processes, com.scb.monitoring.agent.dto.AgentView agent) {
         ServerView v = of(s, processes);
-        v.noData = noDataReason(agentState);
-        if (v.noData != null) v.status = "Down";
+        if (agent.isServerDown()) {
+            v.noData = noDataReason(agent.getState());
+            if (v.noData != null) v.status = "Down";
+        }
+        v.daemonIssue = agent.getDaemonIssue();
+        v.canRestart = agent.isCanRestart();
         return v;
     }
 
@@ -92,6 +101,8 @@ public class ServerView {
     public String getStatus() { return status; }
     public String getBaseStatus() { return baseStatus; }
     public String getNoData() { return noData; }
+    public String getDaemonIssue() { return daemonIssue; }
+    public boolean isCanRestart() { return canRestart; }
     public String getSync() { return sync; }
     public Long getPairId() { return pairId; }
     public String getCpu() { return cpu; }

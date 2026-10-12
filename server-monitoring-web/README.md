@@ -132,6 +132,14 @@ java -Dfile.encoding=UTF-8 -jar target/server-monitoring-web.war
 - `GET /api/agents` : 전체 서버의 krcasmrx11_client 등록 현황 (`registered`, `reason`, 상태 NONE / WAITING / STALE / OK)
 - 화면은 정상(OK)이 아닌 서버만 표시, [등록 확인] = `GET /api/agents/{id}` 재조회
 
+## 하트비트 v7 : 서버 다운 / 데몬 문제 구분 (스키마 v7, 클라이언트 1.5)
+
+- 클라이언트 1.5 : `bin/scb_heartbeat.sh` 가 데몬과 **따로** 실행되는 감시자 (`start` 가 함께 띄움, `stop` 은 데몬만, `stopall` 은 둘 다). `heartbeat?pid=&daemon=RUNNING|PAUSED|STOPPED|DEAD` 로 데몬 상태를 알리고, 응답 `restart=Y` 면 `scb_client.sh start` 실행
+- 서버 다운 = 하트비트 **3회 연속 미수신** (`주기 x 3 + 2초`, `Agent.HB_MISS_LIMIT`) → LOST, 프로세스·서비스 즉시 종료, 서버 Down, AGENT_STALE 알람
+- 데몬 문제 = 하트비트는 오는데 데몬 STOPPED / DEAD (또는 보고만 끊김) → `AgentView.serverDown=false`, `daemonIssue`, 서버 Down 아님, 프로세스는 종료 표시, **DAEMON_DOWN** 알람 (일부러 멈춘 경우 제외)
+- 웹 재시작 : `POST /api/agents/{id}/restart` (ADMIN) → `restart_req_yn` Y → 다음 하트비트에 전달(S) → 데몬이 웹 확인을 보내면 바로 D_UP·해제 (재시작 직후 첫 보고가 종료로 덮이지 않게)
+- DB v7 (`db\migrate-v7.bat`) : `tb_agent` + `hb_daemon_state`, `restart_req_yn/user/dt`, 이벤트 `D_DOWN / D_UP / RESTART`, 알람 `DAEMON_DOWN`
+
 ## 하트비트 (원격 서버 구동 유무, 스키마 v6, 클라이언트 1.4)
 
 - 클라이언트 : 데몬이 `bin/scb_heartbeat.sh <데몬PID>` 를 함께 실행 → `GET /agent-api/v1/heartbeat?pid=N` 를 주기마다, 응답 `hb|interval=N|timeout=T` 로 주기 갱신. 데몬이 죽으면 하트비트도 1초 안에 끝남. 종료 때는 하트비트를 먼저 멈춘 뒤 `POST /daemon?state=STOPPED`

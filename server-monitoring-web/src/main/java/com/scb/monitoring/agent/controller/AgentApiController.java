@@ -33,7 +33,8 @@ import com.scb.monitoring.topology.service.TopologyException;
  * <pre>
  * 헤더  : X-SCB-Agent-Token: (토큰 64자리)
  * GET  /agent-api/v1/ping                     연결 확인
- * GET  /agent-api/v1/heartbeat?pid=N          하트비트 (클라이언트 1.4 bin/scb_heartbeat.sh) → hb|interval=10|timeout=23
+ * GET  /agent-api/v1/heartbeat?pid=N&daemon=RUNNING|PAUSED|STOPPED|DEAD
+ *                                             하트비트 (bin/scb_heartbeat.sh, daemon 은 1.5~ 감시자) → hb|interval=10|timeout=32|restart=N
  * GET  /agent-api/v1/config                   보고 주기, 감시 프로세스, 동기화 대상 IP
  * POST /agent-api/v1/report                   수집 결과 (text/plain)
  * GET  /agent-api/v1/commands?state=RUNNING&pid=N&ver=V
@@ -72,11 +73,13 @@ public class AgentApiController {
         return text("ok server_id=" + serverId + "\n");
     }
 
-    @Operation(summary = "하트비트 (생존 신호) - 응답 hb|interval=초|timeout=초")
+    @Operation(summary = "하트비트 (생존 신호 + 데몬 상태) - 응답 hb|interval=초|timeout=초|restart=Y/N")
     @GetMapping("/heartbeat")
     public ResponseEntity<String> heartbeat(@RequestHeader(value = TOKEN_HEADER, required = false) String token,
-                                            @RequestParam(value = "pid", required = false) Integer pid, HttpServletRequest req) {
-        return text(heartbeat.beat(auth(token, req), pid));
+                                            @RequestParam(value = "pid", required = false) Integer pid,
+                                            @RequestParam(value = "daemon", required = false) String daemon,
+                                            HttpServletRequest req) {
+        return text(heartbeat.beat(auth(token, req), pid, daemon));
     }
 
     @Operation(summary = "에이전트 설정 (보고 주기, 감시 프로세스)")

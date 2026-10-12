@@ -10,6 +10,10 @@ public class HeartbeatHist {
     public static final String E_RECOVER = "RECOVER";
     public static final String E_STOP = "STOP";
     public static final String E_INTERVAL = "INTERVAL";
+    /** 데몬 중단 (서버 정상) / 데몬 다시 실행 / 웹 재시작 요청 */
+    public static final String E_D_DOWN = "D_DOWN";
+    public static final String E_D_UP = "D_UP";
+    public static final String E_RESTART = "RESTART";
 
     private Long histId;
     private Long serverId;

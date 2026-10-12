@@ -18,6 +18,16 @@ public class Agent {
     public static final int DEFAULT_HB_INTERVAL = 10;
     /** 하트비트 셸이 없는 이전 데몬(1.2 / 1.3)은 웹 확인(10초 주기)으로 판단 - 수집 중 지연을 감안한 끊김 기준 (초) */
     public static final int LEGACY_HB_TIMEOUT_SEC = 45;
+    /** 하트비트를 이 횟수만큼 연속으로 못 받으면 서버 다운 */
+    public static final int HB_MISS_LIMIT = 3;
+    /** 끊김 기준 여유 (초) : 네트워크 지연 */
+    public static final int HB_GRACE_SEC = 2;
+
+    /** 하트비트 감시자(1.5~)가 알린 데몬 상태 */
+    public static final String HD_RUNNING = "RUNNING";
+    public static final String HD_PAUSED = "PAUSED";
+    public static final String HD_STOPPED = "STOPPED";
+    public static final String HD_DEAD = "DEAD";
 
     /** 하트비트 상태 : NONE(하트비트 없음 - 미설치/cron 클라이언트) / ALIVE / LOST(끊김) / STOPPED(데몬 종료) */
     public static final String HB_NONE = "NONE";
@@ -53,6 +63,10 @@ public class Agent {
     private String hbState;
     private Timestamp lastHbDt;
     private Integer hbPid;
+    private String hbDaemonState;
+    private String restartReqYn = "N";
+    private String restartReqUser;
+    private Timestamp restartReqDt;
 
     public static boolean isAllowedInterval(int sec) {
         for (int i : COLLECT_INTERVALS) if (i == sec) return true;
@@ -75,10 +89,37 @@ public class Agent {
         return daemonState != null ? lastPollDt : null;
     }
 
-    /** 끊김 기준 (초) : 하트비트 주기 x 2 + 3초 (두 번 연속 못 받으면 끊김), 이전 데몬은 45초 */
+    /** 하트비트 감시자(클라이언트 1.5~) : 데몬과 따로 돌며 데몬 상태를 함께 알림 → 서버 다운과 데몬 문제를 구분 */
+    public boolean isWatchdogClient() { return hbDaemonState != null; }
+
+    /** 끊김(서버 다운) 기준 (초) : 하트비트 3회 연속 미수신 = 주기 x 3 + 2초, 이전 데몬은 45초 */
     public int heartbeatTimeoutSec() {
-        return isHeartbeatClient() ? hbIntervalSec * 2 + 3 : LEGACY_HB_TIMEOUT_SEC;
+        return isHeartbeatClient() ? hbIntervalSec * HB_MISS_LIMIT + HB_GRACE_SEC : LEGACY_HB_TIMEOUT_SEC;
     }
+
+    /** 연속 미수신 횟수 (마지막 수신 후 주기가 몇 번 지났는지) */
+    public Integer heartbeatMisses(long now) {
+        Long ago = heartbeatAgoSec(now);
+        if (ago == null) return null;
+        int interval = isHeartbeatClient() ? hbIntervalSec : POLL_SEC;
+        return (int) Math.max(0, (ago - HB_GRACE_SEC) / interval);
+    }
+
+    /** 데몬이 멈춤 : 감시자가 알린 상태(DEAD / STOPPED), 이전 클라이언트는 데몬의 종료 보고 */
+    public boolean isDaemonDown() {
+        if (isWatchdogClient()) return HD_DEAD.equals(hbDaemonState) || HD_STOPPED.equals(hbDaemonState);
+        return D_STOPPED.equals(daemonState) || D_STOPPING.equals(daemonState);
+    }
+
+    /** 데몬 비정상 종료 (감시자가 PID 파일은 있는데 프로세스가 없음을 알림) */
+    public boolean isDaemonDead() { return HD_DEAD.equals(hbDaemonState); }
+
+    /** 관리자가 일부러 멈춤 (웹 [종료] / 서버 scb_client.sh stop) - 데몬 중단 알람 대상 아님 */
+    public boolean isDaemonStopIntended() {
+        return D_STOPPED.equals(daemonState) || D_STOPPING.equals(daemonState) || isShutdownRequested();
+    }
+
+    public boolean isRestartPending() { return "Y".equals(restartReqYn) || "S".equals(restartReqYn); }
 
     public Long heartbeatAgoSec(long now) {
         Timestamp t = lastBeatDt();
@@ -87,10 +128,12 @@ public class Agent {
 
     /** NONE / ALIVE / LOST / STOPPED */
     public String heartbeatState(long now) {
-        if (D_STOPPED.equals(daemonState) || D_STOPPING.equals(daemonState)) return HB_STOPPED;
         Long ago = heartbeatAgoSec(now);
         if (ago == null) return HB_NONE;
-        return ago > heartbeatTimeoutSec() ? HB_LOST : HB_ALIVE;
+        // 감시자 없는 클라이언트는 데몬이 멈추면 생존 신호도 멈춤 → 종료 보고를 받았으면 서버 다운이 아님
+        if (!isWatchdogClient() && (D_STOPPED.equals(daemonState) || D_STOPPING.equals(daemonState))) return HB_STOPPED;
+        // 연속 미수신 횟수(heartbeatMisses)가 3 이 되는 순간과 같게 (>=)
+        return ago >= heartbeatTimeoutSec() ? HB_LOST : HB_ALIVE;
     }
 
     public boolean isCollectOn() { return !"N".equals(collectYn); }
@@ -131,6 +174,15 @@ public class Agent {
     public void setLastHbDt(Timestamp lastHbDt) { this.lastHbDt = lastHbDt; }
     public Integer getHbPid() { return hbPid; }
     public void setHbPid(Integer hbPid) { this.hbPid = hbPid; }
+
+    public String getHbDaemonState() { return hbDaemonState; }
+    public void setHbDaemonState(String hbDaemonState) { this.hbDaemonState = hbDaemonState; }
+    public String getRestartReqYn() { return restartReqYn; }
+    public void setRestartReqYn(String restartReqYn) { this.restartReqYn = restartReqYn; }
+    public String getRestartReqUser() { return restartReqUser; }
+    public void setRestartReqUser(String restartReqUser) { this.restartReqUser = restartReqUser; }
+    public Timestamp getRestartReqDt() { return restartReqDt; }
+    public void setRestartReqDt(Timestamp restartReqDt) { this.restartReqDt = restartReqDt; }
 
     public Long getServerId() { return serverId; }
     public void setServerId(Long serverId) { this.serverId = serverId; }
