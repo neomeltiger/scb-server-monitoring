@@ -33,6 +33,7 @@ import com.scb.monitoring.topology.service.TopologyException;
  * <pre>
  * 헤더  : X-SCB-Agent-Token: (토큰 64자리)
  * GET  /agent-api/v1/ping                     연결 확인
+ * GET  /agent-api/v1/heartbeat?pid=N          하트비트 (클라이언트 1.4 bin/scb_heartbeat.sh) → hb|interval=10|timeout=23
  * GET  /agent-api/v1/config                   보고 주기, 감시 프로세스, 동기화 대상 IP
  * POST /agent-api/v1/report                   수집 결과 (text/plain)
  * GET  /agent-api/v1/commands?state=RUNNING&pid=N&ver=V
@@ -54,8 +55,11 @@ public class AgentApiController {
     private final AgentService service;
     private final AgentProperties props;
     private final ServerLogService serverLogService;
+    private final com.scb.monitoring.agent.service.HeartbeatService heartbeat;
 
-    public AgentApiController(AgentService service, AgentProperties props, ServerLogService serverLogService) {
+    public AgentApiController(AgentService service, AgentProperties props, ServerLogService serverLogService,
+                              com.scb.monitoring.agent.service.HeartbeatService heartbeat) {
+        this.heartbeat = heartbeat;
         this.service = service;
         this.props = props;
         this.serverLogService = serverLogService;
@@ -66,6 +70,13 @@ public class AgentApiController {
     public ResponseEntity<String> ping(@RequestHeader(value = TOKEN_HEADER, required = false) String token, HttpServletRequest req) {
         Long serverId = auth(token, req);
         return text("ok server_id=" + serverId + "\n");
+    }
+
+    @Operation(summary = "하트비트 (생존 신호) - 응답 hb|interval=초|timeout=초")
+    @GetMapping("/heartbeat")
+    public ResponseEntity<String> heartbeat(@RequestHeader(value = TOKEN_HEADER, required = false) String token,
+                                            @RequestParam(value = "pid", required = false) Integer pid, HttpServletRequest req) {
+        return text(heartbeat.beat(auth(token, req), pid));
     }
 
     @Operation(summary = "에이전트 설정 (보고 주기, 감시 프로세스)")

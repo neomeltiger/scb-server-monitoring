@@ -36,6 +36,7 @@ public class AgentStatusView {
         if ("NONE".equals(st)) v.reason = "토큰 미발급 (에이전트 미등록)";
         else if ("WAITING".equals(st)) v.reason = "토큰 발급 후 보고 없음 (클라이언트 미설치/미기동)";
         else if ("STALE".equals(st)) v.reason = "보고 끊김 (데몬 중단 또는 네트워크 단절)";
+        else if ("LOST".equals(st)) v.reason = "하트비트 끊김 (서버 다운 또는 데몬 비정상 종료)";
         else if ("PAUSED".equals(st)) v.reason = "수집 중지 (웹 에이전트 관리에서 중지함)";
         else if ("STOPPED".equals(st)) v.reason = "데몬 종료 (웹에서 종료함 - 서버에서 다시 시작 필요)";
         return v;

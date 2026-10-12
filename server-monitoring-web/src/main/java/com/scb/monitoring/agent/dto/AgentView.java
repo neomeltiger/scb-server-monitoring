@@ -12,6 +12,7 @@ public class AgentView {
      * 수집(보고) 상태
      * NONE: 토큰 미발급 / STOPPED: 데몬 종료(웹에서 종료) / PAUSED: 수집 중지(웹에서 중지)
      * WAITING: 발급 후 보고 없음 / OK: 정상 보고 / STALE: 보고 끊김
+     * LOST: 하트비트 끊김 (서버 다운 또는 데몬 비정상 종료 - 감시 프로세스는 종료로 표시)
      */
     private String state;
     /** 데몬 상태 : NONE(확인 기록 없음) / RUNNING / PAUSED / STOPPING / STOPPED / NO_RESPONSE */
@@ -37,6 +38,16 @@ public class AgentView {
     private String lastPollDt;
     private Long lastPollAgoSec;
     private int staleLimitSec;
+    // 하트비트
+    /** NONE / ALIVE / LOST / STOPPED (Agent.heartbeatState) */
+    private String hbState = Agent.HB_NONE;
+    /** 하트비트 셸(클라이언트 1.4~) 사용 여부 - false 면 데몬 웹 확인으로 판단 */
+    private boolean hbClient;
+    private int hbIntervalSec = Agent.DEFAULT_HB_INTERVAL;
+    private int hbTimeoutSec;
+    private String lastHbDt;
+    private Long lastHbAgoSec;
+    private Integer hbPid;
 
     public static AgentView of(Agent a, int staleAfterSec) {
         AgentView v = new AgentView();
@@ -64,6 +75,13 @@ public class AgentView {
         v.daemonStartDt = fmt(a.getDaemonStartDt());
         v.lastPollDt = fmt(a.getLastPollDt());
         v.staleLimitSec = a.staleLimitSec(staleAfterSec);
+        v.hbState = a.heartbeatState(now);
+        v.hbClient = a.isHeartbeatClient();
+        v.hbIntervalSec = a.getHbIntervalSec();
+        v.hbTimeoutSec = a.heartbeatTimeoutSec();
+        v.lastHbDt = fmt(a.lastBeatDt());
+        v.lastHbAgoSec = a.heartbeatAgoSec(now);
+        v.hbPid = a.isHeartbeatClient() ? a.getHbPid() : a.getDaemonPid();
 
         // 데몬 상태
         if (a.getLastPollDt() == null) {
@@ -82,6 +100,8 @@ public class AgentView {
         }
         if (Agent.D_STOPPED.equals(a.getDaemonState()) || Agent.D_STOPPING.equals(a.getDaemonState())) {
             v.state = "STOPPED";
+        } else if (Agent.HB_LOST.equals(v.hbState)) {
+            v.state = "LOST";
         } else if (!a.isCollectOn()) {
             v.state = "PAUSED";
         } else if (a.getLastReportDt() == null) {
@@ -118,4 +138,12 @@ public class AgentView {
     public Long getLastPollAgoSec() { return lastPollAgoSec; }
     public int getStaleLimitSec() { return staleLimitSec; }
     public int[] getCollectIntervals() { return Agent.COLLECT_INTERVALS; }
+    public String getHbState() { return hbState; }
+    public boolean isHbClient() { return hbClient; }
+    public int getHbIntervalSec() { return hbIntervalSec; }
+    public int getHbTimeoutSec() { return hbTimeoutSec; }
+    public String getLastHbDt() { return lastHbDt; }
+    public Long getLastHbAgoSec() { return lastHbAgoSec; }
+    public Integer getHbPid() { return hbPid; }
+    public int[] getHbIntervals() { return Agent.HB_INTERVALS; }
 }

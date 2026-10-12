@@ -24,6 +24,7 @@ CREATE DATABASE IF NOT EXISTS scb_mon_agent
 
 USE scb_mon_agent;
 
+DROP TABLE IF EXISTS tb_heartbeat_hist;
 DROP TABLE IF EXISTS tb_log_snapshot;
 DROP TABLE IF EXISTS tb_log_source;
 DROP TABLE IF EXISTS tb_log_policy;
@@ -188,13 +189,19 @@ CREATE TABLE tb_agent (
     last_poll_dt         TIMESTAMP        NULL COMMENT '마지막 확인(heartbeat) 일시',
     ctl_user             VARCHAR(30)      NULL COMMENT '마지막 제어자',
     ctl_dt               TIMESTAMP        NULL COMMENT '마지막 제어 일시',
+    hb_interval_sec      INT          NOT NULL DEFAULT 10 COMMENT '하트비트 주기 (초) - 네트워크 구성도에서 설정',
+    hb_state             VARCHAR(10)      NULL COMMENT '하트비트 상태 (ALIVE: 수신 중 / LOST: 끊김 / STOPPED: 데몬 종료)',
+    last_hb_dt           TIMESTAMP        NULL COMMENT '마지막 하트비트 수신 일시',
+    hb_pid               INT              NULL COMMENT '하트비트를 보낸 데몬 PID',
     PRIMARY KEY (server_id),
     CONSTRAINT uk_agent_token  UNIQUE (token_hash),
     CONSTRAINT fk_agent_server FOREIGN KEY (server_id) REFERENCES tb_server (server_id),
     CONSTRAINT ck_agent_collect  CHECK (collect_yn IN ('Y', 'N')),
     CONSTRAINT ck_agent_interval CHECK (collect_interval_sec IN (10, 30, 60, 120, 300, 600)),
     CONSTRAINT ck_agent_shutdown CHECK (shutdown_req_yn IN ('Y', 'N')),
-    CONSTRAINT ck_agent_dstate   CHECK (daemon_state IN ('RUNNING', 'PAUSED', 'STOPPING', 'STOPPED'))
+    CONSTRAINT ck_agent_dstate   CHECK (daemon_state IN ('RUNNING', 'PAUSED', 'STOPPING', 'STOPPED')),
+    CONSTRAINT ck_agent_hb_interval CHECK (hb_interval_sec IN (3, 5, 10, 15, 30, 60)),
+    CONSTRAINT ck_agent_hb_state    CHECK (hb_state IN ('ALIVE', 'LOST', 'STOPPED'))
 ) ENGINE = InnoDB COMMENT = '서버 에이전트 (토큰, 마지막 보고, 데몬 제어/상태)';
 
 -- -------------------------------------------------------------
@@ -384,3 +391,22 @@ CREATE TABLE tb_service_metric_hist (
 
 CREATE INDEX ix_svchist_svc ON tb_service_metric_hist (svc_id, collect_dt);
 CREATE INDEX ix_svchist_server ON tb_service_metric_hist (server_id, collect_dt);
+
+-- -------------------------------------------------------------
+-- 하트비트 이벤트 이력 (v6) : 수신 시작 / 끊김 / 복구 / 데몬 종료 / 주기 변경
+-- -------------------------------------------------------------
+CREATE TABLE tb_heartbeat_hist (
+    hist_id         BIGINT       NOT NULL AUTO_INCREMENT COMMENT '이력 ID',
+    server_id       BIGINT       NOT NULL                COMMENT '서버 ID',
+    event_cd        VARCHAR(10)  NOT NULL                COMMENT '이벤트 (START: 수신 시작 / LOST: 끊김 / RECOVER: 복구 / STOP: 데몬 종료 / INTERVAL: 주기 변경)',
+    event_dt        TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '발생 일시',
+    daemon_pid      INT              NULL                COMMENT '데몬 PID',
+    gap_sec         INT              NULL                COMMENT '마지막 수신 후 경과 (초)',
+    detail          VARCHAR(200)     NULL                COMMENT '내용',
+    PRIMARY KEY (hist_id),
+    CONSTRAINT fk_hbhist_server FOREIGN KEY (server_id) REFERENCES tb_server (server_id),
+    CONSTRAINT ck_hbhist_event  CHECK (event_cd IN ('START', 'LOST', 'RECOVER', 'STOP', 'INTERVAL'))
+) ENGINE = InnoDB COMMENT = '하트비트 이벤트 이력';
+
+CREATE INDEX ix_hbhist_server ON tb_heartbeat_hist (server_id, event_dt);
+CREATE INDEX ix_hbhist_dt ON tb_heartbeat_hist (event_dt);

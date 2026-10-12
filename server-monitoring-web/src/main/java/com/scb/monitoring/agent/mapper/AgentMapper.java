@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 import com.scb.monitoring.agent.domain.Agent;
+import com.scb.monitoring.agent.domain.HeartbeatHist;
 
 /** 서버 에이전트 Mapper. SQL: resources/mapper/agent/AgentMapper.xml (ANSI SQL) */
 @Mapper
@@ -44,4 +45,21 @@ public interface AgentMapper {
                       @Param("shutdownReqYn") String shutdownReqYn, @Param("ctlUser") String ctlUser);
 
     int updateCollectInterval(@Param("serverId") Long serverId, @Param("sec") int sec, @Param("ctlUser") String ctlUser);
+
+    // ---- 하트비트 (v6) ----
+
+    int updateHbBeat(@Param("serverId") Long serverId, @Param("pid") Integer pid);
+
+    int updateHbState(@Param("serverId") Long serverId, @Param("hbState") String hbState);
+
+    int updateHbInterval(@Param("serverId") Long serverId, @Param("sec") int sec, @Param("ctlUser") String ctlUser);
+
+    int insertHbHist(@Param("serverId") Long serverId, @Param("eventCd") String eventCd, @Param("pid") Integer pid,
+                     @Param("gapSec") Integer gapSec, @Param("detail") String detail);
+
+    List<HeartbeatHist> selectHbHist(@Param("serverId") Long serverId, @Param("rows") int rows);
+
+    int deleteHbHistBefore(@Param("serverId") Long serverId, @Param("before") java.sql.Timestamp before);
+
+    int deleteHbHistByServer(@Param("serverId") Long serverId);
 }

@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -34,6 +35,9 @@ import com.scb.monitoring.agent.service.AgentService;
  * POST /api/agents/{serverId}/token   토큰 (재)발급 - 원문은 이 응답에서 한 번만 보여줌
  * POST /api/agents/{serverId}/daemon  {"action":"start|stop|shutdown"}  데몬 자료 수집 시작 / 중지 / 데몬 종료
  * PUT  /api/agents/{serverId}/collect-interval {"sec":60}              수집 주기 (10/30/60/120/300/600초)
+ * GET  /api/agents/heartbeat                                           하트비트 상태 (화면 즉시 갱신용, 가벼운 조회)
+ * GET  /api/agents/heartbeat/events?serverId=&rows=100                 하트비트 이벤트 이력
+ * PUT  /api/agents/{serverId}/heartbeat-interval {"sec":10}            하트비트 주기 (3/5/10/15/30/60초)
  * </pre>
  */
 @Tag(name = "5. 에이전트 관리", description = "에이전트 상태·데몬 제어·수집 주기·토큰 발급")
@@ -43,8 +47,11 @@ public class AgentAdminController {
 
     private final AgentService service;
     private final AgentProperties props;
+    private final com.scb.monitoring.agent.service.HeartbeatService heartbeat;
 
-    public AgentAdminController(AgentService service, AgentProperties props) {
+    public AgentAdminController(AgentService service, AgentProperties props,
+                                com.scb.monitoring.agent.service.HeartbeatService heartbeat) {
+        this.heartbeat = heartbeat;
         this.service = service;
         this.props = props;
     }
@@ -53,6 +60,45 @@ public class AgentAdminController {
     @GetMapping
     public List<AgentStatusView> list() {
         return service.getAgentStatusList();
+    }
+
+    @Operation(summary = "하트비트 상태 목록 (화면 즉시 갱신용)")
+    @GetMapping("/heartbeat")
+    public ResponseEntity<List<com.scb.monitoring.agent.dto.HeartbeatView>> heartbeatList() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(heartbeat.getStatusList());
+    }
+
+    @Operation(summary = "하트비트 이벤트 이력 (수신 시작 / 끊김 / 복구 / 데몬 종료 / 주기 변경)")
+    @GetMapping("/heartbeat/events")
+    public List<Map<String, Object>> heartbeatEvents(@RequestParam(value = "serverId", required = false) Long serverId,
+                                                     @RequestParam(value = "rows", defaultValue = "100") int rows) {
+        java.text.SimpleDateFormat f = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        List<Map<String, Object>> out = new java.util.ArrayList<>();
+        for (com.scb.monitoring.agent.domain.HeartbeatHist h : heartbeat.getEvents(serverId, rows)) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", h.getHistId());
+            m.put("serverId", h.getServerId());
+            m.put("systemNm", h.getSystemNm());
+            m.put("event", h.getEventCd());
+            m.put("eventDt", h.getEventDt() == null ? null : f.format(h.getEventDt()));
+            m.put("pid", h.getDaemonPid());
+            m.put("gapSec", h.getGapSec());
+            m.put("detail", h.getDetail());
+            out.add(m);
+        }
+        return out;
+    }
+
+    @Operation(summary = "하트비트 주기 변경 - ADMIN")
+    @PutMapping("/{serverId}/heartbeat-interval")
+    public AgentView heartbeatInterval(@PathVariable("serverId") Long serverId, @RequestBody Map<String, Object> body, Authentication auth) {
+        int sec;
+        try {
+            sec = Integer.parseInt(String.valueOf(body.get("sec")));
+        } catch (NumberFormatException e) {
+            throw com.scb.monitoring.topology.service.TopologyException.badRequest("하트비트 주기 값이 올바르지 않습니다.");
+        }
+        return heartbeat.changeInterval(serverId, sec, auth.getName());
     }
 
     @Operation(summary = "에이전트 상세")

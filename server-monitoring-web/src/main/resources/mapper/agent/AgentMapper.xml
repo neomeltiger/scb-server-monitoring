@@ -7,7 +7,8 @@
         a.server_id, a.token_hash, a.issue_dt, a.issue_user, a.last_report_dt, a.last_report_ip,
         a.agent_host, a.agent_os, a.agent_ver, a.peer_status,
         a.collect_yn, a.collect_interval_sec, a.shutdown_req_yn, a.daemon_state, a.daemon_pid,
-        a.daemon_start_dt, a.last_poll_dt, a.ctl_user, a.ctl_dt
+        a.daemon_start_dt, a.last_poll_dt, a.ctl_user, a.ctl_dt,
+        a.hb_interval_sec, a.hb_state, a.last_hb_dt, a.hb_pid
     </sql>
 
     <select id="selectAgent" resultType="com.scb.monitoring.agent.domain.Agent">
@@ -106,6 +107,61 @@
                ctl_dt               = CURRENT_TIMESTAMP
          WHERE server_id = #{serverId}
     </update>
+
+    <!-- =========================== 하트비트 (v6) =========================== -->
+
+    <!-- 하트비트 수신 (클라이언트 1.4 bin/scb_heartbeat.sh) -->
+    <update id="updateHbBeat">
+        UPDATE tb_agent
+           SET last_hb_dt = CURRENT_TIMESTAMP,
+               hb_pid     = #{pid, jdbcType=INTEGER},
+               hb_state   = 'ALIVE'
+         WHERE server_id = #{serverId}
+    </update>
+
+    <update id="updateHbState">
+        UPDATE tb_agent
+           SET hb_state = #{hbState}
+         WHERE server_id = #{serverId}
+    </update>
+
+    <update id="updateHbInterval">
+        UPDATE tb_agent
+           SET hb_interval_sec = #{sec},
+               ctl_user        = #{ctlUser},
+               ctl_dt          = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+    </update>
+
+    <insert id="insertHbHist">
+        INSERT INTO tb_heartbeat_hist (server_id, event_cd, event_dt, daemon_pid, gap_sec, detail)
+        VALUES (#{serverId}, #{eventCd}, CURRENT_TIMESTAMP, #{pid, jdbcType=INTEGER}, #{gapSec, jdbcType=INTEGER}, #{detail, jdbcType=VARCHAR})
+    </insert>
+
+    <!-- 최근 이벤트 (serverId 가 없으면 전체) -->
+    <select id="selectHbHist" resultType="com.scb.monitoring.agent.domain.HeartbeatHist">
+        SELECT t.hist_id, t.server_id, t.system_nm, t.event_cd, t.event_dt, t.daemon_pid, t.gap_sec, t.detail
+          FROM (SELECT h.hist_id, h.server_id, s.system_nm, h.event_cd, h.event_dt, h.daemon_pid, h.gap_sec, h.detail,
+                       ROW_NUMBER() OVER (ORDER BY h.hist_id DESC) AS rn
+                  FROM tb_heartbeat_hist h
+                  JOIN tb_server s ON s.server_id = h.server_id
+                <where>
+                    <if test="serverId != null">h.server_id = #{serverId}</if>
+                </where>) t
+         WHERE t.rn &lt;= #{rows}
+         ORDER BY t.hist_id DESC
+    </select>
+
+    <delete id="deleteHbHistBefore">
+        DELETE FROM tb_heartbeat_hist
+         WHERE server_id = #{serverId}
+           AND event_dt &lt; #{before}
+    </delete>
+
+    <delete id="deleteHbHistByServer">
+        DELETE FROM tb_heartbeat_hist
+         WHERE server_id = #{serverId}
+    </delete>
 
     <delete id="deleteAgent">
         DELETE FROM tb_agent

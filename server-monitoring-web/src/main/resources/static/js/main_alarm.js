@@ -211,7 +211,7 @@ function openAlarmHistory() {
 
 // ---------------------------------------------------------------- 에이전트 미등록 서버
 
-const AGENT_STATE_LABEL = { NONE: '미등록', WAITING: '보고 대기', OK: '정상', STALE: '보고 끊김', PAUSED: '수집 중지', STOPPED: '데몬 종료' };
+const AGENT_STATE_LABEL = { NONE: '미등록', WAITING: '보고 대기', OK: '정상', STALE: '보고 끊김', LOST: '하트비트 끊김', PAUSED: '수집 중지', STOPPED: '데몬 종료' };
 
 async function loadAgentRegistrations() {
     let list;
@@ -276,6 +276,10 @@ async function recheckAgent(serverId) {
 
 window.addEventListener('DOMContentLoaded', function () {
     if (!document.getElementById('alarmBanner')) return;
+    // 하트비트 끊김 / 데몬 종료 → 알람·미등록 서버 패널 바로 갱신
+    if (typeof onHeartbeatChange === 'function') {
+        onHeartbeatChange(() => Promise.all([loadAlarms(), loadAgentRegistrations()]));
+    }
 
     const sound = document.getElementById('alarmSound');
     sound.checked = alarmStore('alarmSound') === 'Y';

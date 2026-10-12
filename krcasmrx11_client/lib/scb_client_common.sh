@@ -13,7 +13,7 @@ SCB_HTTP_TIMEOUT=${SCB_HTTP_TIMEOUT:-20}
 SCB_HTTP_INSECURE=${SCB_HTTP_INSECURE:-0}
 # 웹 서버가 요청할 수 있는 로그 경로 (공백 구분 셸 패턴, client.env 에서 바꿀 수 있음)
 SCB_LOG_ALLOW=${SCB_LOG_ALLOW:-"/var/adm/messages /var/adm/messages.[0-9]* /var/log/*.log /var/log/syslog /shared/opt/agent/krcasmrx11_agent/log/* /shared/opt/agent/krcasmrx11_client/log/*"}
-CLIENT_VER=1.3
+CLIENT_VER=1.4
 RUN_DIR=$CLIENT_HOME/run
 LOG_DIR=$CLIENT_HOME/log
 LOG_FILE=$LOG_DIR/scb_client.log
@@ -87,6 +87,8 @@ http_call() {
         rm -f $h_err
     fi
     [ "$HTTP_STATUS" = "200" ] && return 0
+    # HTTP_QUIET=1 : 실패 로그를 호출한 쪽에서 남김 (하트비트 - 몇 초마다 같은 오류가 쌓이지 않게)
+    [ -n "$HTTP_QUIET" ] && return 1
     case "$HTTP_STATUS" in
         401) clog "ERROR: 토큰 인증 실패 (HTTP 401) - 화면에서 토큰을 다시 발급해 client.env 에 넣으세요" ;;
         000) clog "ERROR: 웹 서버 연결 실패 ($h_url)"

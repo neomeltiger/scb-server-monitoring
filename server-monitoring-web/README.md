@@ -132,6 +132,15 @@ java -Dfile.encoding=UTF-8 -jar target/server-monitoring-web.war
 - `GET /api/agents` : 전체 서버의 krcasmrx11_client 등록 현황 (`registered`, `reason`, 상태 NONE / WAITING / STALE / OK)
 - 화면은 정상(OK)이 아닌 서버만 표시, [등록 확인] = `GET /api/agents/{id}` 재조회
 
+## 하트비트 (원격 서버 구동 유무, 스키마 v6, 클라이언트 1.4)
+
+- 클라이언트 : 데몬이 `bin/scb_heartbeat.sh <데몬PID>` 를 함께 실행 → `GET /agent-api/v1/heartbeat?pid=N` 를 주기마다, 응답 `hb|interval=N|timeout=T` 로 주기 갱신. 데몬이 죽으면 하트비트도 1초 안에 끝남. 종료 때는 하트비트를 먼저 멈춘 뒤 `POST /daemon?state=STOPPED`
+- 웹 : `agent/service/HeartbeatService` - 수신(START / RECOVER), 감시 `app.agent.heartbeat-check-ms`(2초)마다 `주기 x 2 + 3초` 초과 → LOST → `ProcessStatusService.stopAllNoData`(프로세스·서비스 즉시 종료) + 알람(AGENT_STALE, "하트비트 끊김"), 데몬 종료 보고 → STOP 같은 처리
+- 에이전트 상태 `LOST`(하트비트 끊김) 추가 : 화면 상태 Down + 사유. 1.3 이하 데몬은 웹 확인(/commands)을 생존 신호로 쓰고 기준 45초
+- DB : `tb_agent` + `hb_interval_sec`(3/5/10/15/30/60) `hb_state` `last_hb_dt` `hb_pid`, `tb_heartbeat_hist` (START / LOST / RECOVER / STOP / INTERVAL) - 기존 DB 는 `db\migrate-v6.bat`
+- API : `GET /api/agents/heartbeat` (화면 즉시 갱신용 - script.js `onHeartbeatChange` 가 3초마다 확인해 상태가 바뀌면 화면 갱신), `GET /api/agents/heartbeat/events`, `PUT /api/agents/{id}/heartbeat-interval {"sec":5}` (ADMIN)
+- 화면 : `/heartbeat` 하트비트 모니터링, 네트워크 구성도 서버 상세의 하트비트 행·주기 변경 / 로그 `logs/heartbeat.log`
+
 ## 에이전트 데몬 (crontab 미사용) / 웹 제어
 
 - 클라이언트 1.2 : `bin/scb_client.sh start | stop | restart | status` (데몬), 부팅 자동 시작 `etc/scb_client.init` → `/etc/init.d/scb_client`
@@ -186,6 +195,7 @@ java -Dfile.encoding=UTF-8 -jar target/server-monitoring-web.war
 | `/signup` | 사용자 가입 신청 | `signup.html` |
 | `/password` | 비밀번호 변경 | `password.html` |
 | `/logs` | 서버 로그 | `server_logs.html` |
+| `/heartbeat` | 하트비트 모니터링 | `heartbeat.html` |
 | `/agents` | 에이전트 관리 (데몬 제어) | `agent_manage.html` |
 | `/admin/users` | 사용자 관리 (ADMIN) | `admin_users.html` |
 | `/manual/index.html` | 사용자 매뉴얼 | `static/manual/index.html` |

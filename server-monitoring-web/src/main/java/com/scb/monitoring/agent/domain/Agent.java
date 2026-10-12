@@ -13,6 +13,18 @@ public class Agent {
     /** 이 시간 이상 확인이 없으면 "응답 없음" (cron 방식 1.1 클라이언트의 1분 주기도 포함) */
     public static final int POLL_TIMEOUT_SEC = 90;
 
+    /** 네트워크 구성도에서 고를 수 있는 하트비트 주기 (초) */
+    public static final int[] HB_INTERVALS = {3, 5, 10, 15, 30, 60};
+    public static final int DEFAULT_HB_INTERVAL = 10;
+    /** 하트비트 셸이 없는 이전 데몬(1.2 / 1.3)은 웹 확인(10초 주기)으로 판단 - 수집 중 지연을 감안한 끊김 기준 (초) */
+    public static final int LEGACY_HB_TIMEOUT_SEC = 45;
+
+    /** 하트비트 상태 : NONE(하트비트 없음 - 미설치/cron 클라이언트) / ALIVE / LOST(끊김) / STOPPED(데몬 종료) */
+    public static final String HB_NONE = "NONE";
+    public static final String HB_ALIVE = "ALIVE";
+    public static final String HB_LOST = "LOST";
+    public static final String HB_STOPPED = "STOPPED";
+
     public static final String D_RUNNING = "RUNNING";
     public static final String D_PAUSED = "PAUSED";
     public static final String D_STOPPING = "STOPPING";
@@ -37,10 +49,48 @@ public class Agent {
     private Timestamp lastPollDt;
     private String ctlUser;
     private Timestamp ctlDt;
+    private int hbIntervalSec = DEFAULT_HB_INTERVAL;
+    private String hbState;
+    private Timestamp lastHbDt;
+    private Integer hbPid;
 
     public static boolean isAllowedInterval(int sec) {
         for (int i : COLLECT_INTERVALS) if (i == sec) return true;
         return false;
+    }
+
+    public static boolean isAllowedHbInterval(int sec) {
+        for (int i : HB_INTERVALS) if (i == sec) return true;
+        return false;
+    }
+
+    // ---- 하트비트 판정 (화면 상태와 감시가 같은 기준을 씀)
+
+    /** 하트비트 셸(클라이언트 1.4~)이 보낸 적이 있음 */
+    public boolean isHeartbeatClient() { return lastHbDt != null; }
+
+    /** 판정에 쓰는 마지막 생존 신호 : 하트비트, 없으면 데몬 웹 확인(1.2 / 1.3), cron 클라이언트·미설치는 null */
+    public Timestamp lastBeatDt() {
+        if (lastHbDt != null) return lastHbDt;
+        return daemonState != null ? lastPollDt : null;
+    }
+
+    /** 끊김 기준 (초) : 하트비트 주기 x 2 + 3초 (두 번 연속 못 받으면 끊김), 이전 데몬은 45초 */
+    public int heartbeatTimeoutSec() {
+        return isHeartbeatClient() ? hbIntervalSec * 2 + 3 : LEGACY_HB_TIMEOUT_SEC;
+    }
+
+    public Long heartbeatAgoSec(long now) {
+        Timestamp t = lastBeatDt();
+        return t == null ? null : Math.max(0, (now - t.getTime()) / 1000);
+    }
+
+    /** NONE / ALIVE / LOST / STOPPED */
+    public String heartbeatState(long now) {
+        if (D_STOPPED.equals(daemonState) || D_STOPPING.equals(daemonState)) return HB_STOPPED;
+        Long ago = heartbeatAgoSec(now);
+        if (ago == null) return HB_NONE;
+        return ago > heartbeatTimeoutSec() ? HB_LOST : HB_ALIVE;
     }
 
     public boolean isCollectOn() { return !"N".equals(collectYn); }
@@ -72,6 +122,15 @@ public class Agent {
     public void setCtlUser(String ctlUser) { this.ctlUser = ctlUser; }
     public Timestamp getCtlDt() { return ctlDt; }
     public void setCtlDt(Timestamp ctlDt) { this.ctlDt = ctlDt; }
+
+    public int getHbIntervalSec() { return hbIntervalSec; }
+    public void setHbIntervalSec(int hbIntervalSec) { this.hbIntervalSec = hbIntervalSec; }
+    public String getHbState() { return hbState; }
+    public void setHbState(String hbState) { this.hbState = hbState; }
+    public Timestamp getLastHbDt() { return lastHbDt; }
+    public void setLastHbDt(Timestamp lastHbDt) { this.lastHbDt = lastHbDt; }
+    public Integer getHbPid() { return hbPid; }
+    public void setHbPid(Integer hbPid) { this.hbPid = hbPid; }
 
     public Long getServerId() { return serverId; }
     public void setServerId(Long serverId) { this.serverId = serverId; }

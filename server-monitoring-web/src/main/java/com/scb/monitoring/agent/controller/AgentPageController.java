@@ -11,6 +11,13 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class AgentPageController {
 
+    /** 하트비트 모니터링 (/heartbeat) : 서버별 생존 신호, 끊김·복구 이력 - 데이터는 /api/agents/heartbeat */
+    @GetMapping("/heartbeat")
+    public String heartbeat(Model model) {
+        model.addAttribute("menu", "heartbeat");
+        return "heartbeat";
+    }
+
     @GetMapping("/agents")
     public String agents(Model model) {
         model.addAttribute("menu", "agents");

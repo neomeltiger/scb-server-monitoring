@@ -3,7 +3,7 @@
     로그 설정
     - 화면(콘솔) 로그 : Spring Boot 기본과 같음
     - 프로세스 상태 로그 : 서버 정보를 받아오지 못해 프로세스·서비스를 "종료" 로 바꾼 기록 (agent.service.ProcessStatusService)
-        파일 : {LOG_PATH}/process-status.log  (LOG_PATH 미지정 시 Tomcat 은 {tomcat}/logs, java -jar 는 실행 위치의 logs)
+        파일 : {LOG_PATH}/process-status.log, 하트비트 이벤트 {LOG_PATH}/heartbeat.log  (LOG_PATH 미지정 시 Tomcat 은 {tomcat}/logs, java -jar 는 실행 위치의 logs)
         보관 : 하루·10MB 단위로 나눠 30일 (최대 300MB)
 -->
 <configuration>
@@ -25,6 +25,25 @@
             <totalSizeCap>300MB</totalSizeCap>
         </rollingPolicy>
     </appender>
+
+    <appender name="HEARTBEAT" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${PROC_LOG_DIR}/heartbeat.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${PROC_LOG_DIR}/heartbeat.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>300MB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- 하트비트 이벤트 로그 (수신 시작 / 끊김 / 복구 / 데몬 종료 / 주기 변경) : 파일 + 콘솔 -->
+    <logger name="heartbeat" level="INFO">
+        <appender-ref ref="HEARTBEAT"/>
+    </logger>
 
     <!-- 프로세스 상태 로그 : 파일 + 콘솔 -->
     <logger name="process-status" level="INFO">

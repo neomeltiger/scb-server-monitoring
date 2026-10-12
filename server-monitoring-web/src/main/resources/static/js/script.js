@@ -23,14 +23,21 @@ async function renderDashboard() {
         await loadAgentStates();
         initNetwork();
         startTopoRefresh();
+        onHeartbeatChange(() => topoRefreshNow(true));
     }
     if (document.getElementById('specTableBody')) {
         renderSpecTable();
+        onHeartbeatChange(async () => { await loadServers(); renderSpecTable(); });
     }
     if (document.getElementById('processSection')) {
         await Promise.all([loadHistory(), loadAgentStates(), loadServiceLists()]);
         renderProcessSection();
         startHistoryRefresh();
+        onHeartbeatChange(async () => {
+            await loadServers();
+            await Promise.all([loadAgentStates(), loadServiceLists()]);
+            renderProcessSection();
+        });
     }
 }
 
@@ -132,7 +139,7 @@ const TOPO_BUS_GAP = 95;   // 스위치-서버 버스 간격
 
 // 구성도 표시 상태 : DB 상태가 Down 이거나, 에이전트로 서버 기본 정보를 받아오지 못하면(OK 외) Down 색으로 표시
 //   (에이전트 상태를 못 읽었으면 DB 상태만 사용)
-const TOPO_NODATA_LABEL = { NONE: '에이전트 미설치', WAITING: '보고 대기', STALE: '보고 끊김', PAUSED: '수집 중지', STOPPED: '데몬 종료' };
+const TOPO_NODATA_LABEL = { NONE: '에이전트 미설치', WAITING: '보고 대기', STALE: '보고 끊김', LOST: '하트비트 끊김', PAUSED: '수집 중지', STOPPED: '데몬 종료' };
 
 /** 원격 서버에서 기본 정보를 못 받아오는 사유 (받고 있으면 null) - 화면에서 읽은 에이전트 상태, 없으면 서버 응답(noData) */
 function topoNoDataReason(server) {
@@ -285,21 +292,66 @@ function topoServerLook(s) {
 }
 
 // 에이전트 상태 주기 갱신 (60초) : 보고가 끊기거나 다시 연결되면 노드 색을 바꿈 (위치는 유지)
+//   하트비트 끊김·데몬 종료는 onHeartbeatChange 로 몇 초 안에 바로 반영
 let topoRefreshTimer = null;
 function startTopoRefresh() {
     if (topoRefreshTimer) return;
-    topoRefreshTimer = setInterval(async () => {
-        if (document.hidden || !nodes) return;
-        await loadAgentStates();
-        nodes.update(serversData.filter(s => nodes.get(s.id)).map(s => Object.assign({ id: s.id }, topoServerLook(s))));
-        if (network) network.redraw();
-        const box = document.getElementById('topoAgent');
-        const sel = box ? serversData.find(s => String(s.id) === box.dataset.server) : null;
-        if (sel) {
-            document.getElementById('detail-content').innerHTML = topoDetailHtml(sel);
-            loadTopoAgent(sel.id);
+    topoRefreshTimer = setInterval(() => { if (!document.hidden) topoRefreshNow(false); }, 60000);
+}
+
+/** 구성도 다시 그리기 (노드 위치 유지) - reloadServers 면 서버·프로세스 상태도 다시 읽음 */
+async function topoRefreshNow(reloadServers) {
+    if (!nodes) return;
+    if (reloadServers) {
+        try { await loadServers(); } catch (e) { return; }
+    }
+    await loadAgentStates();
+    nodes.update(serversData.filter(s => nodes.get(s.id)).map(s => Object.assign({ id: s.id }, topoServerLook(s))));
+    if (network) network.redraw();
+    const box = document.getElementById('topoAgent');
+    const sel = box ? serversData.find(s => String(s.id) === box.dataset.server) : null;
+    if (sel) {
+        document.getElementById('detail-content').innerHTML = topoDetailHtml(sel);
+        loadTopoAgent(sel.id);
+    }
+}
+
+// ================= 하트비트 즉시 반영 (모든 화면 공통) =================
+// GET api/agents/heartbeat 를 HB_WATCH_MS 마다 확인 → 에이전트 상태가 바뀐 서버가 있으면 등록된 화면 갱신 함수를 바로 실행
+// (웹 서버는 하트비트 끊김·데몬 종료를 2초 안에 감지해 그 서버의 프로세스·서비스를 종료로 바꿔 둠)
+const HB_WATCH_MS = 3000;
+let hbWatchTimer = null;
+let hbLastStates = null;
+const hbChangeHandlers = [];
+
+function onHeartbeatChange(fn) {
+    hbChangeHandlers.push(fn);
+    startHeartbeatWatch();
+}
+
+function startHeartbeatWatch() {
+    if (hbWatchTimer) return;
+    // 기준 상태는 화면을 그린 직후 한 번 받아 둠 (숨겨진 탭이어도) → 숨겨진 동안은 조회하지 않고,
+    // 다시 보이면 바로 확인해 그 사이 바뀐 서버를 반영
+    const tick = async () => {
+        if (document.hidden && hbLastStates) return;
+        let list;
+        try { list = await apiRequest('GET', 'api/agents/heartbeat'); } catch (e) { return; }
+        const now = {};
+        list.forEach(v => { now[v.serverId] = v.agentState; });
+        if (hbLastStates) {
+            const changed = Object.keys(now).filter(id => hbLastStates[id] !== now[id]).map(Number);
+            if (changed.length) {
+                for (const fn of hbChangeHandlers) {
+                    try { await fn(changed, list); } catch (e) { console.warn('하트비트 화면 갱신 실패', e); }
+                }
+            }
         }
-    }, 60000);
+        hbLastStates = now;
+    };
+    tick();
+    hbWatchTimer = setInterval(tick, HB_WATCH_MS);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
 }
 
 function topoRoundRect(ctx, x, y, w, h, r) {
@@ -513,7 +565,7 @@ function topoNodeInfoHtml(id) {
 }
 
 // ---------- 서버 에이전트 (krcasmrx11_client) : 상태 / 토큰 발급 ----------
-const AGENT_LABEL = { NONE: '미설치 (토큰 미발급)', WAITING: '보고 대기', OK: '정상', STALE: '보고 끊김', PAUSED: '수집 중지 (웹)', STOPPED: '데몬 종료' };
+const AGENT_LABEL = { NONE: '미설치 (토큰 미발급)', WAITING: '보고 대기', OK: '정상', STALE: '보고 끊김', LOST: '하트비트 끊김', PAUSED: '수집 중지 (웹)', STOPPED: '데몬 종료' };
 
 function isAdminUser() {
     const bar = document.getElementById('userBar');
@@ -533,6 +585,7 @@ async function loadTopoAgent(serverId) {
     if (box.getAttribute('data-server') != serverId) return;   // 그 사이 다른 서버 선택
     const rows = [['상태', '<span class="topo-agent-state ' + escapeHtml(a.state) + '">' + escapeHtml(AGENT_LABEL[a.state] || a.state) + '</span>']];
     if (a.lastReportDt) rows.push(['마지막 보고', escapeHtml(a.lastReportDt)]);
+    if (a.state !== 'NONE') rows.push(['하트비트', topoHeartbeatHtml(serverId, a)]);
     if (a.agentHost) rows.push(['호스트', escapeHtml(a.agentHost)]);
     if (a.agentOs) rows.push(['OS', escapeHtml(a.agentOs)]);
     if (a.peerStatus) rows.push(['동기화 대상 통신', escapeHtml(a.peerStatus.replace('|', ' : '))]);
@@ -542,6 +595,43 @@ async function loadTopoAgent(serverId) {
         : '';
     box.querySelector('.topo-agent-body').innerHTML =
         '<table class="detail-table">' + rows.map(r => '<tr><th>' + r[0] + '</th><td>' + r[1] + '</td></tr>').join('') + '</table>' + btn;
+}
+
+const HB_STATE_LABEL = { ALIVE: '수신 중', LOST: '끊김', STOPPED: '데몬 종료', NONE: '없음' };
+
+/** 구성도 상세의 하트비트 행 : 상태·마지막 수신·주기, 관리자는 주기 변경 */
+function topoHeartbeatHtml(serverId, a) {
+    const st = HB_STATE_LABEL[a.hbState] ? a.hbState : 'NONE';
+    let html = '<span class="hb-badge ' + st + '">' + HB_STATE_LABEL[st] + '</span>';
+    if (a.lastHbDt) html += ' <small>' + escapeHtml(a.lastHbDt) + (a.lastHbAgoSec != null ? ' (' + a.lastHbAgoSec + '초 전)' : '') + '</small>';
+    html += '<div class="topo-hb-sub">주기 <b>' + a.hbIntervalSec + '초</b> · 끊김 기준 ' +
+        (a.hbClient ? a.hbTimeoutSec + '초 (주기 x 2 + 3)' : a.hbTimeoutSec + '초') +
+        (!a.hbClient && a.lastHbDt ? ' · <span class="hb-tag" title="하트비트 셸이 없는 1.3 이하 - 데몬의 웹 확인(10초)으로 판단">이전 방식</span>' : '') + '</div>';
+    if (isAdminUser()) {
+        const opts = (a.hbIntervals || [3, 5, 10, 15, 30, 60]).map(s =>
+            '<option value="' + s + '"' + (s === a.hbIntervalSec ? ' selected' : '') + '>' + s + '초</option>').join('');
+        html += '<div class="topo-hb-set"><label for="topoHbSel">하트비트 주기</label>' +
+            '<select id="topoHbSel" class="am-interval">' + opts + '</select>' +
+            '<button type="button" class="proc-btn" onclick="saveHeartbeatInterval(' + serverId + ')">적용</button>' +
+            '<span class="topo-hb-msg" id="topoHbMsg" role="status"></span></div>';
+    }
+    return html;
+}
+
+async function saveHeartbeatInterval(serverId) {
+    const sel = document.getElementById('topoHbSel');
+    const msg = document.getElementById('topoHbMsg');
+    if (!sel) return;
+    const sec = Number(sel.value);
+    try {
+        await apiRequest('PUT', 'api/agents/' + encodeURIComponent(serverId) + '/heartbeat-interval', { sec: sec });
+    } catch (e) {
+        if (msg) msg.textContent = e.message;
+        return;
+    }
+    await loadTopoAgent(serverId);
+    const m = document.getElementById('topoHbMsg');
+    if (m) m.textContent = sec + '초로 바꿨습니다. 다음 하트비트부터 적용됩니다.';
 }
 
 async function issueAgentToken(serverId) {
@@ -1458,6 +1548,7 @@ function renderChartArea(server) {
         NONE: ['서버 미연결', '에이전트(krcasmrx11_client)가 등록되지 않았습니다. 연결되면 그래프가 표시됩니다.'],
         WAITING: ['연결 대기', '에이전트 토큰은 발급되었지만 아직 보고가 없습니다. 서버에서 클라이언트를 기동하세요.'],
         STALE: ['연결 끊김', '에이전트 보고가 끊겼습니다' + (a.lastReportDt ? ' (마지막 보고 ' + escapeHtml(a.lastReportDt) + ')' : '') + '. 다시 연결되면 그래프가 표시됩니다.'],
+        LOST: ['하트비트 끊김', '서버 다운 또는 데몬 비정상 종료로 하트비트가 끊겼습니다. 모니터링 대상 프로세스는 종료로 표시됩니다.'],
         PAUSED: ['수집 중지', '에이전트 관리 화면에서 자료 수집을 중지했습니다. [시작] 하면 그래프가 표시됩니다.'],
         STOPPED: ['데몬 종료', '에이전트 데몬이 종료되었습니다. 서버에서 bin/scb_client.sh start 로 시작하세요.']
     };
@@ -1481,7 +1572,7 @@ async function checkServerConnection(serverId) {
         if (a.state === 'OK') {
             await reloadForConnection();
         } else if (out) {
-            out.textContent = '아직 연결되지 않았습니다. (' + ({ NONE: '미등록', WAITING: '보고 대기', STALE: '보고 끊김', PAUSED: '수집 중지', STOPPED: '데몬 종료' }[a.state] || a.state) + ')';
+            out.textContent = '아직 연결되지 않았습니다. (' + ({ NONE: '미등록', WAITING: '보고 대기', STALE: '보고 끊김', LOST: '하트비트 끊김', PAUSED: '수집 중지', STOPPED: '데몬 종료' }[a.state] || a.state) + ')';
         }
     } catch (e) {
         if (out) out.textContent = e.message;

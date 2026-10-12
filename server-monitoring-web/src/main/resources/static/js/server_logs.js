@@ -8,7 +8,7 @@
     const STATUS = {
         OK: ['정상', 'ok'], NOT_FOUND: ['파일 없음', 'warn'], DENIED: ['허용 안 됨', 'bad'], ERROR: ['오류', 'bad']
     };
-    const AGENT = { NONE: '미등록', WAITING: '보고 대기', OK: '연결', STALE: '보고 끊김', PAUSED: '수집 중지', STOPPED: '데몬 종료' };
+    const AGENT = { NONE: '미등록', WAITING: '보고 대기', OK: '연결', STALE: '보고 끊김', LOST: '하트비트 끊김', PAUSED: '수집 중지', STOPPED: '데몬 종료' };
     const RE_ERR = /\b(ERROR|ERR|FATAL|CRIT(ICAL)?|PANIC|EMERG|ALERT|FAIL(ED|URE)?|EXCEPTION)\b|\.(err|crit|alert|emerg)\]/i;
     const RE_WARN = /\b(WARN(ING)?|NOTICE)\b|\.(warning|notice)\]/i;
 

@@ -32,7 +32,7 @@ import com.scb.monitoring.topology.service.TopologyService;
         "spring.sql.init.data-locations=classpath:db/data.sql",
         "spring.sql.init.encoding=UTF-8"
 })
-@Import({AgentService.class, ServiceCtlService.class, TopologyService.class, AlarmService.class, ServerLogService.class, com.scb.monitoring.ReadOnlyWriteGuard.class, com.scb.monitoring.agent.service.ProcessStatusService.class})
+@Import({AgentService.class, ServiceCtlService.class, TopologyService.class, AlarmService.class, ServerLogService.class, com.scb.monitoring.ReadOnlyWriteGuard.class, com.scb.monitoring.agent.service.ProcessStatusService.class, com.scb.monitoring.agent.service.HeartbeatService.class})
 @EnableConfigurationProperties(AgentProperties.class)
 class AgentDaemonTest {
 

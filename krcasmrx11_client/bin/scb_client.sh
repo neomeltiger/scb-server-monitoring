@@ -11,6 +11,7 @@
 #   status     데몬 실행 여부 / 수집 상태 / 수집 주기 / 마지막 확인·보고
 #   daemon     데몬을 이 터미널에서 실행 (start 가 내부적으로 사용, 점검용)
 #   ping       웹 서버 연결 / 토큰 확인
+#   heartbeat  하트비트 1회 전송 (점검용) - 응답 hb|interval=주기|timeout=끊김 기준
 #   config     웹 서버 설정 받기 (수집 주기, 감시 프로세스, 동기화 대상)  → run/config.txt
 #   collect    수집 결과를 화면에 출력 (전송하지 않음, 점검용)
 #   report     수집 + 웹 서버로 1회 전송 (점검용, 데몬 실행 중에는 불가)
@@ -25,6 +26,9 @@
 #     cmd|...  서비스 제어 명령 실행 (수집 중지 중에도 처리)
 #     log|...  서버 로그 요청 (수집 중일 때만)
 #   수집 주기마다 자료 수집 → POST /agent-api/v1/report
+#   하트비트 (1.4~) : bin/scb_heartbeat.sh 를 함께 실행 → 웹이 정한 주기(기본 10초)마다 GET /agent-api/v1/heartbeat
+#     데몬이 죽으면 하트비트도 바로 끝나므로, 웹은 서버 다운·데몬 비정상 종료를 하트비트 끊김으로 감지해
+#     감시 프로세스를 즉시 종료로 표시합니다. 하트비트 셸이 죽으면 데몬이 다시 띄웁니다.
 #
 # 수집 스크립트 (종류별)
 #   collect_sys.sh      [sys]      호스트명, OS
@@ -38,6 +42,7 @@
 #
 # 설정 : etc/client.env (SCB_WEB_URL, SCB_AGENT_TOKEN, SCB_AGENT_HOME, SCB_LOG_ALLOW)
 # 로그 : log/scb_client.log    데몬 PID : run/daemon.pid    데몬 상태 : run/daemon.state
+# 하트비트 : run/heartbeat.pid, run/heartbeat.state
 # 부팅 시 자동 시작 : etc/scb_client.init → /etc/init.d/scb_client, /etc/rc3.d/S99scb_client
 #=============================================================
 BIN_DIR=`dirname $0`
@@ -52,6 +57,8 @@ CMD=$1
 POLL_SEC=10
 PID_FILE=$RUN_DIR/daemon.pid
 STATE_FILE=$RUN_DIR/daemon.state
+HB_PID_FILE=$RUN_DIR/heartbeat.pid
+HB_STATE_FILE=$RUN_DIR/heartbeat.state
 
 usage() {
     sed -n '/^# Usage/,/^# 데몬 동작/p' $0 | sed '$d' | sed 's/^# \{0,1\}//'
@@ -170,6 +177,30 @@ write_state() {
 }
 
 # ------------------------------------------------------------
+# 하트비트 셸 (데몬과 함께 실행 / 종료)
+# ------------------------------------------------------------
+hb_start() {
+    sh $BIN_DIR/scb_heartbeat.sh $$ > /dev/null 2>&1 < /dev/null &
+    HB_PID=$!
+    echo $HB_PID > $HB_PID_FILE
+}
+
+# 하트비트 셸이 죽었으면 다시 실행
+hb_check() {
+    if [ -n "$HB_PID" ] && kill -0 $HB_PID 2>/dev/null; then
+        return 0
+    fi
+    clog "WARN: 하트비트 셸이 없어 다시 시작합니다"
+    hb_start
+}
+
+hb_stop() {
+    hp=`cat $HB_PID_FILE 2>/dev/null`
+    [ -n "$hp" ] && kill $hp 2>/dev/null
+    rm -f $HB_PID_FILE
+}
+
+# ------------------------------------------------------------
 # 자료수집 데몬 (포그라운드 루프 - start 가 nohup 으로 백그라운드 실행)
 # ------------------------------------------------------------
 daemon_main() {
@@ -184,6 +215,7 @@ daemon_main() {
     DSTATE=RUNNING
     [ "$CFG_COLLECT" = "off" ] && DSTATE=PAUSED
     clog "DAEMON start pid=$$ ver=$CLIENT_VER interval=${CFG_INTERVAL}s collect=$DSTATE web=$SCB_WEB_URL"
+    hb_start
     elapsed=$CFG_INTERVAL     # 시작하면 바로 1회 보고
 
     while [ $STOP_REQ -eq 0 ]; do
@@ -230,6 +262,7 @@ daemon_main() {
             elapsed=0
         fi
         write_state
+        hb_check
 
         # 3) 다음 확인까지 대기 (1초 단위 - 정지 신호에 바로 반응)
         i=0
@@ -240,7 +273,8 @@ daemon_main() {
         elapsed=`expr $elapsed + $POLL_SEC`
     done
 
-    # 종료 : 웹에 알림
+    # 종료 : 하트비트를 먼저 멈춘 뒤 웹에 알림 (종료 보고 뒤에 하트비트가 도착하지 않게)
+    hb_stop
     : > $RUN_DIR/empty.txt
     http_call POST "/agent-api/v1/daemon?state=STOPPED" $RUN_DIR/daemon.resp $RUN_DIR/empty.txt
     DSTATE=STOPPED
@@ -287,6 +321,7 @@ daemon_stop() {
         n=`expr $n + 1`
     done
     kill -9 $p 2>/dev/null
+    hb_stop
     rm -f $PID_FILE
     release_lock
     clog "DAEMON 강제 정지 (pid $p)"
@@ -305,6 +340,15 @@ daemon_status() {
     if [ -f $STATE_FILE ]; then
         sed -n 's/^state=/  수집 상태   : /p; s/^interval=\(.*\)/  수집 주기   : \1초/p; s/^last_poll=/  마지막 확인 : /p; s/^last_report=/  마지막 보고 : /p; s/^web=/  웹 서버     : /p' $STATE_FILE
     fi
+    hp=`cat $HB_PID_FILE 2>/dev/null`
+    if [ -n "$hp" ] && kill -0 $hp 2>/dev/null; then
+        echo "하트비트     : 실행 중 (pid $hp)"
+    else
+        echo "하트비트     : 정지"
+    fi
+    if [ -f $HB_STATE_FILE ]; then
+        sed -n 's/^interval=\(.*\)/  하트비트 주기   : \1초/p; s/^last_ok=/  마지막 전송 성공 : /p; s/^fail=/  연속 실패       : /p' $HB_STATE_FILE
+    fi
     return $rc
 }
 
@@ -314,6 +358,12 @@ case "$CMD" in
     restart) daemon_stop; sleep 1; daemon_start; exit $? ;;
     status)  daemon_status; exit $? ;;
     daemon|loop) daemon_main ;;
+    heartbeat)
+        http_call GET "/agent-api/v1/heartbeat?pid=`cat $PID_FILE 2>/dev/null`" $RUN_DIR/hb_test.txt || exit 1
+        cat $RUN_DIR/hb_test.txt
+        rm -f $RUN_DIR/hb_test.txt
+        exit 0
+        ;;
     ping)
         http_call GET /agent-api/v1/ping $RUN_DIR/ping.txt || exit 1
         cat $RUN_DIR/ping.txt

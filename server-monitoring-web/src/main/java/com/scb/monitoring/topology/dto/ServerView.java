@@ -39,6 +39,7 @@ public class ServerView {
         NO_DATA_REASON.put("NONE", "에이전트 미설치");
         NO_DATA_REASON.put("WAITING", "보고 대기");
         NO_DATA_REASON.put("STALE", "보고 끊김");
+        NO_DATA_REASON.put("LOST", "하트비트 끊김");
         NO_DATA_REASON.put("PAUSED", "수집 중지");
         NO_DATA_REASON.put("STOPPED", "데몬 종료");
     }

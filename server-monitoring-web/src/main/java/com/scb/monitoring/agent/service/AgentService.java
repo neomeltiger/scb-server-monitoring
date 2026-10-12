@@ -59,12 +59,14 @@ public class AgentService {
     private final com.scb.monitoring.svcctl.mapper.ServiceCtlMapper serviceCtlMapper;
     private final AgentProperties props;
     private final ProcessStatusService processStatus;
+    private final HeartbeatService heartbeat;
 
     public AgentService(AgentMapper mapper, TopologyMapper topologyMapper, ServiceCtlService serviceCtl, AgentProperties props,
                         AlarmService alarmService, ServerLogService serverLogService,
                         com.scb.monitoring.svcctl.mapper.ServiceCtlMapper serviceCtlMapper,
-                        ProcessStatusService processStatus) {
+                        ProcessStatusService processStatus, HeartbeatService heartbeat) {
         this.processStatus = processStatus;
+        this.heartbeat = heartbeat;
         this.serviceCtlMapper = serviceCtlMapper;
         this.alarmService = alarmService;
         this.serverLogService = serverLogService;
@@ -225,6 +227,7 @@ public class AgentService {
         topologyMapper.deleteMetricHistBefore(serverId, before);
         topologyMapper.deleteProcessHistBefore(serverId, before);
         serviceCtlMapper.deleteServiceHistBefore(serverId, before);
+        heartbeat.cleanup(serverId, before);
         return applied;
     }
 
@@ -252,6 +255,7 @@ public class AgentService {
         Agent ag = mapper.selectAgent(serverId);
         if (daemonState != null && (Agent.D_RUNNING.equals(daemonState) || Agent.D_PAUSED.equals(daemonState))) {
             mapper.updateHeartbeat(serverId, daemonState, pid, ver == null ? null : AgentReport.clip(ver, 20));
+            heartbeat.legacyBeat(ag, pid, ver);      // 하트비트 셸 없는 이전 데몬 : 웹 확인 = 생존 신호
         } else {
             mapper.updatePollOnly(serverId);
         }
@@ -281,6 +285,9 @@ public class AgentService {
     public void daemonStopped(Long serverId) {
         mapper.updateDaemonStopped(serverId);
         log.info("AGENT DAEMON stopped server={}", serverId);
+        // 감시 프로세스·서비스 즉시 종료 표시 + 하트비트 STOP 이벤트
+        heartbeat.daemonStopped(serverId);
+        alarmService.checkAfterCommit(serverId);
     }
 
     // ===================== 데몬 제어 (웹, ADMIN) =====================

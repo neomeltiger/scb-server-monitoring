@@ -54,6 +54,7 @@ public class AlarmService {
         NO_DATA_REASON.put("NONE", "에이전트 미설치");
         NO_DATA_REASON.put("WAITING", "보고 대기");
         NO_DATA_REASON.put("STALE", "보고 끊김");
+        NO_DATA_REASON.put("LOST", "하트비트 끊김");
         NO_DATA_REASON.put("PAUSED", "수집 중지");
         NO_DATA_REASON.put("STOPPED", "데몬 종료");
     }
@@ -217,14 +218,17 @@ public class AlarmService {
             agoSec = Math.max(0, (System.currentTimeMillis() - agent.getLastReportDt().getTime()) / 1000);
         }
         // 웹에서 수집 중지 / 데몬 종료한 경우는 알람 아님, 기준은 max(설정값, 수집 주기 x3)
-        boolean stale = !down && agoSec != null && !agent.isIntentionallyIdle()
-                && agoSec > agent.staleLimitSec(agentProps.getStaleAfterSec());
+        // 하트비트 끊김(LOST)은 수집 주기와 관계없이 바로 알람
+        String state = AgentView.of(agent, agentProps.getStaleAfterSec()).getState();
+        boolean hbLost = !down && "LOST".equals(state);
+        boolean stale = !down && (hbLost || (agoSec != null && !agent.isIntentionallyIdle()
+                && agoSec > agent.staleLimitSec(agentProps.getStaleAfterSec())));
         if (sync(s.getServerId(), Alarm.TYPE_AGENT_STALE, stale, active, Alarm.LEVEL_WARNING,
-                "에이전트 보고 끊김 : " + name + " - 마지막 보고 " + (agoSec == null ? "-" : (agoSec / 60) + "분 전")
-                        + ", krcasmrx11_client 실행 상태를 확인하세요.")) opened++;
+                (hbLost ? "에이전트 하트비트 끊김 : " + name + " - 서버 다운 또는 데몬 비정상 종료, 서버와 krcasmrx11_client 를 확인하세요."
+                        : "에이전트 보고 끊김 : " + name + " - 마지막 보고 " + (agoSec == null ? "-" : (agoSec / 60) + "분 전")
+                        + ", krcasmrx11_client 실행 상태를 확인하세요."))) opened++;
 
         // 서버 정보 수신 안 됨 → 프로세스·서비스 종료 표시 (실행 중 → 종료로 바뀔 때만 기록)
-        String state = AgentView.of(agent, agentProps.getStaleAfterSec()).getState();
         if (!"OK".equals(state)) {
             processStatus.stopAllNoData(s.getServerId(), s.getSystemNm(), NO_DATA_REASON.getOrDefault(state, state));
         }

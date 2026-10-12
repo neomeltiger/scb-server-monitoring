@@ -14,6 +14,7 @@ const AGENT_STATE_LABEL = {
     WAITING: ['보고 대기', '토큰은 발급되었지만 아직 에이전트 보고가 없습니다. 서버의 client.env 확인 후 bin/scb_client.sh start 로 데몬을 시작하세요.'],
     OK: ['정상', ''],
     STALE: ['보고 끊김', '에이전트 보고가 오래되었습니다. 서버의 데몬(bin/scb_client.sh status) / 네트워크를 확인하세요. 제어 명령이 실행되지 않을 수 있습니다.'],
+    LOST: ['하트비트 끊김', '서버 다운 또는 데몬 비정상 종료로 하트비트가 끊겼습니다. 서비스 상태는 종료로 표시되며 제어 명령이 실행되지 않습니다.'],
     PAUSED: ['수집 중지', '에이전트 관리 화면에서 자료 수집을 중지했습니다. 상태는 갱신되지 않지만 제어 명령은 실행됩니다.'],
     STOPPED: ['데몬 종료', '에이전트 데몬이 종료되어 제어 명령이 실행되지 않습니다. 서버에서 bin/scb_client.sh start 로 시작하세요.']
 };
@@ -45,6 +46,10 @@ window.addEventListener('DOMContentLoaded', () => {
     } catch (e) { /* 무시 */ }
 
     select.addEventListener('change', () => loadServices(true));
+    // 하트비트 끊김 / 데몬 종료 → 선택한 서버면 서비스 상태(종료) 바로 다시 읽음
+    if (typeof onHeartbeatChange === 'function') {
+        onHeartbeatChange(changed => { if (changed.indexOf(Number(currentServerId())) !== -1) return loadServices(false); });
+    }
     document.getElementById('svcRefreshBtn').addEventListener('click', () => loadServices(true));
     document.getElementById('bulkRunBtn').addEventListener('click', runBulk);
     document.getElementById('svcImportBtn').addEventListener('click', openImport);
