@@ -40,6 +40,7 @@ import com.scb.monitoring.topology.service.TopologyException;
  * GET  /agent-api/v1/commands?state=RUNNING&pid=N&ver=V
  *                                             데몬 확인(heartbeat) + 웹 설정(ctl|...) + 제어 명령(cmd|...) + 로그 요청(log|...)
  * POST /agent-api/v1/daemon?state=STOPPED     데몬 종료 보고
+ * POST /agent-api/v1/fallback                 데몬 중단 중 감시자가 대신 수집한 결과 ([metric] [proc] [service], 1.7~)
  * POST /agent-api/v1/commands/{id}/result?exit=N  실행 결과 (본문 = 출력)
  * POST /agent-api/v1/logs/{logId}?status=OK      요청받은 서버 로그 (본문 = 마지막 N줄, status: OK|NOT_FOUND|DENIED|ERROR)
  * </pre>
@@ -57,9 +58,12 @@ public class AgentApiController {
     private final AgentProperties props;
     private final ServerLogService serverLogService;
     private final com.scb.monitoring.agent.service.HeartbeatService heartbeat;
+    private final com.scb.monitoring.agent.service.FallbackService fallback;
 
     public AgentApiController(AgentService service, AgentProperties props, ServerLogService serverLogService,
-                              com.scb.monitoring.agent.service.HeartbeatService heartbeat) {
+                              com.scb.monitoring.agent.service.HeartbeatService heartbeat,
+                              com.scb.monitoring.agent.service.FallbackService fallback) {
+        this.fallback = fallback;
         this.heartbeat = heartbeat;
         this.service = service;
         this.props = props;
@@ -120,6 +124,15 @@ public class AgentApiController {
         if (!"STOPPED".equals(state)) return ResponseEntity.badRequest().body("error: state must be STOPPED\n");
         service.daemonStopped(serverId);
         return text("ok\n");
+    }
+
+    @Operation(summary = "데몬 중단 중 프로세스 현황 (하트비트 감시자가 대신 수집, 데몬이 멈춰 있을 때만 받음)")
+    @PostMapping(value = "/fallback", consumes = MediaType.ALL_VALUE)
+    public ResponseEntity<String> fallback(@RequestHeader(value = TOKEN_HEADER, required = false) String token,
+                                           @RequestBody(required = false) byte[] body, HttpServletRequest req) {
+        Long serverId = auth(token, req);
+        return fallback.ingest(serverId, bodyText(body)) ? text("ok\n")
+                : ResponseEntity.status(HttpStatus.CONFLICT).body("ignored: daemon is running\n");
     }
 
     @Operation(summary = "제어 명령 실행 결과 보고")

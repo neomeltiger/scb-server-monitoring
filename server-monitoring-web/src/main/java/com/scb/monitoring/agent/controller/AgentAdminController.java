@@ -39,6 +39,7 @@ import com.scb.monitoring.agent.service.AgentService;
  * GET  /api/agents/heartbeat/events?serverId=&rows=100                 하트비트 이벤트 이력
  * PUT  /api/agents/{serverId}/heartbeat-interval {"sec":10}            하트비트 주기 (3/5/10/15/30/60초)
  * POST /api/agents/{serverId}/restart                                  데몬 재시작 요청 (감시자 1.5~ 가 다음 하트비트 때 실행)
+ * GET  /api/agents/fallback                                            데몬 중단 중 프로세스 현황 (감시자가 대신 수집, 데몬이 다시 뜨면 삭제)
  * </pre>
  */
 @Tag(name = "5. 에이전트 관리", description = "에이전트 상태·데몬 제어·수집 주기·토큰 발급")
@@ -49,9 +50,12 @@ public class AgentAdminController {
     private final AgentService service;
     private final AgentProperties props;
     private final com.scb.monitoring.agent.service.HeartbeatService heartbeat;
+    private final com.scb.monitoring.agent.service.FallbackService fallback;
 
     public AgentAdminController(AgentService service, AgentProperties props,
-                                com.scb.monitoring.agent.service.HeartbeatService heartbeat) {
+                                com.scb.monitoring.agent.service.HeartbeatService heartbeat,
+                                com.scb.monitoring.agent.service.FallbackService fallback) {
+        this.fallback = fallback;
         this.heartbeat = heartbeat;
         this.service = service;
         this.props = props;
@@ -67,6 +71,12 @@ public class AgentAdminController {
     @GetMapping("/heartbeat")
     public ResponseEntity<List<com.scb.monitoring.agent.dto.HeartbeatView>> heartbeatList() {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(heartbeat.getStatusList());
+    }
+
+    @Operation(summary = "데몬 중단 중 프로세스 현황 (하트비트 감시자가 대신 수집한 서버별 프로세스·서비스)")
+    @GetMapping("/fallback")
+    public ResponseEntity<List<com.scb.monitoring.agent.dto.FallbackView>> fallbackList() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(fallback.getList());
     }
 
     @Operation(summary = "하트비트 이벤트 이력 (수신 시작 / 끊김 / 복구 / 데몬 종료 / 주기 변경)")

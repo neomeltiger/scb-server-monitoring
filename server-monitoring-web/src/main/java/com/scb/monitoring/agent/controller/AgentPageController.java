@@ -18,6 +18,13 @@ public class AgentPageController {
         return "heartbeat";
     }
 
+    /** 데몬 중단 중 프로세스 현황 (/fallback) : 데몬이 죽어도 감시자가 대신 수집한 서버 프로세스 정보 - 데이터는 /api/agents/fallback */
+    @GetMapping("/fallback")
+    public String fallback(Model model) {
+        model.addAttribute("menu", "fallback");
+        return "fallback";
+    }
+
     @GetMapping("/agents")
     public String agents(Model model) {
         model.addAttribute("menu", "agents");

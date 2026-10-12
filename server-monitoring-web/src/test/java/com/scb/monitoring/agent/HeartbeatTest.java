@@ -40,7 +40,7 @@ import com.scb.monitoring.topology.service.TopologyService;
 })
 @Import({AgentService.class, HeartbeatService.class, ServiceCtlService.class, TopologyService.class, AlarmService.class,
         ProcessStatusService.class, com.scb.monitoring.serverlog.service.ServerLogService.class,
-        com.scb.monitoring.ReadOnlyWriteGuard.class})
+        com.scb.monitoring.ReadOnlyWriteGuard.class, com.scb.monitoring.agent.service.FallbackService.class})
 @EnableConfigurationProperties(AgentProperties.class)
 class HeartbeatTest {
 
@@ -48,6 +48,7 @@ class HeartbeatTest {
     @Autowired HeartbeatService heartbeat;
     @Autowired TopologyService topology;
     @Autowired AlarmService alarm;
+    @Autowired com.scb.monitoring.agent.service.FallbackService fallback;
     @Autowired DataSource dataSource;
     @Autowired SqlSessionTemplate sqlSession;
 
@@ -264,6 +265,56 @@ class HeartbeatTest {
         assertEquals("hb|interval=10|timeout=32|restart=N\n", heartbeat.beat(11L, null, "STOPPED", "N", "Oct 12 13:50"),
                 "일부러 멈춘 데몬은 복구 후에도 자동 재시작하지 않음");
         assertEquals("N", view(11).getBootAuto());
+    }
+
+    @Test
+    void fallbackWhileDaemonDownAndClearedOnRestart() {
+        agent.issueToken(11L, "admin");
+        agent.pullCommands(11L, "RUNNING", 900, "1.7");
+        heartbeat.beat(11L, 900, "RUNNING");
+        String fb = "[metric]\ncpu=12.5\nmem=40\ndisk=50\n[proc]\n1|Y|100|1.5|2.5\n2|N|||\n13|Y|1|1|1\n"
+                + "[service]\nSCB_fs_app1|RUNNING|5555|3.0|4.0\nSCB_xml_app1|STOPPED|\n";
+
+        // 데몬이 돌고 있으면 받지 않음
+        assertFalse(fallback.ingest(11L, fb));
+        assertTrue(fallback.getList().isEmpty());
+
+        // 데몬 비정상 종료 → 감시자가 대신 수집한 정보 저장 (기존 화면은 종료 표시 그대로)
+        heartbeat.beat(11L, 900, "DEAD");
+        assertTrue(fallback.ingest(11L, fb));
+        assertTrue(fallback.ingest(11L, fb), "덮어씀");
+        assertFalse(running(1L), "기존 화면은 데몬 기준 (종료)");
+        com.scb.monitoring.agent.dto.FallbackView v = fallback.getList().get(0);
+        assertEquals(Long.valueOf(11), v.getServerId());
+        assertEquals("DEAD", v.getDaemonState());
+        assertEquals("데몬 비정상 종료", v.getDaemonIssue());
+        assertEquals(2, v.getRecvCnt());
+        assertEquals("12.5", v.getCpu());
+        assertEquals(2, v.getProcesses().size(), "다른 서버의 프로세스(13)는 제외");
+        assertEquals("mx_kernel_engine", v.getProcesses().get(0).get("name"));
+        assertEquals(Boolean.TRUE, v.getProcesses().get(0).get("running"));
+        assertEquals(1, v.getProcRunning());
+        assertEquals(2, v.getServices().size());
+        assertEquals("SCB_fs_app1", v.getServices().get(0).get("name"), "service.list 순서");
+        assertEquals(1, v.getSvcRunning());
+        assertFalse(v.isStale());
+
+        // 데몬이 다시 뜨면(데몬의 웹 확인) 삭제
+        agent.pullCommands(11L, "RUNNING", 901, "1.7");
+        assertTrue(fallback.getList().isEmpty());
+        assertFalse(fallback.ingest(11L, fb), "데몬 실행 중에는 다시 받지 않음");
+
+        // 감시자의 RUNNING 알림으로도 삭제
+        heartbeat.beat(11L, 901, "DEAD");
+        assertTrue(fallback.ingest(11L, fb));
+        heartbeat.beat(11L, 902, "RUNNING");
+        assertTrue(fallback.getList().isEmpty());
+
+        // 데몬 보고로도 삭제 (안전장치)
+        heartbeat.beat(11L, 902, "STOPPED");
+        assertTrue(fallback.ingest(11L, fb));
+        agent.ingestReport(11L, REPORT, "127.0.0.1");
+        assertTrue(fallback.getList().isEmpty());
     }
 
     @Test

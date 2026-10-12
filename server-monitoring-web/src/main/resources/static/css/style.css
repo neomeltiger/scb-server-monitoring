@@ -1255,3 +1255,20 @@ img, svg, canvas { max-width: 100%; }
 .hb-boot.bad { background: #f8d7da; color: #721c24; font-weight: bold; }
 .hb-boot-cmd { display: block; font-size: 11px; color: #64748b; margin-top: 2px; }
 .hb-boot-cmd code { font-size: 11px; }
+
+/* ================= 데몬 중단 프로세스 현황 (fallback.html) ================= */
+.fb-note { font-size: 12px; color: #6b4500; background: #fffaeb; border: 1px solid #f5d98b; border-radius: 6px; padding: 8px 12px; line-height: 1.6; }
+.fb-gone { font-size: 13px; color: #155724; background: #d4edda; border-radius: 6px; padding: 8px 12px; }
+.fb-card { border: 1px solid #f0d28a; border-left: 5px solid #f0ad4e; border-radius: 8px; padding: 12px 14px; background: #fff; display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.fb-card.stale { border-left-color: #dc3545; }
+.fb-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.fb-title { flex: 1; min-width: 160px; display: flex; flex-direction: column; }
+.fb-title b { font-size: 15px; color: #203a43; }
+.fb-title small { font-size: 11px; color: #64748b; overflow-wrap: anywhere; }
+.fb-cmd { font-size: 12px; color: #475569; }
+.fb-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: #334155; }
+.fb-tables { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.fb-tables > div { overflow-x: auto; }
+.fb-table td, .fb-table th { font-size: 12px; }
+.fb-none { font-size: 12px; color: #64748b; padding: 8px 0; }
+.fb-empty small { color: #64748b; }

@@ -636,7 +636,8 @@ function topoDaemonNoticeHtml(server, isDown) {
     const btn = isAdminUser() && topoCanRestart(server)
         ? '<button type="button" class="btn btn-restart" onclick="restartFromTopo(' + server.id + ')">데몬 재시작</button>'
         : '<div class="topo-daemon-cmd">서버에서 <code>bin/scb_client.sh start</code>' + (isAdminUser() ? ' (웹 재시작은 클라이언트 1.5 이상)' : '') + '</div>';
-    return '<div class="topo-daemon-warn" role="alert">⚠ ' + escapeHtml(issue) + ' - 서버는 정상입니다 (하트비트 수신 중). 데몬(scb_client)만 재시작하면 됩니다.' + btn + '</div>';
+    return '<div class="topo-daemon-warn" role="alert">⚠ ' + escapeHtml(issue) + ' - 서버는 정상입니다 (하트비트 수신 중). 데몬(scb_client)만 재시작하면 됩니다.' + btn +
+        '<a class="hb-link" href="fallback#fb-' + server.id + '">데몬 중단 중 프로세스 현황 보기 →</a></div>';
 }
 
 async function restartFromTopo(serverId) {

@@ -37,6 +37,17 @@ public class AgentReport {
         BigDecimal mem;
     }
 
+    // ---- 데몬 중단 중 프로세스 현황 화면 (FallbackView) 용 ----
+    public Map<String, String> metrics() { return metric; }
+    public List<String[]> serviceStates() { return services; }
+    public int procCount() { return procs.size(); }
+    /** [procId, Y/N, pid, cpu, mem] */
+    public List<Object[]> procStates() {
+        List<Object[]> out = new ArrayList<>();
+        for (ProcState p : procs) out.add(new Object[] {p.procId, p.running, p.pid, p.cpu, p.mem});
+        return out;
+    }
+
     public static AgentReport parse(String text) {
         AgentReport r = new AgentReport();
         String section = "";

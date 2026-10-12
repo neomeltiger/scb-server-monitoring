@@ -2,7 +2,7 @@
 <html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <body>
 <!-- ===== LEFT : 좌측 트리 메뉴 ===== -->
-<!-- 사용: <div th:replace="fragments/left :: left(${menu})"></div>  (menu: main | network | servers | logs | heartbeat | agents | processes | users)
+<!-- 사용: <div th:replace="fragments/left :: left(${menu})"></div>  (menu: main | network | servers | logs | heartbeat | fallback | agents | processes | users)
      시스템관리 > 사용자 관리 는 ADMIN 에게만 보임 (pendingUserCount : web.LayoutModelAdvice) -->
 <div class="sidebar-menu" id="sidebarMenu" th:fragment="left(menu)">
     <div class="sidebar-header">
@@ -22,6 +22,7 @@
                 <li><a th:href="@{/servers}" class="tree-link" th:classappend="${menu == 'servers'} ? 'active'"><span class="bullet">▪</span> 서버전체목록</a></li>
                 <li><a th:href="@{/logs}" class="tree-link" th:classappend="${menu == 'logs'} ? 'active'"><span class="bullet">▪</span> 서버 로그</a></li>
                 <li><a th:href="@{/heartbeat}" class="tree-link" th:classappend="${menu == 'heartbeat'} ? 'active'"><span class="bullet">▪</span> 하트비트 모니터링</a></li>
+                <li><a th:href="@{/fallback}" class="tree-link" th:classappend="${menu == 'fallback'} ? 'active'"><span class="bullet">▪</span> 데몬 중단 프로세스 현황</a></li>
                 <li><a th:href="@{/agents}" class="tree-link" th:classappend="${menu == 'agents'} ? 'active'"><span class="bullet">▪</span> 에이전트 관리</a></li>
             </ul>
         </li>

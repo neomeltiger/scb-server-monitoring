@@ -86,6 +86,11 @@ krcasmrx11_client - 서버 → 통합 모니터링 웹 연동 에이전트 (Sola
                - 데몬이 안 떠 있으면 자동 재시작 (restart=Y → 감시자가 scb_client.sh start, 일부러 멈춘 경우 제외)
                - 데몬이 떠 있으면 바로 수집·보고 (ctl|...|report=Y) → 서버 자원·프로세스 정보가 바로 복구
                - 재부팅 후 자동으로 뜨려면 부팅 스크립트 필요 (bin/scb_client.sh install-boot)
+  데몬 중단 중 프로세스 현황 (1.7~)
+               데몬이 죽거나 멈춰도 서버의 프로세스는 살아 있을 수 있으므로, 감시자가 30초마다(SCB_FALLBACK_SEC)
+               collect_metric / collect_proc / collect_service 로 대신 수집해 POST /agent-api/v1/fallback
+               → 웹 화면 서버자원모니터링 → 데몬 중단 프로세스 현황 (기존 화면은 데몬 기준 그대로 "종료" 표시)
+               데몬이 다시 시작되면 웹이 그 정보를 삭제합니다.
   확인       : 웹 화면 서버자원모니터링 → 하트비트 모니터링 (서버별 상태, 연속 미수신 횟수, 이벤트 이력)
   상태 파일  run/heartbeat.pid, run/heartbeat.state
   ※ 1.4 는 하트비트가 데몬과 함께 멈추므로 데몬이 죽으면 서버 다운으로 보입니다. 1.5 로 교체하세요.

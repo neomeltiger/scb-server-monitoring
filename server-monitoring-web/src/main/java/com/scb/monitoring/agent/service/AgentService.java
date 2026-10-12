@@ -60,11 +60,13 @@ public class AgentService {
     private final AgentProperties props;
     private final ProcessStatusService processStatus;
     private final HeartbeatService heartbeat;
+    private final FallbackService fallback;
 
     public AgentService(AgentMapper mapper, TopologyMapper topologyMapper, ServiceCtlService serviceCtl, AgentProperties props,
                         AlarmService alarmService, ServerLogService serverLogService,
                         com.scb.monitoring.svcctl.mapper.ServiceCtlMapper serviceCtlMapper,
-                        ProcessStatusService processStatus, HeartbeatService heartbeat) {
+                        ProcessStatusService processStatus, HeartbeatService heartbeat, FallbackService fallback) {
+        this.fallback = fallback;
         this.processStatus = processStatus;
         this.heartbeat = heartbeat;
         this.serviceCtlMapper = serviceCtlMapper;
@@ -218,6 +220,9 @@ public class AgentService {
         for (String[] st : r.services) svcNames.add(st[0]);
         applied.put("stopped", processStatus.stopMissing(serverId, server.getSystemNm(), reported,
                 r.services.isEmpty() ? null : svcNames));
+
+        // 데몬이 보고함 = 데몬 실행 중 → 데몬 중단 중 대신 수집한 정보 삭제
+        fallback.clear(serverId, "데몬 보고 수신");
 
         // 보고가 들어왔으니 "보고 끊김" 알람은 커밋 후 바로 해소
         alarmService.checkAfterCommit(serverId);

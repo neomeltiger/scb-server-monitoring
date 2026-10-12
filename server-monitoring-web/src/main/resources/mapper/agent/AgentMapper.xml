@@ -183,6 +183,41 @@
          WHERE server_id = #{serverId}
     </delete>
 
+    <!-- =========================== 데몬 중단 중 프로세스 현황 (v9) =========================== -->
+
+    <select id="selectFallback" resultType="com.scb.monitoring.agent.domain.ProcFallback">
+        SELECT f.server_id, f.daemon_state, f.report_text, f.proc_cnt, f.svc_cnt, f.recv_cnt, f.first_dt, f.collect_dt
+          FROM tb_proc_fallback f
+         WHERE f.server_id = #{serverId}
+    </select>
+
+    <select id="selectFallbackList" resultType="com.scb.monitoring.agent.domain.ProcFallback">
+        SELECT f.server_id, f.daemon_state, f.report_text, f.proc_cnt, f.svc_cnt, f.recv_cnt, f.first_dt, f.collect_dt
+          FROM tb_proc_fallback f
+         ORDER BY f.server_id
+    </select>
+
+    <update id="updateFallback" parameterType="com.scb.monitoring.agent.domain.ProcFallback">
+        UPDATE tb_proc_fallback
+           SET daemon_state = #{daemonState, jdbcType=VARCHAR},
+               report_text  = #{reportText},
+               proc_cnt     = #{procCnt},
+               svc_cnt      = #{svcCnt},
+               recv_cnt     = recv_cnt + 1,
+               collect_dt   = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+    </update>
+
+    <insert id="insertFallback" parameterType="com.scb.monitoring.agent.domain.ProcFallback">
+        INSERT INTO tb_proc_fallback (server_id, daemon_state, report_text, proc_cnt, svc_cnt, recv_cnt, first_dt, collect_dt)
+        VALUES (#{serverId}, #{daemonState, jdbcType=VARCHAR}, #{reportText}, #{procCnt}, #{svcCnt}, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    </insert>
+
+    <delete id="deleteFallback">
+        DELETE FROM tb_proc_fallback
+         WHERE server_id = #{serverId}
+    </delete>
+
     <delete id="deleteAgent">
         DELETE FROM tb_agent
          WHERE server_id = #{serverId}

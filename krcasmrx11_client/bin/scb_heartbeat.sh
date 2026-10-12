@@ -12,6 +12,9 @@
 #       데몬 상태 : RUNNING / PAUSED (실행 중) / STOPPED (정상 정지 - PID 파일 없음) / DEAD (PID 파일은 있는데 프로세스 없음)
 #       boot      : 서버 부팅 시 자동 시작(rc 스크립트) 설치 여부, btime : 서버 부팅 시각 (바뀌면 웹이 재부팅 감지)
 #   서버 복구 : 서버가 되살아나 하트비트가 다시 가면 웹이 감지 → 데몬이 멈춰 있으면 restart=Y (자동 재시작)
+#   데몬 중단 중 프로세스 현황 (1.7~) : 데몬이 DEAD / STOPPED 이면 SCB_FALLBACK_SEC(기본 30초)마다
+#     collect_metric / collect_proc / collect_service 로 대신 수집해 POST /agent-api/v1/fallback (백그라운드 - 하트비트는 늦어지지 않음)
+#     → 웹 "데몬 중단 프로세스 현황" 화면에 표시, 데몬이 다시 뜨면 웹이 삭제
 #   데몬과 따로 돌기 때문에 데몬이 죽어도 하트비트는 계속 갑니다.
 #     → 웹은 "서버는 정상, 데몬만 문제" 로 보고 서버를 Down 으로 표시하지 않고 데몬 재시작 알림을 띄움
 #     → 하트비트 자체가 3회 연속 오지 않을 때만 서버 다운으로 판단 (서버 전원·네트워크 문제)
@@ -53,6 +56,31 @@ DSTATE=STOPPED
 DPID=""
 PREV_DSTATE=""
 BOOT_TIME=`boot_time | sed 's/ /+/g'`
+FB_SEC=${SCB_FALLBACK_SEC:-30}
+FB_ELAPSED=$FB_SEC
+FB_PID_FILE=$RUN_DIR/fallback.pid
+
+# 데몬 대신 프로세스 정보 수집 → 웹 (백그라운드, 이전 수집이 끝나지 않았으면 건너뜀)
+fallback_collect() {
+    fp=`cat $FB_PID_FILE 2>/dev/null`
+    pid_is "$fp" scb_heartbeat.sh && return 0
+    (
+        {
+            echo "# scb_client fallback `date '+%Y-%m-%d %H:%M:%S'` (daemon $DSTATE - collected by heartbeat watchdog)"
+            sh $BIN_DIR/collect_metric.sh
+            sh $BIN_DIR/collect_proc.sh
+            sh $BIN_DIR/collect_service.sh
+        } > $RUN_DIR/fallback.txt 2>> $LOG_FILE
+        if http_call POST /agent-api/v1/fallback $RUN_DIR/fallback.resp $RUN_DIR/fallback.txt; then
+            if [ ! -f $RUN_DIR/fallback.sent ]; then
+                clog "HEARTBEAT 데몬 중단 - 프로세스 정보를 대신 수집해 웹에 보냅니다 (${FB_SEC}초마다)"
+                : > $RUN_DIR/fallback.sent
+            fi
+        fi
+        rm -f $FB_PID_FILE $RUN_DIR/fallback.resp
+    ) > /dev/null 2>&1 < /dev/null &
+    echo $! > $FB_PID_FILE
+}
 
 # 데몬 상태 → DSTATE / DPID
 check_daemon() {
@@ -126,6 +154,21 @@ while :; do
         [ $FAIL -eq 1 ] && clog "HEARTBEAT 전송 실패 (HTTP $HTTP_STATUS) - 웹 서버 연결 / 토큰을 확인하세요"
     fi
     write_hb_state
+
+    # 데몬이 멈춰 있으면 프로세스 정보를 대신 수집 (멈춘 직후 바로, 이후 FB_SEC 마다)
+    case "$DSTATE" in
+        DEAD|STOPPED)
+            if [ $FB_ELAPSED -ge $FB_SEC ]; then
+                fallback_collect
+                FB_ELAPSED=0
+            fi
+            FB_ELAPSED=`expr $FB_ELAPSED + $HB_INTERVAL`
+            ;;
+        *)
+            FB_ELAPSED=$FB_SEC
+            rm -f $RUN_DIR/fallback.sent
+            ;;
+    esac
 
     # 다음 전송까지 대기 (1초 단위 - 정지 신호에 바로 반응)
     i=0

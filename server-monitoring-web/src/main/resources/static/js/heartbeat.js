@@ -135,7 +135,8 @@
         if (v.restartPending) act = '<div class="hb-restart-wait">재시작 요청을 보냈습니다 - 다음 하트비트 때 서버에서 시작합니다.</div>';
         else if (isAdminUser() && v.canRestart) act = '<button type="button" class="btn btn-restart" data-restart="' + v.serverId + '">데몬 재시작</button>';
         else act = '<div>서버에서 <code>bin/scb_client.sh start</code>' + (v.watchdog ? '' : ' (웹 재시작은 클라이언트 1.5 이상)') + '</div>';
-        return '<div class="hb-alert daemon">⚠ ' + escapeHtml(issue) + ' - 서버는 정상입니다(하트비트 수신 중). 데몬(scb_client)만 재시작하면 됩니다.' + act + '</div>';
+        return '<div class="hb-alert daemon">⚠ ' + escapeHtml(issue) + ' - 서버는 정상입니다(하트비트 수신 중). 데몬(scb_client)만 재시작하면 됩니다.' + act +
+            '<a class="hb-link" href="fallback#fb-' + v.serverId + '">데몬 중단 중 프로세스 현황 보기 →</a></div>';
     }
 
     function render() {

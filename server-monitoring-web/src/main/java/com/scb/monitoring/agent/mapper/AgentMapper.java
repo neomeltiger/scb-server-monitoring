@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Param;
 
 import com.scb.monitoring.agent.domain.Agent;
 import com.scb.monitoring.agent.domain.HeartbeatHist;
+import com.scb.monitoring.agent.domain.ProcFallback;
 
 /** 서버 에이전트 Mapper. SQL: resources/mapper/agent/AgentMapper.xml (ANSI SQL) */
 @Mapper
@@ -67,4 +68,16 @@ public interface AgentMapper {
     int deleteHbHistBefore(@Param("serverId") Long serverId, @Param("before") java.sql.Timestamp before);
 
     int deleteHbHistByServer(@Param("serverId") Long serverId);
+
+    // ---- 데몬 중단 중 프로세스 현황 (v9) ----
+
+    ProcFallback selectFallback(@Param("serverId") Long serverId);
+
+    List<ProcFallback> selectFallbackList();
+
+    int updateFallback(ProcFallback f);
+
+    int insertFallback(ProcFallback f);
+
+    int deleteFallback(@Param("serverId") Long serverId);
 }

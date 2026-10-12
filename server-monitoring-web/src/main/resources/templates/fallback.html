@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>데몬 중단 프로세스 현황 - 통합 서버 관리 및 모니터링 시스템</title>
+    <!-- API 변경 요청용 CSRF 토큰 (script.js apiRequest) -->
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <!--
+        데몬 중단 중 프로세스 현황 (agent.controller.AgentPageController, js/fallback.js)
+        데몬(scb_client)이 죽거나 멈춰도 서버의 프로세스는 살아 있을 수 있으므로,
+        하트비트 감시자(클라이언트 1.7~)가 30초마다 대신 수집한 프로세스·서비스 정보를 보여 줌.
+        데몬이 다시 시작되면 서버에서 정보가 삭제되어 이 화면에서 사라짐.
+        데이터 : GET /api/agents/fallback (5초마다)
+    -->
+    <div class="app-layout">
+        <div th:replace="fragments/left :: left(${menu})"></div>
+
+        <div class="main-content-wrapper">
+            <div th:replace="fragments/top :: top"></div>
+
+            <p><span class="icon">🏠</span> 메인 홈 &gt; 서버자원모니터링 &gt; 데몬 중단 프로세스 현황</p>
+
+            <div class="svc-page">
+                <div class="spec-container">
+                    <div class="spec-header">
+                        <h3>데몬 중단 프로세스 현황
+                            <span class="svc-sub">데몬(scb_client)이 멈춘 동안 하트비트 감시자가 대신 수집한 서버 프로세스 정보</span></h3>
+                        <div class="svc-toolbar">
+                            <button type="button" class="btn svc-btn-light" id="fbReload">새로고침</button>
+                            <label class="lg-check"><input type="checkbox" id="fbAuto" checked> 자동 갱신 (5초)</label>
+                        </div>
+                    </div>
+                    <div class="fb-note">
+                        다른 화면(메인 홈, 네트워크 구성도, 프로세스 관리)은 데몬이 멈추면 프로세스를 <b>종료</b>로 표시합니다.
+                        이 화면은 데몬 대신 하트비트 감시자가 확인한 <b>실제 프로세스 상태</b>를 보여 주며,
+                        <b>데몬이 다시 시작되면 이 정보는 자동으로 삭제</b>되고 다른 화면이 정상 정보로 돌아옵니다.
+                    </div>
+                    <div class="data-error" id="fbError" hidden></div>
+                    <div id="fbList" role="region" aria-live="polite">
+                        <div class="svc-empty">불러오는 중...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/js/script.js}"></script>
+    <script th:src="@{/js/fallback.js}"></script>
+</body>
+</html>

@@ -40,7 +40,7 @@ import com.scb.monitoring.topology.service.TopologyService;
         "spring.sql.init.encoding=UTF-8"
 })
 @Import({AgentService.class, ServiceCtlService.class, TopologyService.class, AlarmService.class,
-        com.scb.monitoring.serverlog.service.ServerLogService.class, com.scb.monitoring.ReadOnlyWriteGuard.class, com.scb.monitoring.agent.service.ProcessStatusService.class, com.scb.monitoring.agent.service.HeartbeatService.class})
+        com.scb.monitoring.serverlog.service.ServerLogService.class, com.scb.monitoring.ReadOnlyWriteGuard.class, com.scb.monitoring.agent.service.ProcessStatusService.class, com.scb.monitoring.agent.service.HeartbeatService.class, com.scb.monitoring.agent.service.FallbackService.class})
 @EnableConfigurationProperties(AgentProperties.class)
 class AgentFlowTest {
 

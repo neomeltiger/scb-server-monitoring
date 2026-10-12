@@ -1,5 +1,6 @@
 -- 테스트용 (H2 메모리 DB) : schema-mysql.sql 과 같은 테이블을 ANSI SQL DDL 로 정의
 -- (MySQL 전용 옵션 ENGINE / COMMENT / AUTO_INCREMENT 대신 표준 IDENTITY 사용)
+DROP TABLE IF EXISTS tb_proc_fallback;
 DROP TABLE IF EXISTS tb_heartbeat_hist;
 DROP TABLE IF EXISTS tb_log_snapshot;
 DROP TABLE IF EXISTS tb_log_source;
@@ -376,3 +377,16 @@ CREATE TABLE tb_heartbeat_hist (
 
 CREATE INDEX ix_hbhist_server ON tb_heartbeat_hist (server_id, event_dt);
 CREATE INDEX ix_hbhist_dt ON tb_heartbeat_hist (event_dt);
+
+CREATE TABLE tb_proc_fallback (
+    server_id       BIGINT       NOT NULL,
+    daemon_state    VARCHAR(10),
+    report_text     CLOB         NOT NULL,
+    proc_cnt        INT          DEFAULT 0 NOT NULL,
+    svc_cnt         INT          DEFAULT 0 NOT NULL,
+    recv_cnt        INT          DEFAULT 1 NOT NULL,
+    first_dt        TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    collect_dt      TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    PRIMARY KEY (server_id),
+    CONSTRAINT fk_procfb_server FOREIGN KEY (server_id) REFERENCES tb_server (server_id)
+);

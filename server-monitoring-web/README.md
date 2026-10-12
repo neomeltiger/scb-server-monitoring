@@ -132,6 +132,12 @@ java -Dfile.encoding=UTF-8 -jar target/server-monitoring-web.war
 - `GET /api/agents` : 전체 서버의 krcasmrx11_client 등록 현황 (`registered`, `reason`, 상태 NONE / WAITING / STALE / OK)
 - 화면은 정상(OK)이 아닌 서버만 표시, [등록 확인] = `GET /api/agents/{id}` 재조회
 
+## 데몬 중단 프로세스 현황 (스키마 v9, 클라이언트 1.7)
+
+- 데몬이 DEAD / STOPPED 인 동안 하트비트 감시자가 `SCB_FALLBACK_SEC`(30초)마다 collect_metric / collect_proc / collect_service → `POST /agent-api/v1/fallback` (백그라운드, 데몬이 돌고 있으면 웹이 409 로 무시)
+- `agent/service/FallbackService` : `tb_proc_fallback` 서버당 1건 덮어쓰기, **데몬이 다시 뜨면 삭제** (감시자 RUNNING 알림 / 데몬 웹 확인 / 데몬 보고 / 서버 삭제)
+- 화면 `/fallback` (`GET /api/agents/fallback`, 5초 갱신) - 기존 화면은 데몬 기준(종료 표시) 그대로, `db\migrate-v9.bat`
+
 ## 서버 복구 자동 감지 (스키마 v8, 클라이언트 1.6)
 
 - 감시자 하트비트에 `boot=Y|N`(부팅 자동 시작 rc 스크립트 설치 여부), `btime=부팅시각`(who -b) 추가 → `tb_agent.boot_auto_yn / boot_time` (`db\migrate-v8.bat`)
@@ -213,6 +219,7 @@ java -Dfile.encoding=UTF-8 -jar target/server-monitoring-web.war
 | `/password` | 비밀번호 변경 | `password.html` |
 | `/logs` | 서버 로그 | `server_logs.html` |
 | `/heartbeat` | 하트비트 모니터링 | `heartbeat.html` |
+| `/fallback` | 데몬 중단 프로세스 현황 | `fallback.html` |
 | `/agents` | 에이전트 관리 (데몬 제어) | `agent_manage.html` |
 | `/admin/users` | 사용자 관리 (ADMIN) | `admin_users.html` |
 | `/manual/index.html` | 사용자 매뉴얼 | `static/manual/index.html` |

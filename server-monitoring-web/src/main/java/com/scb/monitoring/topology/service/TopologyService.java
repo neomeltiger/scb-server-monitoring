@@ -173,6 +173,7 @@ public class TopologyService {
         serverLogMapper.deleteSnapshotsByServer(serverId);
         serverLogMapper.deleteSourcesByServer(serverId);
         serverLogMapper.deletePolicy(serverId);
+        agentMapper.deleteFallback(serverId);
         agentMapper.deleteHbHistByServer(serverId);
         agentMapper.deleteAgent(serverId);
         mapper.deleteProcessHistByServer(serverId);

@@ -56,6 +56,7 @@ public class HeartbeatService {
     private final ProcessStatusService processStatus;
     private final AlarmService alarmService;
     private final AgentProperties props;
+    private final FallbackService fallback;
     private final TransactionTemplate tx;
     private final TransactionTemplate readTx;
     private final ReentrantLock lock = new ReentrantLock();
@@ -63,7 +64,9 @@ public class HeartbeatService {
     private final Set<Long> reportNow = ConcurrentHashMap.newKeySet();
 
     public HeartbeatService(AgentMapper mapper, TopologyMapper topologyMapper, ProcessStatusService processStatus,
-                            AlarmService alarmService, AgentProperties props, PlatformTransactionManager txManager) {
+                            AlarmService alarmService, AgentProperties props, PlatformTransactionManager txManager,
+                            FallbackService fallback) {
+        this.fallback = fallback;
         this.mapper = mapper;
         this.topologyMapper = topologyMapper;
         this.processStatus = processStatus;
@@ -136,6 +139,7 @@ public class HeartbeatService {
                 } else if (!down && wasDown) {
                     event(serverId, HeartbeatHist.E_D_UP, pid, null, "데몬 다시 실행 (pid " + (pid == null ? "-" : pid) + ")"
                             + (a.isRestartPending() ? " - 웹 재시작 요청 처리됨" : ""));
+                    fallback.clear(serverId, "데몬 다시 실행");
                     alarmCheck = true;
                 }
                 // 서버 복구 직후 데몬이 멈춰 있으면 자동 재시작 (관리자가 일부러 멈춘 경우 제외)
@@ -195,6 +199,7 @@ public class HeartbeatService {
         event(before.getServerId(), HeartbeatHist.E_D_UP, pid, null, "데몬 다시 실행 (pid " + (pid == null ? "-" : pid) + ")"
                 + (before.isRestartPending() ? " - 웹 재시작 요청 처리됨" : ""));
         if (before.isRestartPending()) mapper.updateRestartReq(before.getServerId(), "N", null);
+        fallback.clear(before.getServerId(), "데몬 다시 실행");
     }
 
     /** 클라이언트 1.4 이상 = 하트비트 셸(bin/scb_heartbeat.sh) 있음 */
