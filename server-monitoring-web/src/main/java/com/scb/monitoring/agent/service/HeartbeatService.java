@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.slf4j.Logger;
@@ -35,6 +37,9 @@ import com.scb.monitoring.topology.service.TopologyException;
  *       → 그 서버의 실행 중 프로세스·서비스를 즉시 종료 + 서버 Down + 알람</li>
  *   <li>데몬 문제 : 하트비트는 오는데 데몬이 DEAD / STOPPED → 서버는 정상(Down 아님), 프로세스·서비스 종료 표시,
  *       데몬 중단 알람(DAEMON_DOWN) + 웹 [데몬 재시작] → 다음 하트비트 응답 restart=Y → 감시자가 scb_client.sh start</li>
+ *   <li>서버 복구 자동 감지 : 끊겼던(LOST) 하트비트가 다시 오거나 부팅 시각이 바뀌면(재부팅)
+ *       → 데몬이 멈춰 있으면 자동 재시작(restart=Y, 일부러 멈춘 경우 제외), 데몬이 돌고 있으면 즉시 보고 요청(ctl report=Y)
+ *       → 다음 보고로 서버 자원·프로세스 정보가 바로 복구됨</li>
  *   <li>주기 변경 : 네트워크 구성도 서버 상세 (ADMIN) → 다음 하트비트 응답(hb|interval=N)으로 클라이언트에 전달</li>
  *   <li>이벤트(수신 시작 / 끊김 / 복구 / 데몬 종료 / 주기 변경)는 tb_heartbeat_hist 와 logs/heartbeat.log 에 기록</li>
  * </ul>
@@ -54,6 +59,8 @@ public class HeartbeatService {
     private final TransactionTemplate tx;
     private final TransactionTemplate readTx;
     private final ReentrantLock lock = new ReentrantLock();
+    /** 서버 복구 후 데몬에 즉시 보고를 요청할 서버 (다음 웹 확인 응답 ctl|...|report=Y 로 한 번 전달) */
+    private final Set<Long> reportNow = ConcurrentHashMap.newKeySet();
 
     public HeartbeatService(AgentMapper mapper, TopologyMapper topologyMapper, ProcessStatusService processStatus,
                             AlarmService alarmService, AgentProperties props, PlatformTransactionManager txManager) {
@@ -74,13 +81,26 @@ public class HeartbeatService {
         return beat(serverId, pid, null);
     }
 
+    /** 1.5 호환 (부팅 정보를 보내지 않는 하트비트) */
+    public String beat(Long serverId, Integer pid, String daemonState) {
+        return beat(serverId, pid, daemonState, null, null);
+    }
+
+    /** 데몬의 웹 확인 때 : 서버 복구 직후면 true (한 번만) → ctl|...|report=Y */
+    public boolean consumeReportNow(Long serverId) {
+        return reportNow.remove(serverId);
+    }
+
     /**
      * 하트비트 수신. 끊겼다가 다시 오면 RECOVER, 처음이면 START.
      * daemonState (1.5~ 감시자) : RUNNING / PAUSED → 데몬 정상, STOPPED / DEAD → 데몬 중단(D_DOWN, 서버는 정상)
      * @return 클라이언트에 줄 응답 : hb|interval=10|timeout=32|restart=N  (restart=Y 면 감시자가 데몬을 시작)
      */
-    public String beat(Long serverId, Integer pid, String daemonState) {
+    public String beat(Long serverId, Integer pid, String daemonState, String bootAuto, String bootTime) {
         String ds = normalizeDaemonState(daemonState);
+        String ba = "Y".equals(bootAuto) || "N".equals(bootAuto) ? bootAuto : null;
+        String bt = bootTime == null || bootTime.trim().isEmpty() ? null
+                : (bootTime.trim().length() > 30 ? bootTime.trim().substring(0, 30) : bootTime.trim());
         String[] restart = {"N"};
         Boolean changed = tx.execute(st -> {
             Agent a = mapper.selectAgent(serverId);
@@ -89,13 +109,19 @@ public class HeartbeatService {
             String before = a.getHbState();
             String prevDaemon = a.getHbDaemonState();
             Long gap = a.getLastHbDt() == null ? null : (System.currentTimeMillis() - a.getLastHbDt().getTime()) / 1000;
-            mapper.updateHbBeat(serverId, pid, ds);
+            mapper.updateHbBeat(serverId, pid, ds, ba, bt);
+            boolean rebooted = bt != null && a.getBootTime() != null && !bt.equals(a.getBootTime());
+            boolean lost = Agent.HB_LOST.equals(before);
             if (!Agent.HB_ALIVE.equals(before)) {
-                boolean lost = Agent.HB_LOST.equals(before);
-                event(serverId, lost ? HeartbeatHist.E_RECOVER : HeartbeatHist.E_START, pid,
-                        lost ? gap : null, lost ? "하트비트 다시 수신 - 서버 연결 복구" : "하트비트 수신 시작 (주기 " + a.getHbIntervalSec() + "초)");
+                event(serverId, lost ? HeartbeatHist.E_RECOVER : HeartbeatHist.E_START, pid, lost ? gap : null,
+                        lost ? "하트비트 다시 수신 - 서버 복구 감지" + (rebooted ? " (재부팅됨, 부팅 " + bt + ")" : "")
+                             : "하트비트 수신 시작 (주기 " + a.getHbIntervalSec() + "초)" + (rebooted ? " - 서버 재부팅 감지 (부팅 " + bt + ")" : ""));
                 alarmCheck = lost;
+            } else if (rebooted) {
+                event(serverId, HeartbeatHist.E_RECOVER, pid, null, "서버 재부팅 감지 (부팅 " + bt + ") - 끊김 기준 안에 다시 연결됨");
             }
+            boolean recovered = lost || rebooted;
+            if (recovered) reportNow.add(serverId);     // 데몬이 돌고 있으면 다음 웹 확인 때 바로 보고
             if (ds != null) {
                 boolean down = Agent.HD_DEAD.equals(ds) || Agent.HD_STOPPED.equals(ds);
                 boolean wasDown = Agent.HD_DEAD.equals(prevDaemon) || Agent.HD_STOPPED.equals(prevDaemon);
@@ -111,6 +137,14 @@ public class HeartbeatService {
                     event(serverId, HeartbeatHist.E_D_UP, pid, null, "데몬 다시 실행 (pid " + (pid == null ? "-" : pid) + ")"
                             + (a.isRestartPending() ? " - 웹 재시작 요청 처리됨" : ""));
                     alarmCheck = true;
+                }
+                // 서버 복구 직후 데몬이 멈춰 있으면 자동 재시작 (관리자가 일부러 멈춘 경우 제외)
+                if (recovered && down && !a.isDaemonStopIntended() && !a.isRestartPending()) {
+                    restart[0] = "Y";
+                    mapper.updateRestartReq(serverId, "Y", "auto");
+                    mapper.updateRestartReq(serverId, "S", null);
+                    event(serverId, HeartbeatHist.E_RESTART, a.getDaemonPid(), null,
+                            "데몬 자동 재시작 - 서버 복구 후 데몬이 실행되지 않음" + (rebooted ? " (재부팅)" : ""));
                 }
                 // 재시작 요청 : 데몬이 멈춰 있으면 이번 응답으로 전달(S), 데몬이 돌고 있으면 요청 해제
                 if ("Y".equals(a.getRestartReqYn()) && down) {
@@ -145,6 +179,7 @@ public class HeartbeatService {
         if (before == null || before.isHeartbeatClient() || Agent.HB_ALIVE.equals(before.getHbState())) return;
         if (hasHeartbeatShell(ver)) return;     // 1.4~ : 하트비트 셸이 곧 보냄 (웹 확인이 먼저 와도 기다림)
         boolean lost = Agent.HB_LOST.equals(before.getHbState());
+        if (lost) reportNow.add(before.getServerId());     // 서버 복구 : 바로 보고 요청
         mapper.updateHbState(before.getServerId(), Agent.HB_ALIVE);
         event(before.getServerId(), lost ? HeartbeatHist.E_RECOVER : HeartbeatHist.E_START, pid, null,
                 (lost ? "웹 확인 다시 수신" : "웹 확인 수신 시작") + " (하트비트 셸 없는 이전 클라이언트)");

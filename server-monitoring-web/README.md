@@ -132,6 +132,15 @@ java -Dfile.encoding=UTF-8 -jar target/server-monitoring-web.war
 - `GET /api/agents` : 전체 서버의 krcasmrx11_client 등록 현황 (`registered`, `reason`, 상태 NONE / WAITING / STALE / OK)
 - 화면은 정상(OK)이 아닌 서버만 표시, [등록 확인] = `GET /api/agents/{id}` 재조회
 
+## 서버 복구 자동 감지 (스키마 v8, 클라이언트 1.6)
+
+- 감시자 하트비트에 `boot=Y|N`(부팅 자동 시작 rc 스크립트 설치 여부), `btime=부팅시각`(who -b) 추가 → `tb_agent.boot_auto_yn / boot_time` (`db\migrate-v8.bat`)
+- `HeartbeatService.beat` : LOST 였던 서버의 하트비트가 다시 오거나 부팅 시각이 바뀌면 복구(RECOVER, 재부팅 표시)
+  - 데몬 DEAD / STOPPED (일부러 멈춘 경우 제외) → 같은 응답에 `restart=Y` (자동 재시작, RESTART 이벤트 "데몬 자동 재시작")
+  - 데몬 실행 중 → 다음 웹 확인 응답 `ctl|...|report=Y` (한 번, 메모리) → 데몬이 바로 수집·보고
+  - 1.3 이하 데몬도 웹 확인이 다시 오면 report=Y (무시해도 무해)
+- 클라이언트 : `pid_is` 로 PID 파일의 프로세스가 실제 scb 스크립트인지 확인 (재부팅 뒤 PID 재사용 대비), `install-boot` (root, rc 스크립트 설치), `status` 에 부팅 자동 시작·부팅 시각
+
 ## 하트비트 v7 : 서버 다운 / 데몬 문제 구분 (스키마 v7, 클라이언트 1.5)
 
 - 클라이언트 1.5 : `bin/scb_heartbeat.sh` 가 데몬과 **따로** 실행되는 감시자 (`start` 가 함께 띄움, `stop` 은 데몬만, `stopall` 은 둘 다). `heartbeat?pid=&daemon=RUNNING|PAUSED|STOPPED|DEAD` 로 데몬 상태를 알리고, 응답 `restart=Y` 면 `scb_client.sh start` 실행

@@ -13,7 +13,7 @@ SCB_HTTP_TIMEOUT=${SCB_HTTP_TIMEOUT:-20}
 SCB_HTTP_INSECURE=${SCB_HTTP_INSECURE:-0}
 # 웹 서버가 요청할 수 있는 로그 경로 (공백 구분 셸 패턴, client.env 에서 바꿀 수 있음)
 SCB_LOG_ALLOW=${SCB_LOG_ALLOW:-"/var/adm/messages /var/adm/messages.[0-9]* /var/log/*.log /var/log/syslog /shared/opt/agent/krcasmrx11_agent/log/* /shared/opt/agent/krcasmrx11_client/log/*"}
-CLIENT_VER=1.5
+CLIENT_VER=1.6
 RUN_DIR=$CLIENT_HOME/run
 LOG_DIR=$CLIENT_HOME/log
 LOG_FILE=$LOG_DIR/scb_client.log
@@ -22,6 +22,33 @@ mkdir -p $RUN_DIR $LOG_DIR 2>/dev/null
 NAWK=/usr/bin/nawk
 [ -x $NAWK ] || NAWK=awk
 OS_NAME=`uname -s`
+
+# PID 가 살아 있고 그 프로세스가 우리 스크립트인지 (재부팅 뒤 남은 PID 파일의 번호를 다른 프로세스가 쓰는 경우 구분)
+#   pid_is <PID> <스크립트 이름>
+pid_is() {
+    [ -n "$1" ] || return 1
+    kill -0 $1 2>/dev/null || return 1
+    pargs=`ps -o args -p $1 2>/dev/null | tail -1`
+    case "$pargs" in
+        *"$2"*) return 0 ;;
+        ''|COMMAND|CMD) return 0 ;;     # ps 로 확인할 수 없으면(형식·권한) 살아 있다고 봄
+    esac
+    return 1
+}
+
+# 서버 부팅 시 자동 시작(rc 스크립트) 설치 여부 : Y / N
+boot_auto_installed() {
+    if [ -f /etc/init.d/scb_client ] && ls /etc/rc3.d/S*scb_client > /dev/null 2>&1; then
+        echo Y
+    else
+        echo N
+    fi
+}
+
+# 서버 부팅 시각 (who -b → "Oct 12 13:45"), 모르면 빈 값
+boot_time() {
+    who -b 2>/dev/null | $NAWK '{ if (NF >= 3) print $(NF-2), $(NF-1), $NF }' | head -1
+}
 
 clog() {
     msg="`date '+%Y-%m-%d %H:%M:%S'` [CLIENT] $*"

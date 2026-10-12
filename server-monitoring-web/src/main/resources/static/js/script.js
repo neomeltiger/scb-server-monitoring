@@ -652,6 +652,8 @@ function topoHeartbeatHtml(serverId, a) {
         html += ' <span class="hb-miss' + (a.hbMisses >= (a.hbMissLimit || 3) ? ' bad' : a.hbMisses > 0 ? ' warn' : '') + '">연속 미수신 ' +
             Math.min(a.hbMisses, a.hbMissLimit || 3) + ' / ' + (a.hbMissLimit || 3) + '</span>';
     }
+    if (a.bootAuto === 'N') html += '<div class="topo-hb-daemon">⚠ 부팅 자동 시작 미설치 - 재부팅 후 자동 복구 안 됨 (root : bin/scb_client.sh install-boot)</div>';
+    else if (a.bootAuto === 'Y') html += '<div class="topo-hb-sub">부팅 자동 시작 설치됨' + (a.bootTime ? ' · 서버 부팅 ' + escapeHtml(a.bootTime) : '') + '</div>';
     if (a.daemonIssue) html += '<div class="topo-hb-daemon">⚠ ' + escapeHtml(a.daemonIssue) + ' (서버 정상)' +
         (a.restartPending ? ' · 재시작 요청 전달 중' : '') + '</div>';
     html += '<div class="topo-hb-sub">주기 <b>' + a.hbIntervalSec + '초</b> · 서버 다운 기준 ' +

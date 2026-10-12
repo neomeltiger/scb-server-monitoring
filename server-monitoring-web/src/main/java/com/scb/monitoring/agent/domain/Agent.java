@@ -67,6 +67,8 @@ public class Agent {
     private String restartReqYn = "N";
     private String restartReqUser;
     private Timestamp restartReqDt;
+    private String bootAutoYn;
+    private String bootTime;
 
     public static boolean isAllowedInterval(int sec) {
         for (int i : COLLECT_INTERVALS) if (i == sec) return true;
@@ -183,6 +185,11 @@ public class Agent {
     public void setRestartReqUser(String restartReqUser) { this.restartReqUser = restartReqUser; }
     public Timestamp getRestartReqDt() { return restartReqDt; }
     public void setRestartReqDt(Timestamp restartReqDt) { this.restartReqDt = restartReqDt; }
+
+    public String getBootAutoYn() { return bootAutoYn; }
+    public void setBootAutoYn(String bootAutoYn) { this.bootAutoYn = bootAutoYn; }
+    public String getBootTime() { return bootTime; }
+    public void setBootTime(String bootTime) { this.bootTime = bootTime; }
 
     public Long getServerId() { return serverId; }
     public void setServerId(Long serverId) { this.serverId = serverId; }

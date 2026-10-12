@@ -23,10 +23,11 @@ krcasmrx11_client - 서버 → 통합 모니터링 웹 연동 에이전트 (Sola
                 bin/scb_client.sh stop        → 데몬 정지 (웹에 종료 보고, 하트비트 감시자는 계속 → 웹은 서버 정상·데몬 정지로 표시)
                 bin/scb_client.sh stopall     → 데몬 + 하트비트 감시자 모두 정지 (서버 점검·종료 시)
      ※ 이전 버전에서 crontab 에 scb_client.sh run 을 등록했다면 crontab -e 로 그 줄을 지우세요.
-  6) 부팅 시 자동 시작 (root, 한 번)
-                cp etc/scb_client.init /etc/init.d/scb_client ; chmod 744 /etc/init.d/scb_client
-                ln -s /etc/init.d/scb_client /etc/rc3.d/S99scb_client
-                ln -s /etc/init.d/scb_client /etc/rc0.d/K01scb_client
+  6) 부팅 시 자동 시작 (root, 한 번) - 서버가 다운됐다 되살아나면 자동으로 데몬·감시자가 떠서 모니터링 재개
+                bin/scb_client.sh install-boot
+                (직접 하려면 : cp etc/scb_client.init /etc/init.d/scb_client ; chmod 744 /etc/init.d/scb_client
+                 ln -s /etc/init.d/scb_client /etc/rc3.d/S99scb_client ; ln -s /etc/init.d/scb_client /etc/rc0.d/K01scb_client)
+                설치 여부는 bin/scb_client.sh status 와 웹 하트비트 모니터링 화면에 표시됩니다.
 
   업그레이드 : bin/scb_client.sh stop → 같은 위치에 tar 를 다시 풀기 → bin/scb_client.sh start
                etc/client.env 는 tar 에 없으므로 그대로 유지됩니다.
@@ -81,7 +82,10 @@ krcasmrx11_client - 서버 → 통합 모니터링 웹 연동 에이전트 (Sola
   데몬 문제  : 하트비트는 오는데 데몬이 멈춤(daemon=STOPPED / DEAD) → 서버는 정상(Down 아님), 프로세스·서비스는 종료 표시,
                "데몬 중단" 알람 + 웹 [데몬 재시작] → 다음 하트비트 응답 restart=Y → 감시자가 bin/scb_client.sh start
                (데몬 [종료] / scb_client.sh stop 처럼 일부러 멈춘 경우는 알람 없이 화면 안내만)
-  복구       : 다시 받으면 복구 / 데몬 다시 실행 이벤트, 다음 보고부터 실제 상태로 돌아옴
+  서버 복구  : (1.6~) 서버가 되살아나 하트비트가 다시 오면 웹이 자동 감지 (부팅 시각이 바뀌면 재부팅으로 기록)
+               - 데몬이 안 떠 있으면 자동 재시작 (restart=Y → 감시자가 scb_client.sh start, 일부러 멈춘 경우 제외)
+               - 데몬이 떠 있으면 바로 수집·보고 (ctl|...|report=Y) → 서버 자원·프로세스 정보가 바로 복구
+               - 재부팅 후 자동으로 뜨려면 부팅 스크립트 필요 (bin/scb_client.sh install-boot)
   확인       : 웹 화면 서버자원모니터링 → 하트비트 모니터링 (서버별 상태, 연속 미수신 횟수, 이벤트 이력)
   상태 파일  run/heartbeat.pid, run/heartbeat.state
   ※ 1.4 는 하트비트가 데몬과 함께 멈추므로 데몬이 죽으면 서버 다운으로 보입니다. 1.5 로 교체하세요.

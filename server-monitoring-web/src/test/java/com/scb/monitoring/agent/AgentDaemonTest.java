@@ -58,7 +58,7 @@ class AgentDaemonTest {
     void heartbeatAndWebControl() {
         agent.issueToken(11L, "admin");
         String r = agent.pullCommands(11L, "RUNNING", 4321, "1.2");
-        assertEquals("ctl|collect=on|interval=60|shutdown=N", firstLine(r));
+        assertEquals("ctl|collect=on|interval=60|shutdown=N|report=N", firstLine(r));
         assertEquals(2, count(r, "log|"), "수집 중이면 로그 요청 전달");
         AgentView v = agent.getAgent(11L);
         assertEquals("RUNNING", v.getDaemonState());
@@ -71,7 +71,7 @@ class AgentDaemonTest {
         jdbc.update("UPDATE tb_log_policy SET req_now_yn = 'Y' WHERE server_id = 11");
         svc.requestCommand(11L, cmd("SCB_fs_app1", "status"), "admin");
         r = agent.pullCommands(11L, "PAUSED", 4321, "1.2");
-        assertEquals("ctl|collect=off|interval=60|shutdown=N", firstLine(r));
+        assertEquals("ctl|collect=off|interval=60|shutdown=N|report=N", firstLine(r));
         assertEquals(0, count(r, "log|"));
         assertEquals(1, count(r, "cmd|"));
         assertEquals("PAUSED", agent.getAgent(11L).getState());
@@ -100,11 +100,11 @@ class AgentDaemonTest {
         assertTrue(agent.getAgent(11L).isShutdownPending());
 
         // 이전 cron 클라이언트(데몬 정보 없음)에는 종료를 보내지 않음
-        assertTrue(firstLine(agent.pullCommands(11L)).endsWith("shutdown=N"));
+        assertTrue(firstLine(agent.pullCommands(11L)).contains("shutdown=N"));
         svc.requestCommand(11L, cmd("SCB_fs_app1", "status"), "admin");
 
         String r = agent.pullCommands(11L, "RUNNING", 100, "1.2");
-        assertEquals("ctl|collect=on|interval=60|shutdown=Y", firstLine(r));
+        assertEquals("ctl|collect=on|interval=60|shutdown=Y|report=N", firstLine(r));
         assertEquals(0, count(r, "cmd|"), "종료하는 데몬에는 명령을 주지 않음 (다음 데몬이 받음)");
         assertFalse(agent.getAgent(11L).isShutdownPending(), "한 번만 전달");
         assertEquals("STOPPED", agent.getAgent(11L).getState(), "종료 중");
@@ -115,7 +115,7 @@ class AgentDaemonTest {
 
         // 서버에서 다시 시작 (새 PID)
         String r2 = agent.pullCommands(11L, "RUNNING", 200, "1.2");
-        assertTrue(firstLine(r2).endsWith("shutdown=N"));
+        assertTrue(firstLine(r2).contains("shutdown=N"));
         assertEquals(1, count(r2, "cmd|"), "남겨 둔 명령은 새 데몬이 받음");
         v = agent.getAgent(11L);
         assertEquals("RUNNING", v.getDaemonState());

@@ -197,6 +197,8 @@ CREATE TABLE tb_agent (
     restart_req_yn       CHAR(1)      NOT NULL DEFAULT 'N' COMMENT '데몬 재시작 요청 (Y: 요청 / S: 서버에 전달 / N: 없음)',
     restart_req_user     VARCHAR(30)      NULL COMMENT '재시작 요청자',
     restart_req_dt       TIMESTAMP        NULL COMMENT '재시작 요청 일시',
+    boot_auto_yn         CHAR(1)          NULL COMMENT '서버 부팅 시 자동 시작 설치 여부 (rc 스크립트, 하트비트 감시자가 알림)',
+    boot_time            VARCHAR(30)      NULL COMMENT '서버 부팅 시각 (who -b, 바뀌면 재부팅 감지)',
     PRIMARY KEY (server_id),
     CONSTRAINT uk_agent_token  UNIQUE (token_hash),
     CONSTRAINT fk_agent_server FOREIGN KEY (server_id) REFERENCES tb_server (server_id),
@@ -207,7 +209,8 @@ CREATE TABLE tb_agent (
     CONSTRAINT ck_agent_hb_interval CHECK (hb_interval_sec IN (3, 5, 10, 15, 30, 60)),
     CONSTRAINT ck_agent_hb_state    CHECK (hb_state IN ('ALIVE', 'LOST', 'STOPPED')),
     CONSTRAINT ck_agent_hb_dstate   CHECK (hb_daemon_state IN ('RUNNING', 'PAUSED', 'STOPPED', 'DEAD')),
-    CONSTRAINT ck_agent_restart     CHECK (restart_req_yn IN ('Y', 'S', 'N'))
+    CONSTRAINT ck_agent_restart     CHECK (restart_req_yn IN ('Y', 'S', 'N')),
+    CONSTRAINT ck_agent_boot_auto   CHECK (boot_auto_yn IN ('Y', 'N'))
 ) ENGINE = InnoDB COMMENT = '서버 에이전트 (토큰, 마지막 보고, 데몬 제어/상태)';
 
 -- -------------------------------------------------------------

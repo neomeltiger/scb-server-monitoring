@@ -1248,3 +1248,10 @@ img, svg, canvas { max-width: 100%; }
 .topo-daemon-warn { background: #fff3cd; color: #6b4500; padding: 8px; border-radius: 4px; font-size: 12px; margin-top: 8px; line-height: 1.5; display: flex; flex-direction: column; gap: 6px; }
 .topo-daemon-cmd code { background: #fff; padding: 1px 4px; border-radius: 3px; }
 .alarm-act.restart, .svc-btn.daemon-restart { background: #e08e0b; color: #fff; border-color: #e08e0b; }
+
+/* ---- 하트비트 v8 : 부팅 자동 시작 ---- */
+.hb-boot { display: inline-block; padding: 0 7px; border-radius: 8px; font-size: 11px; background: #edf2f7; color: #475569; }
+.hb-boot.ok { background: #d4edda; color: #155724; }
+.hb-boot.bad { background: #f8d7da; color: #721c24; font-weight: bold; }
+.hb-boot-cmd { display: block; font-size: 11px; color: #64748b; margin-top: 2px; }
+.hb-boot-cmd code { font-size: 11px; }

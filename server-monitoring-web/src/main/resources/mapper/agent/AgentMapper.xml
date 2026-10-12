@@ -9,7 +9,8 @@
         a.collect_yn, a.collect_interval_sec, a.shutdown_req_yn, a.daemon_state, a.daemon_pid,
         a.daemon_start_dt, a.last_poll_dt, a.ctl_user, a.ctl_dt,
         a.hb_interval_sec, a.hb_state, a.last_hb_dt, a.hb_pid,
-        a.hb_daemon_state, a.restart_req_yn, a.restart_req_user, a.restart_req_dt
+        a.hb_daemon_state, a.restart_req_yn, a.restart_req_user, a.restart_req_dt,
+        a.boot_auto_yn, a.boot_time
     </sql>
 
     <select id="selectAgent" resultType="com.scb.monitoring.agent.domain.Agent">
@@ -117,7 +118,9 @@
            SET last_hb_dt      = CURRENT_TIMESTAMP,
                hb_pid          = #{pid, jdbcType=INTEGER},
                hb_state        = 'ALIVE',
-               hb_daemon_state = COALESCE(#{daemonState, jdbcType=VARCHAR}, hb_daemon_state)
+               hb_daemon_state = COALESCE(#{daemonState, jdbcType=VARCHAR}, hb_daemon_state),
+               boot_auto_yn    = COALESCE(#{bootAuto, jdbcType=CHAR}, boot_auto_yn),
+               boot_time       = COALESCE(#{bootTime, jdbcType=VARCHAR}, boot_time)
          WHERE server_id = #{serverId}
     </update>
 

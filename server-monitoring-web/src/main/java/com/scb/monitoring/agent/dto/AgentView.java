@@ -62,6 +62,9 @@ public class AgentView {
     private String restartReqUser;
     private String restartReqDt;
     private boolean watchdog;
+    /** 부팅 자동 시작 설치 : Y / N / null(알 수 없음 - 클라이언트 1.6 미만) */
+    private String bootAuto;
+    private String bootTime;
 
     public static AgentView of(Agent a, int staleAfterSec) {
         AgentView v = new AgentView();
@@ -102,6 +105,8 @@ public class AgentView {
         v.restartPending = a.isRestartPending();
         v.restartReqUser = a.getRestartReqUser();
         v.restartReqDt = fmt(a.getRestartReqDt());
+        v.bootAuto = a.getBootAutoYn();
+        v.bootTime = a.getBootTime();
 
         // 데몬 상태
         if (a.getLastPollDt() == null) {
@@ -187,4 +192,6 @@ public class AgentView {
     public String getRestartReqUser() { return restartReqUser; }
     public String getRestartReqDt() { return restartReqDt; }
     public boolean isWatchdog() { return watchdog; }
+    public String getBootAuto() { return bootAuto; }
+    public String getBootTime() { return bootTime; }
 }

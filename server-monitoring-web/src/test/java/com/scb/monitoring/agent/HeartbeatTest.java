@@ -212,6 +212,61 @@ class HeartbeatTest {
     }
 
     @Test
+    void serverRecoveryRestartsStoppedDaemon() {
+        agent.issueToken(11L, "admin");
+        agent.pullCommands(11L, "RUNNING", 900, "1.6");
+        heartbeat.beat(11L, 900, "RUNNING", "Y", "Oct 12 10:00");
+        assertEquals("Y", view(11).getBootAuto());
+        assertEquals("Oct 12 10:00", view(11).getBootTime());
+
+        // 서버 다운 → 재부팅 후 감시자만 떴고 데몬은 안 뜸 (PID 파일만 남음 = DEAD)
+        ageHeartbeat(40);
+        assertEquals(1, heartbeat.watch());
+        assertEquals("hb|interval=10|timeout=32|restart=Y\n", heartbeat.beat(11L, 900, "DEAD", "Y", "Oct 12 13:50"),
+                "복구 감지 → 데몬 자동 재시작");
+        List<HeartbeatHist> ev = heartbeat.getEvents(11L, 10);
+        assertTrue(ev.stream().anyMatch(h -> "RECOVER".equals(h.getEventCd()) && h.getDetail().contains("재부팅")));
+        assertTrue(ev.stream().anyMatch(h -> "RESTART".equals(h.getEventCd()) && h.getDetail().startsWith("데몬 자동 재시작")));
+        assertEquals("hb|interval=10|timeout=32|restart=N\n", heartbeat.beat(11L, 900, "DEAD", "Y", "Oct 12 13:50"), "한 번만");
+
+        // 데몬이 뜨면 첫 웹 확인에 즉시 보고 요청 (한 번)
+        assertTrue(agent.pullCommands(11L, "RUNNING", 950, "1.6").contains("|report=Y"));
+        assertTrue(agent.pullCommands(11L, "RUNNING", 950, "1.6").contains("|report=N"));
+    }
+
+    @Test
+    void networkRecoveryRequestsImmediateReport() {
+        agent.issueToken(11L, "admin");
+        agent.pullCommands(11L, "RUNNING", 900, "1.6");
+        heartbeat.beat(11L, 900, "RUNNING", "Y", "Oct 12 10:00");
+        assertTrue(agent.pullCommands(11L, "RUNNING", 900, "1.6").contains("|report=N"));
+
+        ageHeartbeat(40);
+        heartbeat.watch();
+        assertEquals("hb|interval=10|timeout=32|restart=N\n", heartbeat.beat(11L, 900, "RUNNING", "Y", "Oct 12 10:00"),
+                "데몬이 돌고 있으면 재시작하지 않음");
+        assertTrue(agent.pullCommands(11L, "RUNNING", 900, "1.6").contains("|report=Y"), "복구 직후 바로 보고");
+
+        // 끊김 기준 안에 재부팅 (부팅 시각만 바뀜)도 복구로 처리
+        heartbeat.beat(11L, 901, "RUNNING", "Y", "Oct 12 11:00");
+        assertTrue(heartbeat.getEvents(11L, 5).get(0).getDetail().startsWith("서버 재부팅 감지"));
+        assertTrue(agent.pullCommands(11L, "RUNNING", 901, "1.6").contains("|report=Y"));
+    }
+
+    @Test
+    void intendedStopIsNotAutoRestarted() {
+        agent.issueToken(11L, "admin");
+        agent.pullCommands(11L, "RUNNING", 900, "1.6");
+        heartbeat.beat(11L, 900, "RUNNING", "N", "Oct 12 10:00");
+        agent.daemonStopped(11L);                               // 서버에서 scb_client.sh stop
+        ageHeartbeat(40);
+        heartbeat.watch();
+        assertEquals("hb|interval=10|timeout=32|restart=N\n", heartbeat.beat(11L, null, "STOPPED", "N", "Oct 12 13:50"),
+                "일부러 멈춘 데몬은 복구 후에도 자동 재시작하지 않음");
+        assertEquals("N", view(11).getBootAuto());
+    }
+
+    @Test
     void changeInterval() {
         assertThrows(TopologyException.class, () -> heartbeat.changeInterval(11L, 5, "admin"), "토큰 발급 전");
         agent.issueToken(11L, "admin");

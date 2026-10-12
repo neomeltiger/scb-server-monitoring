@@ -245,7 +245,7 @@ public class AgentService {
 
     /**
      * 데몬 확인 (heartbeat) + 명령. 데몬은 첫 줄 ctl 의 값을 매번 그대로 적용합니다. (요청이 유실돼도 다음 확인 때 반영)
-     *   ctl|collect=on|interval=60|shutdown=N
+     *   ctl|collect=on|interval=60|shutdown=N|report=N   (report=Y : 서버 복구 직후 - 바로 수집·보고)
      * 종료 요청이면 shutdown=Y 만 내려주고(명령·로그 요청은 다음 데몬이 받도록 남겨 둠) 요청을 해제합니다.
      * 수집 중지 중에는 로그 요청을 보내지 않습니다. (서비스 제어 명령은 계속 처리)
      * @param daemonState 데몬이 보낸 상태 (RUNNING / PAUSED), 이전 cron 클라이언트는 null
@@ -264,7 +264,8 @@ public class AgentService {
             boolean shutdown = ag.isShutdownRequested() && daemonState != null;
             sb.append("ctl|collect=").append(ag.isCollectOn() ? "on" : "off")
               .append("|interval=").append(ag.getCollectIntervalSec())
-              .append("|shutdown=").append(shutdown ? "Y" : "N").append('\n');
+              .append("|shutdown=").append(shutdown ? "Y" : "N")
+              .append("|report=").append(daemonState != null && heartbeat.consumeReportNow(serverId) ? "Y" : "N").append('\n');
             if (shutdown) {
                 mapper.markShutdownSent(serverId);
                 log.info("AGENT DAEMON shutdown → server={} pid={}", serverId, pid);

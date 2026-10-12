@@ -9,6 +9,7 @@
 #   stop       데몬 정지 (웹에 종료 보고 후 끝남) - 하트비트 감시자는 계속 실행 (서버 정상, 데몬 정지로 표시)
 #   restart    데몬 다시 시작
 #   stopall    데몬 + 하트비트 감시자 모두 정지 (서버 종료 / 점검 시, rc 스크립트 stop)
+#   install-boot  서버 부팅 시 자동 시작 설치 (root, /etc/init.d/scb_client + rc 링크) - 서버가 되살아나면 자동 복구
 #   status     데몬 실행 여부 / 수집 상태 / 수집 주기 / 마지막 확인·보고 / 하트비트
 #   daemon     데몬을 이 터미널에서 실행 (start 가 내부적으로 사용, 점검용)
 #   ping       웹 서버 연결 / 토큰 확인
@@ -31,6 +32,9 @@
 #     GET /agent-api/v1/heartbeat?pid=&daemon=RUNNING|PAUSED|STOPPED|DEAD
 #     데몬이 죽어도 하트비트는 계속 → 웹은 서버는 정상, 데몬만 문제로 보고 재시작 알림 (웹 [데몬 재시작] → 감시자가 start)
 #     하트비트가 3회 연속 안 오면(서버 전원·네트워크) 서버 다운. 감시자가 죽으면 데몬이 다시 띄웁니다.
+#   서버 복구 (1.6~) : 서버가 되살아나 하트비트가 다시 가면 웹이 자동 감지
+#     데몬이 안 떠 있으면 restart=Y 로 감시자가 자동 시작, 데몬이 떠 있으면 ctl|...|report=Y 로 바로 수집·보고
+#     재부팅 후 자동 시작은 부팅 스크립트 필요 → bin/scb_client.sh install-boot (root, 한 번)
 #
 # 수집 스크립트 (종류별)
 #   collect_sys.sh      [sys]      호스트명, OS
@@ -156,11 +160,12 @@ read_ctl() {
     CTL_COLLECT=`echo "$ctl" | sed -n 's/.*collect=\([a-z]*\).*/\1/p'`
     CTL_INTERVAL=`echo "$ctl" | sed -n 's/.*interval=\([0-9]*\).*/\1/p'`
     CTL_SHUTDOWN=`echo "$ctl" | sed -n 's/.*shutdown=\([YN]\).*/\1/p'`
+    CTL_REPORT=`echo "$ctl" | sed -n 's/.*report=\([YN]\).*/\1/p'`
 }
 
 daemon_pid() {
     dpid=`cat $PID_FILE 2>/dev/null`
-    if [ -n "$dpid" ] && kill -0 $dpid 2>/dev/null; then
+    if pid_is "$dpid" scb_client.sh; then
         echo $dpid
         return 0
     fi
@@ -183,7 +188,7 @@ write_state() {
 # ------------------------------------------------------------
 hb_running() {
     hp=`cat $HB_PID_FILE 2>/dev/null`
-    [ -n "$hp" ] && kill -0 $hp 2>/dev/null
+    pid_is "$hp" scb_heartbeat.sh
 }
 
 # 감시자가 없으면 시작 (start, 데몬 루프에서 확인)
@@ -250,8 +255,9 @@ daemon_main() {
             esac
             [ "$DSTATE" = "RUNNING" ] && do_logs
             run_cmds
-            # 명령 실행 후 바뀐 상태를 바로 화면에 반영
-            if [ $CMD_RAN -gt 0 ] && [ "$DSTATE" = "RUNNING" ]; then
+            # 명령 실행 후 바뀐 상태를 바로 화면에 반영 / 서버 복구 직후(웹 report=Y) 바로 수집·보고
+            if [ "$DSTATE" = "RUNNING" ] && { [ $CMD_RAN -gt 0 ] || [ "$CTL_REPORT" = "Y" ]; }; then
+                [ "$CTL_REPORT" = "Y" ] && clog "DAEMON 서버 복구 - 웹 요청으로 바로 수집·보고"
                 do_report
                 elapsed=0
             fi
@@ -332,6 +338,29 @@ daemon_stop() {
     return 0
 }
 
+# 서버 부팅 시 자동 시작 설치 (root) : 서버가 되살아나면 데몬·감시자가 자동으로 떠서 웹이 바로 복구 감지
+install_boot() {
+    case "`id`" in
+        uid=0\(*) ;;
+        *) echo "root 로 실행하세요."; return 1 ;;
+    esac
+    if [ ! -d /etc/init.d ] || [ ! -d /etc/rc3.d ]; then
+        echo "/etc/init.d, /etc/rc3.d 가 없습니다. (Solaris 10 rc 스크립트 방식이 아님)"
+        return 1
+    fi
+    sed "s,^CLIENT_HOME=.*,CLIENT_HOME=$CLIENT_HOME," $CLIENT_HOME/etc/scb_client.init > /etc/init.d/scb_client || return 1
+    chmod 744 /etc/init.d/scb_client
+    for l in /etc/rc3.d/S99scb_client /etc/rc0.d/K01scb_client /etc/rc1.d/K01scb_client /etc/rcS.d/K01scb_client; do
+        [ -d `dirname $l` ] || continue
+        rm -f $l
+        ln -s /etc/init.d/scb_client $l
+    done
+    clog "부팅 자동 시작 설치 : /etc/init.d/scb_client (CLIENT_HOME=$CLIENT_HOME)"
+    echo "부팅 자동 시작 설치 완료 : /etc/init.d/scb_client, /etc/rc3.d/S99scb_client (종료 : rc0/rc1/rcS K01)"
+    echo "다음 하트비트부터 웹 화면에 '부팅 자동 시작 : 설치됨' 으로 표시됩니다."
+    return 0
+}
+
 daemon_status() {
     if p=`daemon_pid`; then
         echo "자료수집 데몬 : 실행 중 (pid $p)"
@@ -351,6 +380,13 @@ daemon_status() {
     if [ -f $HB_STATE_FILE ]; then
         sed -n 's/^interval=\(.*\)/  하트비트 주기   : \1초/p; s/^daemon=/  알린 데몬 상태  : /p; s/^last_ok=/  마지막 전송 성공 : /p; s/^fail=/  연속 실패       : /p' $HB_STATE_FILE
     fi
+    if [ "`boot_auto_installed`" = "Y" ]; then
+        echo "부팅 자동 시작 : 설치됨 (/etc/init.d/scb_client)"
+    else
+        echo "부팅 자동 시작 : 미설치 - 서버 재부팅 후 자동 복구 안 됨 (root : bin/scb_client.sh install-boot)"
+    fi
+    bt=`boot_time`
+    [ -n "$bt" ] && echo "서버 부팅 시각 : $bt"
     return $rc
 }
 
@@ -358,12 +394,14 @@ case "$CMD" in
     start)   daemon_start; exit $? ;;
     stop)    daemon_stop; exit $? ;;
     stopall) daemon_stop; hb_stop; exit 0 ;;
+    install-boot) install_boot; exit $? ;;
     restart) daemon_stop; sleep 1; daemon_start; exit $? ;;
     status)  daemon_status; exit $? ;;
     daemon|loop) daemon_main ;;
     heartbeat)
         if p=`daemon_pid`; then hd=RUNNING; else hd=STOPPED; fi
-        http_call GET "/agent-api/v1/heartbeat?pid=`cat $PID_FILE 2>/dev/null`&daemon=$hd" $RUN_DIR/hb_test.txt || exit 1
+        bt=`boot_time | sed 's/ /+/g'`
+        http_call GET "/agent-api/v1/heartbeat?pid=`cat $PID_FILE 2>/dev/null`&daemon=$hd&boot=`boot_auto_installed`&btime=$bt" $RUN_DIR/hb_test.txt || exit 1
         cat $RUN_DIR/hb_test.txt
         rm -f $RUN_DIR/hb_test.txt
         exit 0

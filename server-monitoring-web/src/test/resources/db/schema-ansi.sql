@@ -163,6 +163,8 @@ CREATE TABLE tb_agent (
     restart_req_yn       CHAR(1)      DEFAULT 'N' NOT NULL,
     restart_req_user     VARCHAR(30),
     restart_req_dt       TIMESTAMP,
+    boot_auto_yn         CHAR(1),
+    boot_time            VARCHAR(30),
     PRIMARY KEY (server_id),
     CONSTRAINT uk_agent_token  UNIQUE (token_hash),
     CONSTRAINT fk_agent_server FOREIGN KEY (server_id) REFERENCES tb_server (server_id),
@@ -173,7 +175,8 @@ CREATE TABLE tb_agent (
     CONSTRAINT ck_agent_hb_interval CHECK (hb_interval_sec IN (3, 5, 10, 15, 30, 60)),
     CONSTRAINT ck_agent_hb_state    CHECK (hb_state IN ('ALIVE', 'LOST', 'STOPPED')),
     CONSTRAINT ck_agent_hb_dstate   CHECK (hb_daemon_state IN ('RUNNING', 'PAUSED', 'STOPPED', 'DEAD')),
-    CONSTRAINT ck_agent_restart     CHECK (restart_req_yn IN ('Y', 'S', 'N'))
+    CONSTRAINT ck_agent_restart     CHECK (restart_req_yn IN ('Y', 'S', 'N')),
+    CONSTRAINT ck_agent_boot_auto   CHECK (boot_auto_yn IN ('Y', 'N'))
 );
 
 -- -------------------------------------------------------------

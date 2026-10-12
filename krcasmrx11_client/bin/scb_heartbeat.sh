@@ -1,6 +1,6 @@
 #!/bin/sh
 #=============================================================
-# scb_heartbeat.sh - 하트비트 감시자 (krcasmrx11_client 1.5~)
+# scb_heartbeat.sh - 하트비트 감시자 (krcasmrx11_client 1.5~, 서버 복구 감지 1.6~)
 # 대상 : Solaris 10 (SPARC) /bin/sh (Bourne shell) 호환
 #
 # scb_client.sh start 가 함께 실행합니다. (직접 실행할 일은 없음, 하나만 실행됨)
@@ -8,8 +8,10 @@
 #
 # 동작
 #   웹이 정한 주기(기본 10초, 네트워크 구성도 화면에서 3 / 5 / 10 / 15 / 30 / 60초)마다
-#     GET /agent-api/v1/heartbeat?pid=<데몬 PID>&daemon=<데몬 상태>
+#     GET /agent-api/v1/heartbeat?pid=<데몬 PID>&daemon=<데몬 상태>&boot=<Y|N>&btime=<부팅 시각>
 #       데몬 상태 : RUNNING / PAUSED (실행 중) / STOPPED (정상 정지 - PID 파일 없음) / DEAD (PID 파일은 있는데 프로세스 없음)
+#       boot      : 서버 부팅 시 자동 시작(rc 스크립트) 설치 여부, btime : 서버 부팅 시각 (바뀌면 웹이 재부팅 감지)
+#   서버 복구 : 서버가 되살아나 하트비트가 다시 가면 웹이 감지 → 데몬이 멈춰 있으면 restart=Y (자동 재시작)
 #   데몬과 따로 돌기 때문에 데몬이 죽어도 하트비트는 계속 갑니다.
 #     → 웹은 "서버는 정상, 데몬만 문제" 로 보고 서버를 Down 으로 표시하지 않고 데몬 재시작 알림을 띄움
 #     → 하트비트 자체가 3회 연속 오지 않을 때만 서버 다운으로 판단 (서버 전원·네트워크 문제)
@@ -33,9 +35,9 @@ HB_OUT=$RUN_DIR/heartbeat.resp
 DAEMON_PID_FILE=$RUN_DIR/daemon.pid
 DAEMON_STATE_FILE=$RUN_DIR/daemon.state
 
-# 이미 실행 중이면 끝냄 (감시자는 하나만)
+# 이미 실행 중이면 끝냄 (감시자는 하나만, 재부팅 뒤 남은 PID 파일은 무시)
 op=`cat $HB_PID_FILE 2>/dev/null`
-if [ -n "$op" ] && [ "$op" != "$$" ] && kill -0 $op 2>/dev/null; then
+if [ -n "$op" ] && [ "$op" != "$$" ] && pid_is "$op" scb_heartbeat.sh; then
     echo "하트비트 감시자가 이미 실행 중입니다 (pid $op)"
     exit 0
 fi
@@ -50,13 +52,14 @@ LAST_OK=""
 DSTATE=STOPPED
 DPID=""
 PREV_DSTATE=""
+BOOT_TIME=`boot_time | sed 's/ /+/g'`
 
 # 데몬 상태 → DSTATE / DPID
 check_daemon() {
     DPID=`cat $DAEMON_PID_FILE 2>/dev/null`
     if [ -z "$DPID" ]; then
         DSTATE=STOPPED
-    elif kill -0 $DPID 2>/dev/null; then
+    elif pid_is "$DPID" scb_client.sh; then
         DSTATE=RUNNING
         grep '^state=PAUSED' $DAEMON_STATE_FILE > /dev/null 2>&1 && DSTATE=PAUSED
     else
@@ -95,7 +98,7 @@ while :; do
         PREV_DSTATE=$DSTATE
     fi
 
-    if http_call GET "/agent-api/v1/heartbeat?pid=$DPID&daemon=$DSTATE" $HB_OUT; then
+    if http_call GET "/agent-api/v1/heartbeat?pid=$DPID&daemon=$DSTATE&boot=`boot_auto_installed`&btime=$BOOT_TIME" $HB_OUT; then
         line=`sed -n 's/^hb|//p' $HB_OUT | head -1`
         n=`echo "$line" | sed -n 's/.*interval=\([0-9]*\).*/\1/p'`
         case "$n" in

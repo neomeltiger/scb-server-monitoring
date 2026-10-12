@@ -35,6 +35,8 @@ public class HeartbeatView {
     private boolean canRestart;
     private boolean restartPending;
     private boolean watchdog;
+    private String bootAuto;
+    private String bootTime;
 
     public static HeartbeatView of(Server s, Agent a, int staleAfterSec) {
         HeartbeatView v = new HeartbeatView();
@@ -61,6 +63,8 @@ public class HeartbeatView {
         v.canRestart = av.isCanRestart();
         v.restartPending = av.isRestartPending();
         v.watchdog = av.isWatchdog();
+        v.bootAuto = av.getBootAuto();
+        v.bootTime = av.getBootTime();
         return v;
     }
 
@@ -86,4 +90,6 @@ public class HeartbeatView {
     public boolean isCanRestart() { return canRestart; }
     public boolean isRestartPending() { return restartPending; }
     public boolean isWatchdog() { return watchdog; }
+    public String getBootAuto() { return bootAuto; }
+    public String getBootTime() { return bootTime; }
 }

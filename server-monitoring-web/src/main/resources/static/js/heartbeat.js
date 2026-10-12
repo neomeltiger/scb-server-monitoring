@@ -104,6 +104,8 @@
             ['연속 미수신', missHtml(v)],
             ['주기 / 다운 기준', v.hbClient ? v.hbIntervalSec + '초 / ' + limit + '초' : (legacy ? '웹 확인 10초 / ' + limit + '초' : v.hbIntervalSec + '초 (설정)')],
             ['데몬 PID', v.hbPid != null ? escapeHtml(v.hbPid) : '-'],
+            ['부팅 자동 시작', bootHtml(v)],
+            ['서버 부팅', v.bootTime ? escapeHtml(v.bootTime) : '-'],
             ['에이전트', escapeHtml(AGENT[v.agentState] || v.agentState) + (v.agentVer ? ' · ' + escapeHtml(v.agentVer) : '') +
                 (legacy ? ' <span class="hb-tag" title="하트비트 셸이 없는 1.3 이하 - 데몬의 웹 확인으로 판단">이전 방식</span>' : '')]
         ];
@@ -117,6 +119,14 @@
             (st === 'DAEMON' || st === 'STOPPED' ? daemonNotice(v) : '') +
             '<a class="hb-link" href="network?server=' + v.serverId + '">네트워크 구성도에서 보기' + (isAdminUser() ? ' · 주기 변경' : '') + ' →</a>' +
             '</div>';
+    }
+
+    // 서버가 되살아났을 때 자동 복구되려면 부팅 스크립트가 있어야 함
+    function bootHtml(v) {
+        if (v.bootAuto === 'Y') return '<span class="hb-boot ok">설치됨</span>';
+        if (v.bootAuto === 'N') return '<span class="hb-boot bad" title="서버 재부팅 후 데몬·감시자가 자동으로 뜨지 않아 모니터링이 복구되지 않습니다">미설치</span>' +
+            '<span class="hb-boot-cmd">root : <code>bin/scb_client.sh install-boot</code></span>';
+        return '<span class="hb-boot">알 수 없음</span>' + (v.agentState !== 'NONE' ? '<span class="hb-boot-cmd">클라이언트 1.6 이상에서 표시</span>' : '');
     }
 
     function daemonNotice(v) {
