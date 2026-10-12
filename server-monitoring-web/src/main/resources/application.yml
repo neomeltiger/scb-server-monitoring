@@ -93,6 +93,7 @@ springdoc:
     tags-sorter: alpha
     display-request-duration: true
     try-it-out-enabled: false                   # [Try it out] 을 눌러야 호출
+    validator-url: none                         # 외부 검증기(validator.swagger.io) 호출 안 함 - 오프라인
   default-produces-media-type: application/json
   writer-with-order-by-keys: true
 

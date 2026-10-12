@@ -11,7 +11,7 @@
         { key: 'curl', label: 'cURL', note: 'bash · 시작하기의 로그인 다음에 실행 (쿠키 파일 cj.txt)' },
         { key: 'java', label: 'Java', note: 'ScbApiClient api (시작하기) 다음에 붙여넣기 · JDK 1.8+' },
         { key: 'javascript', label: 'JavaScript', note: '이 웹에 로그인한 브라우저 F12 Console · 시작하기의 BASE / xsrf() 먼저' },
-        { key: 'python', label: 'Python', note: 'requests · 시작하기의 로그인 세션 s 다음에 실행' },
+        { key: 'python', label: 'Python', note: 'Python 3 표준 라이브러리(urllib, 설치 불필요) · 시작하기의 call() 정의 다음에 실행' },
         { key: 'postman', label: 'Postman', note: 'Postman [Import] > [Raw text] 에 붙여넣기 · 컬렉션 변수 {{baseUrl}} {{xsrf}} {{agentToken}}' }
     ];
     const METHOD_CLASS = { GET: 'get', POST: 'post', PUT: 'put', DELETE: 'delete', PATCH: 'put' };
@@ -250,7 +250,7 @@
             codeBlock(g.curl, 'cURL (bash) - 로그인') +
             codeBlock(g.java, 'Java - 로그인') +
             codeBlock(g.javascript, 'JavaScript (브라우저 Console) - 준비') +
-            codeBlock(g.python, 'Python (requests) - 로그인') +
+            codeBlock(g.python, 'Python 3 (표준 라이브러리) - 로그인 · call()') +
             codeBlock(g.postman, 'Postman - 순서');
     }
 

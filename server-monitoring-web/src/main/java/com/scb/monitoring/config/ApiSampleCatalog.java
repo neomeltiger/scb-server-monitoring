@@ -432,6 +432,7 @@ public class ApiSampleCatalog {
                         + "3) 원하는 API 실행 - 변경·제어 API 는 ADMIN 계정\n"
                         + "에이전트 API(/agent-api) 는 변수 agentToken (네트워크 구성도에서 발급한 토큰)\n"
                         + "Swagger UI : " + baseUrl + "/swagger-ui.html",
+                // 형식 식별자 (Postman 이 컬렉션 버전을 구분하는 고정 문자열, 접속하지 않음)
                 "schema", "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"));
         col.put("variable", list(
                 obj("key", "baseUrl", "value", baseUrl),
@@ -527,27 +528,18 @@ public class ApiSampleCatalog {
         return j.toString();
     }
 
-    /** Python (requests) : s = 로그인한 requests.Session (BASE / s / AGENT_TOKEN 은 "시작하기") */
+    /** Python (표준 라이브러리 urllib, 추가 설치 없음) : call() / AGENT_TOKEN 은 "시작하기" */
     public String python(Entry e) {
-        StringBuilder p = new StringBuilder();
         List<String> args = new ArrayList<>();
-        args.add("BASE + " + compactJson(e.samplePath));
-        List<String> h = new ArrayList<>();
-        if (e.agent) h.add("\"X-SCB-Agent-Token\": AGENT_TOKEN");
-        else if (e.write) h.add("\"X-XSRF-TOKEN\": s.cookies.get(\"XSRF-TOKEN\")");
+        args.add(compactJson(e.method));
+        args.add(compactJson(e.samplePath));
         if (e.body != null) {
-            if (e.textBody) {
-                h.add("\"Content-Type\": \"text/plain; charset=UTF-8\"");
-                args.add("data=" + compactJson(String.valueOf(e.body)) + ".encode(\"utf-8\")");
-            } else {
-                args.add("json=" + pyValue(e.body, 1));
-            }
+            args.add(e.textBody ? "text=" + compactJson(String.valueOf(e.body)) : "json_body=" + pyValue(e.body, 1));
         }
-        if (!h.isEmpty()) args.add("headers={" + String.join(", ", h) + "}");
-        p.append("r = ").append(e.agent ? "requests" : "s").append('.').append(e.method.toLowerCase())
-         .append('(').append(String.join(",\n    ", args)).append(")\n");
-        if (e.textResponse || e.write) p.append("print(r.status_code, r.text)");
-        else p.append("print(r.status_code)\nprint(json.dumps(r.json(), ensure_ascii=False, indent=2))");
+        if (e.agent) args.add("headers={\"X-SCB-Agent-Token\": AGENT_TOKEN}");
+        StringBuilder p = new StringBuilder("status, body = call(").append(String.join(",\n    ", args)).append(")\n");
+        if (e.textResponse || e.write) p.append("print(status, body)");
+        else p.append("print(status)\nprint(json.dumps(json.loads(body), ensure_ascii=False, indent=2))");
         return p.toString();
     }
 
@@ -599,13 +591,34 @@ public class ApiSampleCatalog {
                 + "const BASE = location.origin + " + compactJson(contextPath == null ? "" : contextPath) + ";\n"
                 + "const xsrf = () => decodeURIComponent((document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/) || [])[1] || '');\n"
                 + "const AGENT_TOKEN = '...';   // 에이전트 API 만");
-        g.put("python", "# pip install requests\n"
-                + "import os, json, requests\n"
+        g.put("python", "# Python 3 표준 라이브러리만 사용 (pip 설치 없음, 오프라인 가능)\n"
+                + "import os, json, urllib.request, urllib.parse, urllib.error, http.cookiejar\n"
                 + "BASE = " + compactJson(baseUrl) + "\n"
-                + "s = requests.Session()\n"
-                + "s.get(BASE + \"/login\")                                   # 세션·CSRF 쿠키 받기\n"
-                + "s.post(BASE + \"/login\", data={\"username\": \"admin\", \"password\": os.environ[\"SCB_API_PASSWORD\"],\n"
-                + "                            \"_csrf\": s.cookies.get(\"XSRF-TOKEN\")})\n"
+                + "jar = http.cookiejar.CookieJar()\n"
+                + "web = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))\n\n"
+                + "def xsrf():\n"
+                + "    return next((c.value for c in jar if c.name == \"XSRF-TOKEN\"), \"\")\n\n"
+                + "def call(method, path, json_body=None, text=None, headers=None):\n"
+                + "    \"\"\"(상태 코드, 응답 문자열) - 로그인 세션 쿠키·CSRF 헤더 자동\"\"\"\n"
+                + "    h = dict(headers or {})\n"
+                + "    data = None\n"
+                + "    if json_body is not None:\n"
+                + "        data = json.dumps(json_body).encode(\"utf-8\")\n"
+                + "        h[\"Content-Type\"] = \"application/json\"\n"
+                + "    elif text is not None:\n"
+                + "        data = text.encode(\"utf-8\")\n"
+                + "        h[\"Content-Type\"] = \"text/plain; charset=UTF-8\"\n"
+                + "    if method != \"GET\" and \"X-SCB-Agent-Token\" not in h:\n"
+                + "        h[\"X-XSRF-TOKEN\"] = xsrf()\n"
+                + "    req = urllib.request.Request(BASE + path, data=data, headers=h, method=method)\n"
+                + "    try:\n"
+                + "        with web.open(req, timeout=30) as r:\n"
+                + "            return r.status, r.read().decode(\"utf-8\")\n"
+                + "    except urllib.error.HTTPError as ex:\n"
+                + "        return ex.code, ex.read().decode(\"utf-8\", \"replace\")\n\n"
+                + "web.open(BASE + \"/login\").read()                          # 세션·CSRF 쿠키 받기\n"
+                + "web.open(BASE + \"/login\", urllib.parse.urlencode({\"username\": \"admin\",\n"
+                + "         \"password\": os.environ[\"SCB_API_PASSWORD\"], \"_csrf\": xsrf()}).encode()).read()\n"
                 + "AGENT_TOKEN = os.environ.get(\"SCB_AGENT_TOKEN\", \"\")      # 에이전트 API 만");
         g.put("postman", "1) [Postman 컬렉션 내려받기] → Postman [Import]\n"
                 + "2) 컬렉션 Variables : baseUrl = " + baseUrl + " / username / password (에이전트 API 는 agentToken)\n"
