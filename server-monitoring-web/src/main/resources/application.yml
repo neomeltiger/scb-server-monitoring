@@ -91,6 +91,10 @@ springdoc:
   writer-with-order-by-keys: true
 
 logging:
+  # 콘솔·파일 로그 UTF-8 (Windows 는 chcp 65001, Solaris 는 UTF-8 터미널에서 한글 정상 - EUC-KR 터미널은 bin/scb_web.sh log 가 변환)
+  charset:
+    console: UTF-8
+    file: UTF-8
   level:
     console-audit: INFO
 

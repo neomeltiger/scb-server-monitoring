@@ -111,3 +111,12 @@ krcasmrx11_client - 서버 → 통합 모니터링 웹 연동 에이전트 (Sola
   - 토큰은 서버별로 발급되며 웹 DB 에는 해시만 저장됩니다. client.env 는 root 만 읽도록(600) 두세요.
   - 토큰을 재발급하면 이전 토큰은 즉시 무효가 됩니다.
   - 에이전트는 웹 서버로 나가는 연결(HTTP)만 사용하며, 서버에 포트를 열지 않습니다.
+
+[터미널 한글 표시]
+  - 스크립트 메시지·로그·웹 전송 데이터는 모두 UTF-8 입니다.
+  - 터미널(PuTTY / SecureCRT 등) 문자셋을 UTF-8 로 쓰는 것을 권장합니다.
+      PuTTY : Window > Translation > Remote character set = UTF-8
+      서버 로캘이 UTF-8 이 아니어도 화면 출력은 그대로 보입니다 (export LANG=ko_KR.UTF-8 은 선택).
+  - 터미널이 EUC-KR 이면(로캘 ko, ko_KR.EUC 또는 etc/client.env 의 SCB_TERM_CHARSET=EUC-KR)
+    scb_client.sh 의 화면 출력을 iconv 로 EUC-KR 로 바꿔 보여 줍니다. 데몬·로그 파일·웹 전송은 그대로 UTF-8.
+  - 로그 파일을 EUC-KR 터미널에서 볼 때 : iconv -f UTF-8 -t ko_KR-euc log/scb_client.log | more

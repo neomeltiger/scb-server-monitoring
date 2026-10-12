@@ -19,6 +19,54 @@ LOG_DIR=$CLIENT_HOME/log
 LOG_FILE=$LOG_DIR/scb_client.log
 mkdir -p $RUN_DIR $LOG_DIR 2>/dev/null
 
+# ---- 터미널 한글 : 스크립트·로그·웹 응답은 모두 UTF-8
+#   터미널이 UTF-8 이면 그대로, EUC-KR(로캘 ko / ko_KR.EUC, 또는 SCB_TERM_CHARSET=EUC-KR)이면 화면 출력만 iconv 로 바꿔 보여 줌
+#   SCB_TERM_CHARSET = auto(기본, 로캘로 판단) | UTF-8 | EUC-KR
+term_charset() {
+    case "${SCB_TERM_CHARSET:-auto}" in
+        [Uu][Tt][Ff]*) echo UTF-8; return 0 ;;
+        [Ee][Uu][Cc]*|[Cc][Pp]949|[Mm][Ss]949|[Kk][Ss][Cc]*) echo EUC-KR; return 0 ;;
+    esac
+    tl=$LC_ALL
+    [ -n "$tl" ] || tl=$LC_CTYPE
+    [ -n "$tl" ] || tl=$LANG
+    case "$tl" in
+        *[Uu][Tt][Ff]-8*|*[Uu][Tt][Ff]8*) echo UTF-8 ;;
+        ko|ko_KR|ko_KR.[Ee][Uu][Cc]*|*.[Ee][Uu][Cc][Kk][Rr]|*949*) echo EUC-KR ;;
+        *) echo UTF-8 ;;
+    esac
+}
+
+# iconv 의 UTF-8 → EUC-KR 이름 (Solaris : UTF-8 / ko_KR-euc, GNU : EUC-KR)
+term_iconv_args() {
+    for tf in UTF-8 ko_KR-UTF-8 utf8; do
+        for tt in ko_KR-euc EUC-KR eucKR 5601; do
+            tx=`echo "한글" | iconv -f $tf -t $tt 2>/dev/null`
+            if [ -n "$tx" ] && [ "$tx" != "한글" ]; then
+                echo "-f $tf -t $tt"
+                return 0
+            fi
+        done
+    done
+    return 1
+}
+
+# 터미널에서 직접 실행한 명령이고 터미널이 EUC-KR 이면 출력을 변환하며 다시 실행 (종료 코드 유지)
+#   term_reexec <스크립트> "$@"   - 데몬·백그라운드·웹 요청 실행(터미널 아님)은 그대로 UTF-8
+term_reexec() {
+    [ -n "$SCB_TERM_PIPED" ] && return 0
+    [ -t 1 ] || return 0
+    [ "`term_charset`" = "EUC-KR" ] || return 0
+    targs=`term_iconv_args` || return 0
+    SCB_TERM_PIPED=1
+    export SCB_TERM_PIPED
+    trc="$RUN_DIR/.scb_term_rc.$$"
+    ( sh "$@"; echo $? > "$trc" ) 2>&1 | iconv $targs
+    trv=`cat "$trc" 2>/dev/null`
+    rm -f "$trc"
+    exit ${trv:-1}
+}
+
 NAWK=/usr/bin/nawk
 [ -x $NAWK ] || NAWK=awk
 OS_NAME=`uname -s`

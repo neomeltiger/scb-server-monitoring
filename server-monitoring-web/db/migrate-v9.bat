@@ -1,4 +1,6 @@
 @echo off
+rem Korean (UTF-8) output in the cmd window : code page 65001
+chcp 65001 >nul
 rem ============================================================
 rem  scb_mon_agent v9 migration (existing data is kept)
 rem    src\main\resources\db\migrate-v9-mysql.sql

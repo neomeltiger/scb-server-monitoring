@@ -1,4 +1,6 @@
 @echo off
+rem Korean (UTF-8) output in the cmd window : code page 65001
+chcp 65001 >nul
 rem ============================================================
 rem  Create MySQL schema scb_mon_agent and load default data
 rem    1) src\main\resources\db\schema-mysql.sql  (DROP + CREATE tables)

@@ -57,8 +57,11 @@ BIN_DIR=`dirname $0`
 CLIENT_HOME=`cd $BIN_DIR/.. && pwd`
 BIN_DIR=$CLIENT_HOME/bin
 # 터미널이 아니면(데몬) 화면 출력 없이 로그만
-[ -t 1 ] || SCB_QUIET=1
+# (EUC-KR 터미널 변환으로 다시 실행된 경우 SCB_TERM_PIPED=1 : 출력은 iconv 를 거쳐 터미널로 감)
+[ -t 1 ] || [ -n "$SCB_TERM_PIPED" ] || SCB_QUIET=1
 . $CLIENT_HOME/lib/scb_client_common.sh
+# 터미널이 EUC-KR 이면 한글 화면 출력을 변환 (UTF-8 터미널·데몬은 그대로)
+term_reexec $BIN_DIR/scb_client.sh "$@"
 
 OIFS=$IFS
 CMD=$1
