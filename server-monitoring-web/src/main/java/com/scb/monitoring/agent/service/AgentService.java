@@ -221,7 +221,8 @@ public class AgentService {
         applied.put("stopped", processStatus.stopMissing(serverId, server.getSystemNm(), reported,
                 r.services.isEmpty() ? null : svcNames));
 
-        // 데몬이 보고함 = 데몬 실행 중 → 데몬 중단 중 대신 수집한 정보 삭제
+        // 데몬이 보고함 = 데몬 실행 중 → 데몬 상태 반영 + 데몬 중단 중 대신 수집한 정보 삭제
+        heartbeat.daemonReported(serverId);
         fallback.clear(serverId, "데몬 보고 수신");
 
         // 보고가 들어왔으니 "보고 끊김" 알람은 커밋 후 바로 해소

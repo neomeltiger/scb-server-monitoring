@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +45,8 @@ public class FallbackService {
     private final TopologyMapper topologyMapper;
     private final ServiceCtlMapper serviceCtlMapper;
     private final AgentProperties props;
+    /** 하트비트가 알린 감시자 버전 / 대신 수집 결과 (OK, WAIT, FAIL_코드, FAIL_TIMEOUT) - 서버 ID → {버전, 결과} */
+    private final Map<Long, String[]> watchdog = new ConcurrentHashMap<>();
 
     public FallbackService(AgentMapper mapper, TopologyMapper topologyMapper, ServiceCtlMapper serviceCtlMapper, AgentProperties props) {
         this.mapper = mapper;
@@ -83,11 +86,20 @@ public class FallbackService {
         return true;
     }
 
-    /** 화면 /fallback : 대신 수집 중인 서버 목록 */
+    /** 하트비트 수신 때 : 감시자 버전·대신 수집 결과 기록 (화면에서 정보가 없는 원인 표시용) */
+    public void noteWatchdog(Long serverId, String hbVer, String fbStat) {
+        String v = hbVer == null ? null : (hbVer.length() > 10 ? hbVer.substring(0, 10) : hbVer.trim());
+        String f = fbStat == null ? null : (fbStat.length() > 20 ? fbStat.substring(0, 20) : fbStat.trim());
+        watchdog.put(serverId, new String[] {v, f});
+    }
+
+    /** 화면 /fallback : 대신 수집 중인 서버 + 데몬이 멈췄는데 아직 정보가 없는 서버(원인 표시) */
     public List<FallbackView> getList() {
         List<FallbackView> out = new ArrayList<>();
         long now = System.currentTimeMillis();
+        java.util.Set<Long> have = new java.util.HashSet<>();
         for (ProcFallback f : mapper.selectFallbackList()) {
+            have.add(f.getServerId());
             Server s = topologyMapper.selectServer(f.getServerId());
             if (s == null) continue;
             AgentView av = AgentView.of(mapper.selectAgent(f.getServerId()), props.getStaleAfterSec());
@@ -99,7 +111,20 @@ public class FallbackService {
                 svcs.put(it.getSvcNm(), it);
                 svcOrder.add(it.getSvcNm());
             }
-            out.add(FallbackView.of(s, f, AgentReport.parse(f.getReportText()), av, procs, svcs, svcOrder, now, STALE_SEC));
+            FallbackView v = FallbackView.of(s, f, AgentReport.parse(f.getReportText()), av, procs, svcs, svcOrder, now, STALE_SEC);
+            String[] w = watchdog.get(f.getServerId());
+            if (w != null) v.setWatchdog(w[0], w[1]);
+            out.add(v);
+        }
+        // 하트비트는 오는데(서버 정상) 데몬이 멈췄고 아직 대신 수집한 정보가 없는 서버
+        for (Agent a : mapper.selectAgentList()) {
+            if (have.contains(a.getServerId())) continue;
+            AgentView av = AgentView.of(a, props.getStaleAfterSec());
+            if (!"STOPPED".equals(av.getState()) || !Agent.HB_ALIVE.equals(av.getHbState())) continue;
+            Server s = topologyMapper.selectServer(a.getServerId());
+            if (s == null) continue;
+            String[] w = watchdog.get(a.getServerId());
+            out.add(FallbackView.pending(s, av, w != null, w == null ? null : w[0], w == null ? null : w[1], a.isWatchdogClient()));
         }
         return out;
     }

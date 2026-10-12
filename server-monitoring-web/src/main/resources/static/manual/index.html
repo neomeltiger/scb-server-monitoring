@@ -417,6 +417,11 @@ footer { text-align: center; color: var(--sub); font-size: 12px; padding: 20px; 
         <li><b>서버 실행 중 프로세스</b> (클라이언트 1.8~) : 서버에서 실제로 돌고 있는 전체 프로세스(ps - PID, PPID, 사용자, CPU, MEM, 경과 시간, 명령)를 CPU 높은 순으로 최대 300건 보여 줍니다. <b>하트비트 감시자와 그 수집 작업은 목록에서 제외</b>됩니다. 검색(PID·사용자·명령), 정렬(CPU / MEM / PID / 사용자 / 주요 프로세스 먼저), 30건 넘으면 [전체 보기]. 등록된 주요 프로세스·서비스와 맞는 줄은 파란색으로 강조됩니다.</li>
         <li>하트비트 모니터링 카드와 구성도의 데몬 알림에 <b>“데몬 중단 중 프로세스 현황 보기”</b> 링크가 있습니다.</li>
         <li>새 정보가 90초 넘게 없으면(감시자 수집 지연) 또는 하트비트까지 끊기면(서버 다운) 카드가 빨간 테두리로 바뀌고 “마지막으로 받은 정보” 임을 알려 줍니다.</li>
+        <li><b>정보가 아직 없는 서버</b>도 표시합니다 (하트비트는 오는데 데몬이 멈춘 서버) : <span class="chip gray">정보 수집 중</span> 은 곧 첫 정보가 오는 경우, <span class="chip red">정보 없음</span> 은 원인과 조치를 함께 보여 줍니다.
+            <ul>
+                <li>이전 버전 감시자 (클라이언트 1.8 이하에서 tar 만 새로 풀고 <code>stop</code> / <code>start</code> 한 경우) → 서버에서 <code>bin/scb_client.sh stopall</code> 후 <code>bin/scb_client.sh start</code>. 1.9 부터는 <code>start</code> 가 감시자 버전을 확인해 자동으로 바꿉니다.</li>
+                <li>전송 실패 (HTTP 코드) / 수집이 2분 넘게 끝나지 않음 → 서버의 <code>log/scb_client.log</code> 확인</li>
+            </ul></li>
     </ul>
     <div class="note info">수집 주기는 서버의 <code>etc/client.env</code> 에서 <code>SCB_FALLBACK_SEC</code> (기본 30초)로 바꿀 수 있습니다.</div>
 </section>

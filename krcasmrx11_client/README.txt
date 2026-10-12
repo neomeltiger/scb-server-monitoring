@@ -29,7 +29,9 @@ krcasmrx11_client - 서버 → 통합 모니터링 웹 연동 에이전트 (Sola
                  ln -s /etc/init.d/scb_client /etc/rc3.d/S99scb_client ; ln -s /etc/init.d/scb_client /etc/rc0.d/K01scb_client)
                 설치 여부는 bin/scb_client.sh status 와 웹 하트비트 모니터링 화면에 표시됩니다.
 
-  업그레이드 : bin/scb_client.sh stop → 같은 위치에 tar 를 다시 풀기 → bin/scb_client.sh start
+  업그레이드 : bin/scb_client.sh stopall → 같은 위치에 tar 를 다시 풀기 → bin/scb_client.sh start
+               (stop 은 데몬만 멈추므로 이전 하트비트 감시자가 계속 돕니다. 1.9 부터는 start 가 감시자 버전을 확인해
+                다르면 새 버전으로 바꿔 실행하지만, 1.8 이하에서 올릴 때는 stopall 을 쓰세요)
                etc/client.env 는 tar 에 없으므로 그대로 유지됩니다.
 
 구성

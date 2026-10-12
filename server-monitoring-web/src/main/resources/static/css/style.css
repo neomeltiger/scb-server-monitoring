@@ -1282,3 +1282,9 @@ img, svg, canvas { max-width: 100%; }
 .fb-ps-main td { background: #f0f7ff; }
 .fb-ps-tag { display: inline-block; padding: 0 6px; border-radius: 8px; font-size: 10px; font-family: inherit; background: #d6e9ff; color: #0b4a8b; font-weight: bold; }
 .fb-ps-more { align-self: flex-start; }
+.fb-card.waiting { border-left-color: #94a3b8; border-color: #dbe3ec; }
+.fb-card.blocked { border-left-color: #dc3545; border-color: #f1c0c5; }
+.fb-pending-msg { font-size: 13px; color: #334155; line-height: 1.6; }
+.fb-card.blocked .fb-pending-msg { color: #721c24; font-weight: bold; }
+.fb-pending-act { font-size: 12px; color: #334155; }
+.fb-pending-act code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; overflow-wrap: anywhere; }

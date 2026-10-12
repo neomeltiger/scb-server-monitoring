@@ -36,7 +36,7 @@
             $('fbError').textContent = '현황을 불러오지 못했습니다: ' + e.message;
             return;
         }
-        // 데몬이 다시 떠서 사라진 서버 안내
+        // 데몬이 다시 떠서 사라진 서버 안내 (정보 없음 카드는 제외)
         const ids = list.map(v => v.serverId);
         if (known) {
             const gone = known.filter(x => ids.indexOf(x.id) === -1);
@@ -126,7 +126,26 @@
         if (v && box) box.innerHTML = psTableHtml(v);
     }
 
+    // 데몬이 멈췄는데 아직 대신 수집한 정보가 없는 서버 : 원인과 조치
+    function pendingCard(v) {
+        const waiting = !v.pendingAction;
+        let act = '';
+        if (v.restartPending) act = '<span class="hb-restart-wait">재시작 요청 전달 중</span>';
+        else if (isAdminUser() && v.canRestart) act = '<button type="button" class="btn btn-restart" data-restart="' + v.serverId + '">데몬 재시작</button>';
+        return '<section class="fb-card ' + (waiting ? 'waiting' : 'blocked') + '" id="fb-' + v.serverId + '">' +
+            '<div class="fb-head"><span class="hb-dot DAEMON" aria-hidden="true"></span>' +
+            '<div class="fb-title"><b>' + escapeHtml(v.systemNm) + '</b><small>' + escapeHtml(v.ipAddr) + ' · ' + escapeHtml(v.location || '') + '</small></div>' +
+            '<span class="hb-badge DAEMON">' + escapeHtml(v.daemonIssue || '데몬 중단') + '</span>' +
+            '<span class="hb-badge ' + (waiting ? 'NONE' : 'STOPPED') + '">' + (waiting ? '정보 수집 중' : '정보 없음') + '</span>' + act + '</div>' +
+            '<div class="fb-pending-msg">' + (waiting ? '⏳ ' : '⚠ ') + escapeHtml(v.pendingReason) + '</div>' +
+            (v.pendingAction ? '<div class="fb-pending-act">조치 : <code>' + escapeHtml(v.pendingAction) + '</code></div>' : '') +
+            '<div class="fb-meta"><span>감시자 버전 ' + escapeHtml(v.watchdogVer || '알 수 없음 (1.8 이하)') + '</span>' +
+            (v.fbStat ? '<span>대신 수집 결과 ' + escapeHtml(v.fbStat) + '</span>' : '') + '</div>' +
+            '</section>';
+    }
+
     function card(v) {
+        if (v.pending) return pendingCard(v);
         const issue = v.daemonIssue || (v.daemonState === 'DEAD' ? '데몬 비정상 종료' : '데몬 정지');
         let act = '';
         if (v.restartPending) act = '<span class="hb-restart-wait">재시작 요청 전달 중 - 데몬이 뜨면 이 정보는 삭제됩니다.</span>';
@@ -145,6 +164,7 @@
             '<span>데몬 중단 후 처음 수집 ' + escapeHtml(v.firstDt || '-') + ' · ' + v.recvCnt + '회</span>' +
             '<span>CPU ' + pct(v.cpu) + ' · MEM ' + pct(v.mem) + ' · DISK ' + pct(v.disk) + '</span>' +
             '<span>주요 프로세스 실행 <b>' + v.procRunning + '</b> / ' + v.processes.length + ' · 서비스 실행 <b>' + v.svcRunning + '</b> / ' + v.services.length + '</span>' +
+            (v.watchdogVer ? '<span>감시자 ' + escapeHtml(v.watchdogVer) + '</span>' : '') +
             '</div>' +
             '<div class="fb-tables"><div>' + procTable(v) + '</div><div>' + svcTable(v) + '</div></div>' +
             psSection(v) +

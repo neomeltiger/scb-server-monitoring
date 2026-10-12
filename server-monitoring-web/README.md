@@ -137,6 +137,7 @@ java -Dfile.encoding=UTF-8 -jar target/server-monitoring-web.war
 - 데몬이 DEAD / STOPPED 인 동안 하트비트 감시자가 `SCB_FALLBACK_SEC`(30초)마다 collect_metric / collect_proc / collect_service → `POST /agent-api/v1/fallback` (백그라운드, 데몬이 돌고 있으면 웹이 409 로 무시)
 - `agent/service/FallbackService` : `tb_proc_fallback` 서버당 1건 덮어쓰기, **데몬이 다시 뜨면 삭제** (감시자 RUNNING 알림 / 데몬 웹 확인 / 데몬 보고 / 서버 삭제)
 - 화면 `/fallback` (`GET /api/agents/fallback`, 5초 갱신) - 기존 화면은 데몬 기준(종료 표시) 그대로, `db\migrate-v9.bat`
+- 클라이언트 1.9 : 하트비트에 `hbver`(감시자 버전)·`fb`(대신 수집 결과 OK / WAIT / FAIL_코드 / FAIL_TIMEOUT) → `FallbackService.noteWatchdog` (메모리). `start` 가 돌고 있는 감시자의 버전(run/heartbeat.state ver=)이 다르면 새 감시자로 교체, 2분 넘게 끝나지 않는 대신 수집 정리. 화면은 데몬이 멈췄는데 정보가 없는 서버도 원인·조치와 함께 표시 (`FallbackView.pending`), 데몬 보고도 데몬 실행으로 반영
 - 클라이언트 1.8 : `bin/collect_ps.sh` → `[ps]` 섹션 (PID|PPID|사용자|CPU|MEM|경과|명령, CPU 높은 순 `SCB_PS_MAX`=300건, 하트비트 감시자·수집 작업과 그 자식 제외 - 2단계 nawk) → `FallbackView.psList` (주요 프로세스 실행 경로 / 서비스 스크립트 경로와 맞으면 tag), 화면 "서버 실행 중 프로세스" 검색·정렬·전체 보기
 
 ## 서버 복구 자동 감지 (스키마 v8, 클라이언트 1.6)

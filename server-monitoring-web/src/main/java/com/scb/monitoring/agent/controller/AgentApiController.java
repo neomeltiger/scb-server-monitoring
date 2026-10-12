@@ -33,7 +33,7 @@ import com.scb.monitoring.topology.service.TopologyException;
  * <pre>
  * 헤더  : X-SCB-Agent-Token: (토큰 64자리)
  * GET  /agent-api/v1/ping                     연결 확인
- * GET  /agent-api/v1/heartbeat?pid=N&daemon=RUNNING|PAUSED|STOPPED|DEAD&boot=Y|N&btime=부팅시각
+ * GET  /agent-api/v1/heartbeat?pid=N&daemon=RUNNING|PAUSED|STOPPED|DEAD&boot=Y|N&btime=부팅시각&hbver=감시자버전&fb=대신수집결과
  *                                             하트비트 (bin/scb_heartbeat.sh, daemon 은 1.5~ 감시자) → hb|interval=10|timeout=32|restart=N
  * GET  /agent-api/v1/config                   보고 주기, 감시 프로세스, 동기화 대상 IP
  * POST /agent-api/v1/report                   수집 결과 (text/plain)
@@ -84,8 +84,12 @@ public class AgentApiController {
                                             @RequestParam(value = "daemon", required = false) String daemon,
                                             @RequestParam(value = "boot", required = false) String boot,
                                             @RequestParam(value = "btime", required = false) String btime,
+                                            @RequestParam(value = "hbver", required = false) String hbver,
+                                            @RequestParam(value = "fb", required = false) String fb,
                                             HttpServletRequest req) {
-        return text(heartbeat.beat(auth(token, req), pid, daemon, boot, btime));
+        Long serverId = auth(token, req);
+        if (daemon != null) fallback.noteWatchdog(serverId, hbver, fb);
+        return text(heartbeat.beat(serverId, pid, daemon, boot, btime));
     }
 
     @Operation(summary = "에이전트 설정 (보고 주기, 감시 프로세스)")

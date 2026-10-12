@@ -202,6 +202,11 @@ public class HeartbeatService {
         fallback.clear(before.getServerId(), "데몬 다시 실행");
     }
 
+    /** 데몬이 보고를 보냄 = 데몬 실행 중 (감시자의 다음 하트비트 전이라도 바로 반영). AgentService.ingestReport 트랜잭션 안에서 호출 */
+    void daemonReported(Long serverId) {
+        daemonPolled(mapper.selectAgent(serverId), null);
+    }
+
     /** 클라이언트 1.4 이상 = 하트비트 셸(bin/scb_heartbeat.sh) 있음 */
     static boolean hasHeartbeatShell(String ver) {
         if (ver == null) return false;

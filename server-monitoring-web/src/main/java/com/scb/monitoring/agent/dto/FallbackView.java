@@ -45,6 +45,13 @@ public class FallbackView {
     /** 서버 전체 실행 프로세스 (하트비트 감시자 제외) - 클라이언트 1.8 미만이면 psCollected=false */
     private boolean psCollected;
     private List<Map<String, Object>> psList = new ArrayList<>();
+    /** 감시자 버전 / 대신 수집 결과 (하트비트가 알림, 1.9~) */
+    private String watchdogVer;
+    private String fbStat;
+    /** 데몬이 멈췄는데 아직 대신 수집한 정보가 없음 → pendingReason / pendingAction 으로 원인·조치 */
+    private boolean pending;
+    private String pendingReason;
+    private String pendingAction;
 
     public static FallbackView of(Server s, ProcFallback f, AgentReport r, AgentView av, Map<Long, ServerProcess> procMeta,
                                   Map<String, ServiceItem> svcMeta, List<String> svcOrder, long now, int staleSec) {
@@ -129,6 +136,64 @@ public class FallbackView {
         return v;
     }
 
+    /** 데몬이 멈췄는데 정보가 없는 서버 : 원인과 조치 */
+    /** @param known 웹이 기동한 뒤 이 서버의 하트비트로 감시자 정보를 받았는지 (아직이면 버전을 판단하지 않음) */
+    public static FallbackView pending(Server s, AgentView av, boolean known, String ver, String fb, boolean watchdogClient) {
+        FallbackView v = new FallbackView();
+        v.serverId = s.getServerId();
+        v.systemNm = s.getSystemNm();
+        v.ipAddr = s.getIpAddr();
+        v.location = s.getLocationNm();
+        v.daemonIssue = av.getDaemonIssue();
+        v.daemonState = "데몬 비정상 종료".equals(av.getDaemonIssue()) ? "DEAD" : "STOPPED";
+        v.hbState = av.getHbState();
+        v.canRestart = av.isCanRestart();
+        v.restartPending = av.isRestartPending();
+        v.pending = true;
+        v.setWatchdog(ver, fb);
+        String stop = "서버에서 root 로 bin/scb_client.sh stopall → bin/scb_client.sh start (감시자를 새 버전으로 다시 실행)";
+        if (!watchdogClient) {
+            v.pendingReason = "하트비트 감시자가 없는 이전 클라이언트(1.4 이하)입니다. 데몬이 멈추면 프로세스 정보를 대신 수집할 수 없습니다.";
+            v.pendingAction = "클라이언트 1.9 로 업그레이드 후 " + stop;
+        } else if (!known) {
+            v.pendingReason = "데몬이 멈췄습니다. 하트비트 감시자 정보를 확인하는 중입니다 (다음 하트비트).";
+            v.pendingAction = null;
+        } else if (ver == null || olderThan(ver, 1, 7)) {
+            v.pendingReason = "서버에서 돌고 있는 하트비트 감시자가 이전 버전(" + (ver == null ? "1.8 이하" : ver)
+                    + ")이라 프로세스 정보를 대신 수집하지 않습니다. (tar 를 새로 풀고 stop / start 만 하면 이전 감시자가 계속 돕니다)";
+            v.pendingAction = stop;
+        } else if (fb != null && fb.startsWith("FAIL")) {
+            String code = fb.substring(fb.indexOf('_') + 1);
+            v.pendingReason = "감시자가 대신 수집한 정보를 보내지 못했습니다 (" + fb + ")."
+                    + ("404".equals(code) ? " 웹 서버가 이전 버전입니다 - 웹을 최신으로 다시 배포하세요."
+                    : "409".equals(code) ? " 웹이 데몬을 실행 중으로 보고 있습니다 - 잠시 후 다시 확인하세요."
+                    : "000".equals(code) ? " 웹 서버에 연결하지 못했습니다 - 네트워크 / 방화벽을 확인하세요."
+                    : "TIMEOUT".equals(code) ? " 수집이 2분 넘게 끝나지 않았습니다 - 서버에서 scb_main.sh status 응답을 확인하세요."
+                    : "");
+            v.pendingAction = "서버의 log/scb_client.log 에서 HEARTBEAT / 대신 수집 기록을 확인하세요.";
+        } else {
+            v.pendingReason = "데몬이 멈췄습니다. 하트비트 감시자가 프로세스 정보를 수집하는 중입니다 (최대 30초).";
+            v.pendingAction = null;
+        }
+        return v;
+    }
+
+    static boolean olderThan(String ver, int major, int minor) {
+        try {
+            String[] p = ver.trim().split("\\.");
+            int a = Integer.parseInt(p[0]);
+            int b = p.length > 1 ? Integer.parseInt(p[1].replaceAll("[^0-9].*$", "")) : 0;
+            return a < major || (a == major && b < minor);
+        } catch (NumberFormatException e) {
+            return true;
+        }
+    }
+
+    public void setWatchdog(String ver, String fb) {
+        this.watchdogVer = ver;
+        this.fbStat = fb;
+    }
+
     private static String str(BigDecimal d) { return d == null ? null : d.toPlainString(); }
 
     private static String fmt(Timestamp t) {
@@ -159,4 +224,9 @@ public class FallbackView {
     public List<Map<String, Object>> getServices() { return services; }
     public boolean isPsCollected() { return psCollected; }
     public List<Map<String, Object>> getPsList() { return psList; }
+    public String getWatchdogVer() { return watchdogVer; }
+    public String getFbStat() { return fbStat; }
+    public boolean isPending() { return pending; }
+    public String getPendingReason() { return pendingReason; }
+    public String getPendingAction() { return pendingAction; }
 }

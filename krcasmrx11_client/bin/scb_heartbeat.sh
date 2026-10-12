@@ -8,7 +8,8 @@
 #
 # 동작
 #   웹이 정한 주기(기본 10초, 네트워크 구성도 화면에서 3 / 5 / 10 / 15 / 30 / 60초)마다
-#     GET /agent-api/v1/heartbeat?pid=<데몬 PID>&daemon=<데몬 상태>&boot=<Y|N>&btime=<부팅 시각>
+#     GET /agent-api/v1/heartbeat?pid=<데몬 PID>&daemon=<데몬 상태>&boot=<Y|N>&btime=<부팅 시각>&hbver=<감시자 버전>&fb=<대신 수집 결과>
+#       hbver/fb (1.9~) : 웹 "데몬 중단 프로세스 현황" 이 정보가 없을 때 원인(이전 감시자, 전송 실패 코드)을 보여 줌
 #       데몬 상태 : RUNNING / PAUSED (실행 중) / STOPPED (정상 정지 - PID 파일 없음) / DEAD (PID 파일은 있는데 프로세스 없음)
 #       boot      : 서버 부팅 시 자동 시작(rc 스크립트) 설치 여부, btime : 서버 부팅 시각 (바뀌면 웹이 재부팅 감지)
 #   서버 복구 : 서버가 되살아나 하트비트가 다시 가면 웹이 감지 → 데몬이 멈춰 있으면 restart=Y (자동 재시작)
@@ -60,11 +61,24 @@ BOOT_TIME=`boot_time | sed 's/ /+/g'`
 FB_SEC=${SCB_FALLBACK_SEC:-30}
 FB_ELAPSED=$FB_SEC
 FB_PID_FILE=$RUN_DIR/fallback.pid
+FB_STAT_FILE=$RUN_DIR/fallback.stat
+FB_STAT=NONE
+FB_BUSY=0
+rm -f $FB_STAT_FILE
 
 # 데몬 대신 프로세스 정보 수집 → 웹 (백그라운드, 이전 수집이 끝나지 않았으면 건너뜀)
 fallback_collect() {
     fp=`cat $FB_PID_FILE 2>/dev/null`
-    pid_is "$fp" scb_heartbeat.sh && return 0
+    if pid_is "$fp" scb_heartbeat.sh; then
+        # 이전 수집이 4번(약 2분) 넘게 끝나지 않으면 정리하고 다시 시도 (scb_main.sh status 응답 없음 등)
+        FB_BUSY=`expr $FB_BUSY + 1`
+        [ $FB_BUSY -lt 4 ] && return 0
+        kill $fp 2>/dev/null
+        clog "WARN: 대신 수집이 끝나지 않아 정리합니다 (pid $fp) - 수집 스크립트(scb_main.sh status 등) 응답을 확인하세요"
+        echo FAIL_TIMEOUT > $FB_STAT_FILE
+        rm -f $FB_PID_FILE
+    fi
+    FB_BUSY=0
     (
         {
             echo "# scb_client fallback `date '+%Y-%m-%d %H:%M:%S'` (daemon $DSTATE - collected by heartbeat watchdog)"
@@ -74,10 +88,15 @@ fallback_collect() {
             sh $BIN_DIR/collect_ps.sh
         } > $RUN_DIR/fallback.txt 2>> $LOG_FILE
         if http_call POST /agent-api/v1/fallback $RUN_DIR/fallback.resp $RUN_DIR/fallback.txt; then
+            echo OK > $FB_STAT_FILE
             if [ ! -f $RUN_DIR/fallback.sent ]; then
                 clog "HEARTBEAT 데몬 중단 - 프로세스 정보를 대신 수집해 웹에 보냅니다 (${FB_SEC}초마다)"
                 : > $RUN_DIR/fallback.sent
             fi
+        else
+            prev=`cat $FB_STAT_FILE 2>/dev/null`
+            echo "FAIL_$HTTP_STATUS" > $FB_STAT_FILE
+            [ "$prev" != "FAIL_$HTTP_STATUS" ] && clog "WARN: 대신 수집 전송 실패 (HTTP $HTTP_STATUS) `head -1 $RUN_DIR/fallback.resp 2>/dev/null`"
         fi
         rm -f $FB_PID_FILE $RUN_DIR/fallback.resp
     ) > /dev/null 2>&1 < /dev/null &
@@ -105,6 +124,8 @@ write_hb_state() {
         echo "daemon_pid=$DPID"
         echo "last_ok=$LAST_OK"
         echo "fail=$FAIL"
+        echo "ver=$CLIENT_VER"
+        echo "fb=$FB_STAT"
     } > $HB_STATE 2>/dev/null
 }
 
@@ -128,7 +149,11 @@ while :; do
         PREV_DSTATE=$DSTATE
     fi
 
-    if http_call GET "/agent-api/v1/heartbeat?pid=$DPID&daemon=$DSTATE&boot=`boot_auto_installed`&btime=$BOOT_TIME" $HB_OUT; then
+    case "$DSTATE" in
+        DEAD|STOPPED) FB_STAT=`cat $FB_STAT_FILE 2>/dev/null`; [ -n "$FB_STAT" ] || FB_STAT=WAIT ;;
+        *) FB_STAT=NONE ;;
+    esac
+    if http_call GET "/agent-api/v1/heartbeat?pid=$DPID&daemon=$DSTATE&boot=`boot_auto_installed`&btime=$BOOT_TIME&hbver=$CLIENT_VER&fb=$FB_STAT" $HB_OUT; then
         line=`sed -n 's/^hb|//p' $HB_OUT | head -1`
         n=`echo "$line" | sed -n 's/.*interval=\([0-9]*\).*/\1/p'`
         case "$n" in
@@ -168,7 +193,8 @@ while :; do
             ;;
         *)
             FB_ELAPSED=$FB_SEC
-            rm -f $RUN_DIR/fallback.sent
+            FB_BUSY=0
+            rm -f $RUN_DIR/fallback.sent $FB_STAT_FILE
             ;;
     esac
 

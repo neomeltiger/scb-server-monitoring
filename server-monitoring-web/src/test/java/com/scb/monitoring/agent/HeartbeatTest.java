@@ -282,12 +282,27 @@ class HeartbeatTest {
         assertFalse(fallback.ingest(11L, fb));
         assertTrue(fallback.getList().isEmpty());
 
-        // 데몬 비정상 종료 → 감시자가 대신 수집한 정보 저장 (기존 화면은 종료 표시 그대로)
+        // 데몬 비정상 종료 → 정보가 오기 전에는 "정보 수집 중 / 정보 없음" 카드로 원인 표시
         heartbeat.beat(11L, 900, "DEAD");
+        com.scb.monitoring.agent.dto.FallbackView pv = fallback.getList().get(0);
+        assertTrue(pv.isPending());
+        assertEquals(null, pv.getPendingAction(), "감시자 정보 없음 = 이전 감시자로 보기 전에는 대기");
+        fallback.noteWatchdog(11L, null, null);
+        assertTrue(fallback.getList().get(0).getPendingReason().contains("이전 버전"), "버전을 안 알리는 감시자 = 1.8 이하");
+        assertTrue(fallback.getList().get(0).getPendingAction().contains("stopall"));
+        fallback.noteWatchdog(11L, "1.9", "FAIL_404");
+        assertTrue(fallback.getList().get(0).getPendingReason().contains("웹 서버가 이전 버전"));
+        fallback.noteWatchdog(11L, "1.9", "WAIT");
+        assertEquals(null, fallback.getList().get(0).getPendingAction());
+
+        // 감시자가 대신 수집한 정보 저장 (기존 화면은 종료 표시 그대로)
         assertTrue(fallback.ingest(11L, fb));
         assertTrue(fallback.ingest(11L, fb), "덮어씀");
         assertFalse(running(1L), "기존 화면은 데몬 기준 (종료)");
         com.scb.monitoring.agent.dto.FallbackView v = fallback.getList().get(0);
+        assertFalse(v.isPending());
+        assertEquals(1, fallback.getList().size(), "정보가 오면 대기 카드 대신 현황 카드 하나");
+        assertEquals("1.9", v.getWatchdogVer());
         assertEquals(Long.valueOf(11), v.getServerId());
         assertEquals("DEAD", v.getDaemonState());
         assertEquals("데몬 비정상 종료", v.getDaemonIssue());

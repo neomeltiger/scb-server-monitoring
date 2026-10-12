@@ -194,9 +194,20 @@ hb_running() {
 }
 
 # 감시자가 없으면 시작 (start, 데몬 루프에서 확인)
+#   1.9~ : 돌고 있는 감시자가 다른 버전이면(tar 업그레이드 후 stop/start 만 한 경우) 새 버전으로 바꿔 실행
 hb_ensure() {
-    hb_running && return 0
-    [ -n "$1" ] && clog "$1"
+    if hb_running; then
+        # 감시자가 상태 파일을 쓴 뒤에만 비교 (새로 띄운 직후에는 이전 감시자의 파일일 수 있음)
+        sp=`sed -n 's/^pid=//p' $HB_STATE_FILE 2>/dev/null`
+        [ "$sp" = "$hp" ] || return 0
+        hv=`sed -n 's/^ver=//p' $HB_STATE_FILE 2>/dev/null`
+        [ "$hv" = "$CLIENT_VER" ] && return 0
+        clog "하트비트 감시자 버전 갱신 (${hv:-1.8 이하} → $CLIENT_VER) - 감시자를 새 버전으로 다시 시작"
+        hb_stop > /dev/null
+        sleep 1
+    else
+        [ -n "$1" ] && clog "$1"
+    fi
     nohup sh $BIN_DIR/scb_heartbeat.sh > /dev/null 2>&1 < /dev/null &
 }
 
