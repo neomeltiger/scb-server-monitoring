@@ -117,6 +117,7 @@ footer { text-align: center; color: var(--sub); font-size: 12px; padding: 20px; 
         <li><a href="#swagger">API 문서 (Swagger, 관리자)</a></li>
         <li><a href="#apiguide">API 가이드 (예제·소스, 관리자)</a></li>
         <li><a href="#agent">에이전트 설치·등록 절차</a></li>
+        <li><a href="#mobile">휴대폰·태블릿에서 보기</a></li>
         <li><a href="#faq">자주 묻는 질문 / 문제 해결</a></li>
         <li><a href="#ops">운영 담당자 참고</a></li>
     </ol>
@@ -577,6 +578,35 @@ chmod 600 etc/client.env</pre></li>
         <li><b>(웹)</b> 메인 홈 “에이전트 미등록 서버” 에서 해당 서버의 <b>[등록 확인]</b> → “✔ 등록 확인됨”</li>
     </ol>
     <div class="note info">에이전트는 웹 서버로 나가는 연결만 사용하며 서버에 포트를 열지 않습니다. 토큰은 서버별로 다르고 DB 에는 해시값만 저장됩니다.</div>
+</section>
+
+<!-- 14-2 -->
+<section id="mobile">
+    <h2>14-2. 휴대폰·태블릿에서 보기</h2>
+    <p>같은 주소로 휴대폰·태블릿 브라우저에서 접속하면 화면 폭에 맞춰 자동으로 바뀝니다. 휴대폰에서는 PC 화면 중 <b>중요한 자료만</b> 카드 형식으로 보여 줍니다.</p>
+    <table>
+        <tr><th>기기 (화면 폭)</th><th>표시</th></tr>
+        <tr><td>PC (1025px 이상)</td><td>전체 화면 · 표 그대로</td></tr>
+        <tr><td>태블릿 가로 (769 ~ 1024px)</td><td>표 그대로, 좌측 메뉴는 위쪽 <b>☰</b> 버튼으로 열기</td></tr>
+        <tr><td>태블릿 세로 · 큰 휴대폰 (481 ~ 768px)</td><td>표 → <b>카드 2열</b>, 중요한 항목만</td></tr>
+        <tr><td>휴대폰 (361 ~ 480px)</td><td>카드 1열, 중요한 항목만 · "최근 제어 명령" 같은 부가 구역은 숨김</td></tr>
+        <tr><td>작은 휴대폰 (360px 이하)</td><td>카드 1열, 항목 이름 위·값 아래</td></tr>
+        <tr><td>휴대폰 가로</td><td>카드 2열</td></tr>
+    </table>
+    <h3>휴대폰 카드에 보이는 항목 (나머지는 PC 에서 확인)</h3>
+    <table>
+        <tr><th>화면</th><th>카드 제목</th><th>표시 항목</th><th>버튼</th></tr>
+        <tr><td>서버 전체 목록</td><td>시스템명</td><td>IP, 네트워크 상태, 주요 프로세스</td><td>관리</td></tr>
+        <tr><td>서버 프로세스 (팝업)</td><td>프로세스명</td><td>상태, PID, CPU / MEM</td><td>관리</td></tr>
+        <tr><td>메인 홈 - 에이전트 미등록 서버</td><td>시스템명</td><td>IP, 서버 상태, 에이전트 상태, 미등록 사유</td><td>등록 확인</td></tr>
+        <tr><td>메인 홈 - 알람 이력</td><td>서버</td><td>종류, 발생, 해소, 지속</td><td>-</td></tr>
+        <tr><td>에이전트 관리</td><td>서버</td><td>데몬 상태, 자료 수집, 마지막 보고</td><td>제어</td></tr>
+        <tr><td>하트비트 이벤트 이력</td><td>서버</td><td>발생 일시, 이벤트, 끊긴 시간, 내용</td><td>-</td></tr>
+        <tr><td>프로세스 관리</td><td>SERVICE</td><td>상태, PID</td><td>제어 (시작·중지)</td></tr>
+        <tr><td>제어 명령 이력 (팝업)</td><td>명령</td><td>요청 시각, 대상, 상태, 결과</td><td>-</td></tr>
+        <tr><td>사용자 관리</td><td>아이디</td><td>이름, 상태, 권한</td><td>처리 (승인 등)</td></tr>
+    </table>
+    <div class="note">경로·계정·PID 상세·등록 일시 같은 부가 정보와 서비스 등록·수정은 PC 화면에서 확인하세요. 휴대폰을 가로로 돌리면 카드가 2열로 보입니다.</div>
 </section>
 
 <!-- 15 -->

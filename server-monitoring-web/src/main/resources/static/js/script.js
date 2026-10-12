@@ -1927,3 +1927,41 @@ async function addManualProcess() {
     document.getElementById('procManualPath').value = '';
     renderProcSearchResults();
 }
+
+// =============================================================
+//  모바일 카드 표 (table.m-cards) : 768px 이하에서 행을 카드로 (style.css "모바일 카드 표")
+//    th data-m="key"  카드 제목 / "act" 버튼 줄 / "hide" 모바일에서 숨김(PC 전용 정보) / 없음 = 라벨: 값
+//    각 칸에 머리글 이름(data-label)과 역할 클래스를 붙임 - 행을 다시 그려도 MutationObserver 가 다시 붙임
+// =============================================================
+function mobileCardLabel(table) {
+    const ths = Array.prototype.slice.call(table.querySelectorAll('thead th'));
+    if (!ths.length) return;
+    const labels = ths.map(th => (th.textContent || '').replace(/\s+/g, ' ').trim());
+    const roles = ths.map(th => th.getAttribute('data-m') || '');
+    table.querySelectorAll('tbody > tr').forEach(tr => {
+        let col = 0;
+        Array.prototype.forEach.call(tr.children, td => {
+            const span = parseInt(td.getAttribute('colspan') || '1', 10) || 1;
+            if (span > 1 || tr.children.length === 1) {
+                td.classList.add('m-full');                 // "불러오는 중" / "없음" 같은 안내 줄
+            } else {
+                td.setAttribute('data-label', labels[col] || '');
+                td.classList.toggle('m-key', roles[col] === 'key');
+                td.classList.toggle('m-act', roles[col] === 'act');
+                td.classList.toggle('m-hide', roles[col] === 'hide');
+            }
+            col += span;
+        });
+    });
+}
+
+function mobileCards(root) {
+    (root || document).querySelectorAll('table.m-cards').forEach(table => {
+        mobileCardLabel(table);
+        if (table.__mcObs) return;
+        table.__mcObs = new MutationObserver(() => mobileCardLabel(table));
+        table.querySelectorAll('tbody').forEach(tb => table.__mcObs.observe(tb, { childList: true, subtree: true }));
+    });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => mobileCards());
+else mobileCards();

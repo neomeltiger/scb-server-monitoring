@@ -75,20 +75,20 @@
                         <div class="svc-summary" id="svcSummary"></div>
 
                         <div class="svc-table-wrap">
-                        <table class="full-spec-table svc-table">
+                        <table class="full-spec-table svc-table m-cards">
                             <thead>
                                 <tr>
-                                    <th>NO</th>
-                                    <th>GROUP</th>
-                                    <th>LEVEL</th>
-                                    <th>SERVICE</th>
-                                    <th>ACCOUNT</th>
-                                    <th>SCRIPT (경로)</th>
+                                    <th data-m="hide">NO</th>
+                                    <th data-m="hide">GROUP</th>
+                                    <th data-m="hide">LEVEL</th>
+                                    <th data-m="key">SERVICE</th>
+                                    <th data-m="hide">ACCOUNT</th>
+                                    <th data-m="hide">SCRIPT (경로)</th>
                                     <th>상태</th>
                                     <th>PID</th>
-                                    <th>확인 시각</th>
-                                    <th>제어</th>
-                                    <th>이력 / 관리</th>
+                                    <th data-m="hide">확인 시각</th>
+                                    <th data-m="act">제어</th>
+                                    <th data-m="hide">이력 / 관리</th>
                                 </tr>
                             </thead>
                             <tbody id="svcBody">
@@ -98,22 +98,22 @@
                         </div>
                     </div>
 
-                    <div class="spec-container">
+                    <div class="spec-container m-hide-phone">
                         <div class="spec-header">
                             <h3>최근 제어 명령 <small class="svc-sub">최근 20건 · 처리 중인 명령이 있으면 5초마다 자동 갱신 · 전체/서비스별은 [제어 이력]·[이력] 팝업</small></h3>
                         </div>
                         <div class="svc-table-wrap">
-                        <table class="full-spec-table svc-cmd-table">
+                        <table class="full-spec-table svc-cmd-table m-cards">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
+                                    <th data-m="hide">ID</th>
                                     <th>요청 시각</th>
                                     <th>대상</th>
-                                    <th>명령</th>
+                                    <th data-m="key">명령</th>
                                     <th>상태</th>
-                                    <th>요청자</th>
-                                    <th>종료코드</th>
-                                    <th>완료 시각</th>
+                                    <th data-m="hide">요청자</th>
+                                    <th data-m="hide">종료코드</th>
+                                    <th data-m="hide">완료 시각</th>
                                     <th>결과</th>
                                 </tr>
                             </thead>
@@ -241,9 +241,9 @@
                 <span class="svc-hint" id="histCount"></span>
             </div>
             <div class="svc-table-wrap hist-wrap">
-                <table class="full-spec-table svc-cmd-table">
+                <table class="full-spec-table svc-cmd-table m-cards">
                     <thead>
-                        <tr><th>ID</th><th>요청 시각</th><th>대상</th><th>명령</th><th>상태</th><th>요청자</th><th>종료코드</th><th>완료 시각</th><th>결과</th></tr>
+                        <tr><th data-m="hide">ID</th><th>요청 시각</th><th>대상</th><th data-m="key">명령</th><th>상태</th><th data-m="hide">요청자</th><th data-m="hide">종료코드</th><th data-m="hide">완료 시각</th><th>결과</th></tr>
                     </thead>
                     <tbody id="histBody"></tbody>
                 </table>
