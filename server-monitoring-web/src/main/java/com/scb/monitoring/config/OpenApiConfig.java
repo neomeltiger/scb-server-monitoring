@@ -1,5 +1,6 @@
 package com.scb.monitoring.config;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springdoc.core.GroupedOpenApi;
 import org.springdoc.core.SpringDocUtils;
 import org.springdoc.core.customizers.OperationCustomizer;
@@ -18,9 +19,10 @@ import io.swagger.v3.oas.models.info.Info;
  *   <li>에이전트 API(/agent-api/**) : X-SCB-Agent-Token 헤더 입력 (실제 서버 토큰으로 호출하면 그 서버 상태가 바뀜)</li>
  *   <li>API 마다 Postman API 가이드처럼 호출 예제(cURL / Java / Postman)와 [Try it out] 본문 예시 (ApiSampleCatalog)</li>
  *   <li>내려받기 : Java 클라이언트 /samples/ScbApiClient.java, Postman 컬렉션 GET /api/docs/postman-collection</li>
- *   <li>끄기 : 환경변수 SWAGGER_ENABLED=false (application.yml springdoc)</li>
+ *   <li>끄기(운영) : 프로파일 prod 또는 환경변수 API_DOCS_ENABLED=false → 이 설정·문서·가이드 화면 없음, 주소는 404 (ApiDocsBlockFilter)</li>
  * </ul>
  */
+@ConditionalOnProperty(prefix = "app.api-docs", name = "enabled", havingValue = "true", matchIfMissing = true)
 @Configuration
 public class OpenApiConfig {
 

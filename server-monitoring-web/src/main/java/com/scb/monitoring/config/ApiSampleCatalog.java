@@ -1,5 +1,6 @@
 package com.scb.monitoring.config;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -40,6 +41,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  *   <li>Java 예제는 /samples/ScbApiClient.java (복사해서 쓰는 단일 파일 클라이언트) 기준</li>
  * </ul>
  */
+@ConditionalOnProperty(prefix = "app.api-docs", name = "enabled", havingValue = "true", matchIfMissing = true)
 @Component
 public class ApiSampleCatalog {
 
@@ -142,6 +144,8 @@ public class ApiSampleCatalog {
         public boolean textResponse;
         public boolean agent;             // /agent-api : 토큰 헤더
         public boolean write;             // GET 아님 (CSRF 헤더 필요, 대부분 ADMIN)
+        public String handler;            // 처리 소스 : 컨트롤러#메서드
+        public String sourceFile;         // 처리 소스 파일 (프로젝트 기준 경로)
     }
 
     private final ApplicationContext ctx;
@@ -198,6 +202,9 @@ public class ApiSampleCatalog {
         e.summary = op.summary().isEmpty() ? hm.getMethod().getName() : op.summary();
         e.method = method;
         e.path = path;
+        Class<?> bt = hm.getBeanType();
+        e.handler = bt.getSimpleName() + "#" + hm.getMethod().getName();
+        e.sourceFile = "src/main/java/" + bt.getName().replace('.', '/') + ".java";
         e.agent = path.startsWith("/agent-api/");
         e.write = !"GET".equals(method);
         String key = method + " " + path;
@@ -247,8 +254,17 @@ public class ApiSampleCatalog {
         }
         e.textBody = e.body instanceof String || bodyBytes;
         if (bodyBytes && e.body == null) e.body = "";
-        e.textResponse = e.agent || path.endsWith("/service-list");
+        e.textResponse = e.agent || path.endsWith("/service-list") || producesText(hm);
         return e;
+    }
+
+    /** produces 가 text/* 인 API (예 : 예제 소스 내려받기) */
+    private static boolean producesText(HandlerMethod hm) {
+        org.springframework.web.bind.annotation.RequestMapping rm =
+                AnnotatedElementUtils.findMergedAnnotation(hm.getMethod(), org.springframework.web.bind.annotation.RequestMapping.class);
+        if (rm == null) return false;
+        for (String p : rm.produces()) if (p.startsWith("text/")) return true;
+        return false;
     }
 
     /** DTO 필드로 기본 예시 (표에 없을 때) */
@@ -452,23 +468,236 @@ public class ApiSampleCatalog {
 
         Map<String, List<Object>> byTag = new LinkedHashMap<>();
         for (Entry e : entries()) {
-            Map<String, Object> req = new LinkedHashMap<>();
-            req.put("method", e.method);
-            List<Object> headers = new ArrayList<>();
-            if (e.agent) headers.add(obj("key", "X-SCB-Agent-Token", "value", "{{agentToken}}"));
-            if (e.body != null) {
-                headers.add(obj("key", "Content-Type", "value", e.textBody ? "text/plain; charset=UTF-8" : "application/json"));
-                req.put("body", e.textBody ? obj("mode", "raw", "raw", String.valueOf(e.body))
-                        : obj("mode", "raw", "raw", json(e.body), "options", obj("raw", obj("language", "json"))));
-            }
-            if (!headers.isEmpty()) req.put("header", headers);
-            req.put("url", url(e.path, e.pathVars, e.query));
-            req.put("description", e.method + " " + e.path + (e.agent ? "  (에이전트 토큰)" : e.write ? "  (ADMIN)" : ""));
-            byTag.computeIfAbsent(e.tag, k -> new ArrayList<>()).add(obj("name", e.summary, "request", req));
+            byTag.computeIfAbsent(e.tag, k -> new ArrayList<>()).add(postmanItem(e));
         }
         byTag.forEach((tag, items) -> folders.add(obj("name", tag, "item", items)));
         col.put("item", folders);
         return col;
+    }
+
+    /** Postman 요청 1건 (컬렉션 item) */
+    public Map<String, Object> postmanItem(Entry e) {
+        Map<String, Object> req = new LinkedHashMap<>();
+        req.put("method", e.method);
+        List<Object> headers = new ArrayList<>();
+        if (e.agent) headers.add(obj("key", "X-SCB-Agent-Token", "value", "{{agentToken}}"));
+        if (e.body != null) {
+            headers.add(obj("key", "Content-Type", "value", e.textBody ? "text/plain; charset=UTF-8" : "application/json"));
+            req.put("body", e.textBody ? obj("mode", "raw", "raw", String.valueOf(e.body))
+                    : obj("mode", "raw", "raw", json(e.body), "options", obj("raw", obj("language", "json"))));
+        }
+        if (!headers.isEmpty()) req.put("header", headers);
+        req.put("url", url(e.path, e.pathVars, e.query));
+        req.put("description", e.method + " " + e.path + (e.agent ? "  (에이전트 토큰)" : e.write ? "  (ADMIN)" : ""));
+        return obj("name", e.summary, "request", req);
+    }
+
+    /** Postman [Import] → [Raw text] 에 붙여넣는 cURL (컬렉션 변수 {{baseUrl}} / {{xsrf}} / {{agentToken}}) */
+    public String postmanCurl(Entry e) {
+        StringBuilder c = new StringBuilder("curl -X ").append(e.method).append(" \"{{baseUrl}}").append(e.samplePath).append('"');
+        if (e.agent) c.append(" \\\n  -H \"X-SCB-Agent-Token: {{agentToken}}\"");
+        else if (e.write) c.append(" \\\n  -H \"X-XSRF-TOKEN: {{xsrf}}\"");
+        if (e.body != null) {
+            c.append(" \\\n  -H \"Content-Type: ").append(e.textBody ? "text/plain; charset=UTF-8" : "application/json").append('"');
+            c.append(" \\\n  --data-raw ").append(shellQuote(e.textBody ? String.valueOf(e.body) : json(e.body)));
+        }
+        return c.toString();
+    }
+
+    // ================================================================ JavaScript / Python 예제
+
+    /** JavaScript (fetch) : 이 웹에 로그인한 브라우저에서 실행 (BASE / xsrf() / AGENT_TOKEN 은 "시작하기") */
+    public String javascript(Entry e) {
+        List<String> h = new ArrayList<>();
+        if (e.agent) h.add("'X-SCB-Agent-Token': AGENT_TOKEN");
+        else if (e.write) h.add("'X-XSRF-TOKEN': xsrf()");
+        if (e.body != null) h.add("'Content-Type': '" + (e.textBody ? "text/plain; charset=UTF-8" : "application/json") + "'");
+        StringBuilder j = new StringBuilder("const res = await fetch(BASE + ").append(compactJson(e.samplePath)).append(", {\n");
+        j.append("    method: '").append(e.method).append("'");
+        if (!e.agent) j.append(",\n    credentials: 'include'");
+        if (!h.isEmpty()) j.append(",\n    headers: { ").append(String.join(", ", h)).append(" }");
+        if (e.body != null) {
+            j.append(",\n    body: ").append(e.textBody ? compactJson(String.valueOf(e.body))
+                    : "JSON.stringify(" + json(e.body).replace("\n", "\n    ") + ")");
+        }
+        j.append("\n});\n");
+        if (e.textResponse) j.append("console.log(res.status, await res.text());");
+        else if (e.write) j.append("console.log(res.status, await res.text());");
+        else j.append("console.log(res.status, await res.json());");
+        return j.toString();
+    }
+
+    /** Python (requests) : s = 로그인한 requests.Session (BASE / s / AGENT_TOKEN 은 "시작하기") */
+    public String python(Entry e) {
+        StringBuilder p = new StringBuilder();
+        List<String> args = new ArrayList<>();
+        args.add("BASE + " + compactJson(e.samplePath));
+        List<String> h = new ArrayList<>();
+        if (e.agent) h.add("\"X-SCB-Agent-Token\": AGENT_TOKEN");
+        else if (e.write) h.add("\"X-XSRF-TOKEN\": s.cookies.get(\"XSRF-TOKEN\")");
+        if (e.body != null) {
+            if (e.textBody) {
+                h.add("\"Content-Type\": \"text/plain; charset=UTF-8\"");
+                args.add("data=" + compactJson(String.valueOf(e.body)) + ".encode(\"utf-8\")");
+            } else {
+                args.add("json=" + pyValue(e.body, 1));
+            }
+        }
+        if (!h.isEmpty()) args.add("headers={" + String.join(", ", h) + "}");
+        p.append("r = ").append(e.agent ? "requests" : "s").append('.').append(e.method.toLowerCase())
+         .append('(').append(String.join(",\n    ", args)).append(")\n");
+        if (e.textResponse || e.write) p.append("print(r.status_code, r.text)");
+        else p.append("print(r.status_code)\nprint(json.dumps(r.json(), ensure_ascii=False, indent=2))");
+        return p.toString();
+    }
+
+    private static String pyValue(Object v, int depth) {
+        if (v == null) return "None";
+        if (v instanceof Boolean) return ((Boolean) v) ? "True" : "False";
+        if (v instanceof Number) return String.valueOf(v);
+        if (v instanceof String) return compactJson(v);
+        String ind = new String(new char[depth * 4]).replace('\0', ' ');
+        if (v instanceof Map) {
+            if (((Map<?, ?>) v).isEmpty()) return "{}";
+            StringBuilder sb = new StringBuilder("{");
+            boolean first = true;
+            for (Map.Entry<?, ?> me : ((Map<?, ?>) v).entrySet()) {
+                sb.append(first ? "\n" : ",\n").append(ind).append("    ")
+                  .append(compactJson(String.valueOf(me.getKey()))).append(": ").append(pyValue(me.getValue(), depth + 1));
+                first = false;
+            }
+            return sb.append('\n').append(ind).append('}').toString();
+        }
+        if (v instanceof List) {
+            StringBuilder sb = new StringBuilder("[");
+            boolean first = true;
+            for (Object o : (List<?>) v) {
+                sb.append(first ? "" : ", ").append(pyValue(o, depth + 1));
+                first = false;
+            }
+            return sb.append(']').toString();
+        }
+        return compactJson(String.valueOf(v));
+    }
+
+    // ================================================================ API 가이드 화면 (/admin/api-guide)
+
+    /** 시작하기 : 언어별 로그인·준비 코드 (각 API 예제 앞에 한 번) */
+    public Map<String, Object> guide(String baseUrl, String contextPath) {
+        Map<String, Object> g = new LinkedHashMap<>();
+        g.put("curl", "BASE=" + baseUrl + "\n"
+                + "curl -s -c cj.txt -b cj.txt \"$BASE/login\" -o /dev/null\n"
+                + "XSRF=$(awk '$6==\"XSRF-TOKEN\"{print $7}' cj.txt)\n"
+                + "curl -s -c cj.txt -b cj.txt --data-urlencode username=admin --data-urlencode \"password=$SCB_API_PASSWORD\" \\\n"
+                + "     --data-urlencode \"_csrf=$XSRF\" \"$BASE/login\" -o /dev/null\n"
+                + "XSRF=$(awk '$6==\"XSRF-TOKEN\"{print $7}' cj.txt)   # 로그인하면 CSRF 토큰이 바뀜\n"
+                + "AGENT_TOKEN=...                                       # 에이전트 API 만 (네트워크 구성도에서 발급한 토큰)");
+        g.put("java", "// ScbApiClient.java (이 화면 [소스] 탭) 를 프로젝트에 복사 - JDK 1.8+, 외부 라이브러리 없음\n"
+                + "ScbApiClient api = new ScbApiClient(\"" + baseUrl + "\");\n"
+                + "api.login(\"admin\", System.getenv(\"SCB_API_PASSWORD\"));   // 비밀번호는 코드에 쓰지 말 것");
+        g.put("javascript", "// 이 웹에 로그인한 브라우저의 개발자 도구(F12) > Console 에서 실행 (같은 주소라 세션 쿠키 사용)\n"
+                + "const BASE = location.origin + " + compactJson(contextPath == null ? "" : contextPath) + ";\n"
+                + "const xsrf = () => decodeURIComponent((document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/) || [])[1] || '');\n"
+                + "const AGENT_TOKEN = '...';   // 에이전트 API 만");
+        g.put("python", "# pip install requests\n"
+                + "import os, json, requests\n"
+                + "BASE = " + compactJson(baseUrl) + "\n"
+                + "s = requests.Session()\n"
+                + "s.get(BASE + \"/login\")                                   # 세션·CSRF 쿠키 받기\n"
+                + "s.post(BASE + \"/login\", data={\"username\": \"admin\", \"password\": os.environ[\"SCB_API_PASSWORD\"],\n"
+                + "                            \"_csrf\": s.cookies.get(\"XSRF-TOKEN\")})\n"
+                + "AGENT_TOKEN = os.environ.get(\"SCB_AGENT_TOKEN\", \"\")      # 에이전트 API 만");
+        g.put("postman", "1) [Postman 컬렉션 내려받기] → Postman [Import]\n"
+                + "2) 컬렉션 Variables : baseUrl = " + baseUrl + " / username / password (에이전트 API 는 agentToken)\n"
+                + "3) [0. 로그인] 폴더 1) → 2) 실행 (CSRF 헤더는 컬렉션 스크립트가 자동 처리)\n"
+                + "4) 원하는 API 실행 - 또는 각 API 의 \"Postman 가져오기용 cURL\" 을 [Import] > [Raw text] 에 붙여넣기");
+        return g;
+    }
+
+    /** 화면용 API 1건 : 기본 정보 + 언어별 예제 + Postman */
+    public Map<String, Object> view(Entry e) {
+        Map<String, Object> v = new LinkedHashMap<>();
+        v.put("id", e.method + " " + e.path);
+        v.put("tag", e.tag);
+        v.put("summary", e.summary);
+        v.put("method", e.method);
+        v.put("path", e.path);
+        v.put("samplePath", e.samplePath);
+        v.put("pathVars", e.pathVars);
+        v.put("query", e.query);
+        v.put("body", e.body == null ? null : e.textBody ? String.valueOf(e.body) : json(e.body));
+        v.put("textBody", e.textBody);
+        v.put("textResponse", e.textResponse);
+        v.put("agent", e.agent);
+        v.put("write", e.write);
+        v.put("auth", e.agent ? "에이전트 토큰 (X-SCB-Agent-Token)" : e.write ? "로그인 + CSRF 헤더 · ADMIN" : "로그인 세션");
+        v.put("handler", e.handler);
+        v.put("sourceFile", e.sourceFile);
+        Map<String, Object> code = new LinkedHashMap<>();
+        code.put("curl", curl(e));
+        code.put("java", java(e));
+        code.put("javascript", javascript(e));
+        code.put("python", python(e));
+        code.put("postman", postmanCurl(e));
+        v.put("code", code);
+        v.put("postmanItem", json(postmanItem(e)));
+        return v;
+    }
+
+    /**
+     * 전체 API 예제를 한 파일로 : ScbApiExamples.java (ScbApiClient.java 와 같은 폴더에 두고 컴파일)
+     * main 은 조회(GET) 웹 API 만 실행, 변경·제어·에이전트 API 는 메서드로만 제공 (실제 데이터가 바뀜)
+     */
+    public String examplesJava(String baseUrl) {
+        StringBuilder j = new StringBuilder();
+        j.append("import java.util.Arrays;\n\n");
+        j.append("/**\n * SCB 통합 서버 모니터링 API 전체 예제 (자동 생성 - API 가이드 화면).\n");
+        j.append(" * 준비 : ScbApiClient.java 와 같은 폴더, JDK 1.8+\n");
+        j.append(" *   javac -encoding UTF-8 ScbApiClient.java ScbApiExamples.java\n");
+        j.append(" *   set SCB_API_PASSWORD=비밀번호   (Solaris/Linux : export SCB_API_PASSWORD=...)\n");
+        j.append(" *   java ScbApiExamples [").append(baseUrl).append("]\n");
+        j.append(" * main 은 경로 변수가 없는 조회(GET) API 만 실행합니다. 경로 변수 API 는 실제 ID 로, 변경·제어 API 는 메서드를 직접 호출하세요 (ADMIN, 실제 데이터 변경).\n */\n");
+        j.append("public class ScbApiExamples {\n\n");
+        j.append("    public static void main(String[] args) throws Exception {\n");
+        j.append("        ScbApiClient api = new ScbApiClient(args.length > 0 ? args[0] : ").append(javaString(baseUrl)).append(");\n");
+        j.append("        api.login(\"admin\", System.getenv(\"SCB_API_PASSWORD\"));\n");
+        List<Entry> all = entries();
+        List<String> names = new ArrayList<>();
+        for (int i = 0; i < all.size(); i++) names.add(methodName(i, all.get(i)));
+        for (int i = 0; i < all.size(); i++) {
+            Entry e = all.get(i);
+            if (e.agent || e.write || !e.pathVars.isEmpty() || e.query.containsValue("value")) continue;   // 경로 변수 API 는 실제 ID 로 직접 호출
+            j.append("        run(\"").append(e.method).append(' ').append(e.path).append("\", () -> ").append(names.get(i)).append("(api));\n");
+        }
+        j.append("        api.logout();\n    }\n\n");
+        j.append("    interface Call { void run() throws Exception; }\n\n");
+        j.append("    static void run(String name, Call c) {\n");
+        j.append("        System.out.println(\"===== \" + name);\n");
+        j.append("        try { c.run(); } catch (Exception ex) { System.out.println(\"실패 : \" + ex.getMessage()); }\n    }\n");
+        String lastTag = null;
+        for (int i = 0; i < all.size(); i++) {
+            Entry e = all.get(i);
+            if (!e.tag.equals(lastTag)) {
+                j.append("\n    // ==================== ").append(e.tag).append('\n');
+                lastTag = e.tag;
+            }
+            j.append("\n    /** ").append(e.summary.replace("*/", "*\\/")).append(" - ").append(e.method).append(' ').append(e.path)
+             .append(e.agent ? " (에이전트 토큰)" : e.write ? " (ADMIN, 데이터 변경)" : "").append(" */\n");
+            j.append("    static void ").append(names.get(i)).append("(ScbApiClient api) throws Exception {\n");
+            for (String line : java(e).split("\n")) j.append("        ").append(line).append('\n');
+            j.append("    }\n");
+        }
+        j.append("}\n");
+        return j.toString();
+    }
+
+    private static String methodName(int i, Entry e) {
+        StringBuilder n = new StringBuilder(e.method.toLowerCase());
+        for (String seg : e.path.replaceAll("^/(agent-)?api/(v1/)?", "").split("[/{}\\-_.]+")) {
+            if (seg.isEmpty()) continue;
+            n.append(Character.toUpperCase(seg.charAt(0))).append(seg.substring(1));
+        }
+        return String.format("ex%02d_%s", i + 1, n.toString().replaceAll("[^A-Za-z0-9_]", ""));
     }
 
     /** Postman url : {{baseUrl}}/api/agents/:serverId/restart + 경로 변수 + 쿼리 */

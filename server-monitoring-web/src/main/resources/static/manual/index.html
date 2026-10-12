@@ -115,6 +115,7 @@ footer { text-align: center; color: var(--sub); font-size: 12px; padding: 20px; 
         <li><a href="#console">웹 콘솔 (SSH)</a></li>
         <li><a href="#users">사용자 관리 (관리자)</a></li>
         <li><a href="#swagger">API 문서 (Swagger, 관리자)</a></li>
+        <li><a href="#apiguide">API 가이드 (예제·소스, 관리자)</a></li>
         <li><a href="#agent">에이전트 설치·등록 절차</a></li>
         <li><a href="#faq">자주 묻는 질문 / 문제 해결</a></li>
         <li><a href="#ops">운영 담당자 참고</a></li>
@@ -530,7 +531,31 @@ bin/scb_client.sh restart    # 다시 시작</pre>
             </ul></li>
         <li>예제 경로의 숫자(서버 11 등)는 예시 값입니다. 실제 ID 로 바꾸세요. 비밀번호는 코드에 쓰지 말고 환경변수(<code>SCB_API_PASSWORD</code>)로 넘기세요.</li>
     </ul>
-    <div class="note warn">관리자만 열 수 있습니다. 운영에서 끄려면 웹 서버 실행 전 환경변수 <code>SWAGGER_ENABLED=false</code> 를 지정합니다.</div>
+    <div class="note warn">관리자만 열 수 있습니다. <b>운영 환경에서는 제외</b>합니다 - 프로파일 <code>prod</code> (<code>--spring.profiles.active=default,prod</code>) 또는 환경변수 <code>API_DOCS_ENABLED=false</code>. 그러면 Swagger UI · API 문서 · API 가이드 · 예제 소스 · Postman 컬렉션 주소가 모두 404 이고 좌측 메뉴에서도 사라집니다. 실행 패키지(scb_monitor_web)는 <code>conf/scb_web.env</code> 의 <code>API_DOCS_ENABLED=false</code> 가 기본입니다.</div>
+</section>
+
+<!-- 13-3 -->
+<section id="apiguide">
+    <h2>13-3. API 가이드 (예제·소스) <span class="chip blue">관리자</span></h2>
+    <p>좌측 메뉴 <b>시스템관리 › API 가이드(예제·소스)</b> (주소 <code>/admin/api-guide</code>). Swagger 의 API 를 Postman API 문서처럼 한 화면에서 보고, 예제를 복사하고, 바로 호출합니다.</p>
+    <table>
+        <tr><th>탭</th><th>내용</th></tr>
+        <tr><td><b>API 예제</b></td><td>왼쪽 : 분류(태그)별 API 목록, 검색, 전체 / 웹 API / 조회만 / 에이전트 필터<br>
+            오른쪽 : 메서드·경로·설명, 인증 방식, 응답 형식, <b>처리 소스</b>(컨트롤러#메서드, 소스 파일 경로), 파라미터 표,
+            <b>요청 보내기</b>(경로·Body 수정 → [보내기] → 상태 코드·걸린 시간·응답), 예제 코드 <b>cURL / Java / JavaScript / Python / Postman</b> [복사],
+            Postman 요청 JSON</td></tr>
+        <tr><td><b>시작하기 (로그인)</b></td><td>언어별 준비 코드 - cURL(쿠키·CSRF), Java(ScbApiClient 로그인), JavaScript(브라우저 Console), Python(requests 세션), Postman 순서</td></tr>
+        <tr><td><b>소스</b></td><td><b>ScbApiClient.java</b>(호출 클라이언트), <b>ScbApiExamples.java</b>(전체 API 예제, 자동 생성), <b>Postman 컬렉션 JSON</b> - 전체 보기·복사, 위쪽 버튼으로 내려받기</td></tr>
+    </table>
+    <ul>
+        <li><b>[보내기]</b> 는 지금 로그인한 세션으로 호출합니다. 조회(GET)는 바로, 변경(POST / PUT / DELETE)은 확인 창 뒤 <b>실제 데이터에 적용</b>됩니다.</li>
+        <li>에이전트 API 는 서버 상태(하트비트·보고)를 바꾸므로 화면에서 보내지 않습니다. cURL / Postman 예제로 시험용 서버 토큰을 사용하세요.</li>
+        <li>Postman : 위쪽 [Postman 컬렉션] 을 [Import] 하거나, 각 API 의 Postman 탭 cURL 을 Postman [Import] › [Raw text] 에 붙여넣습니다 (<code>{{baseUrl}}</code> <code>{{xsrf}}</code> <code>{{agentToken}}</code> 변수).</li>
+        <li>Java 전체 예제 : ScbApiClient.java 와 ScbApiExamples.java 를 같은 폴더에 두고 <code>javac -encoding UTF-8 ScbApiClient.java ScbApiExamples.java</code> → <code>java ScbApiExamples http://서버:8080</code>.
+            main 은 경로 변수가 없는 조회 API 만 실행하고, 나머지는 메서드로 들어 있습니다. 비밀번호는 환경변수 <code>SCB_API_PASSWORD</code>.</li>
+        <li>예제는 컨트롤러의 API 정의에서 자동으로 만들어지므로 API 가 추가·변경되면 이 화면에 바로 반영됩니다.</li>
+    </ul>
+    <div class="note warn">운영 환경(프로파일 <code>prod</code> 또는 <code>API_DOCS_ENABLED=false</code>)에서는 이 화면과 데이터 API 가 제외됩니다 (위 13-2 참고).</div>
 </section>
 
 <!-- 14 -->

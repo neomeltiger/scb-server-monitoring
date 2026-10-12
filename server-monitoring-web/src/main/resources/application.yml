@@ -37,6 +37,12 @@ mybatis:
     default-statement-timeout: 30
 
 app:
+  # API 문서 : Swagger UI(/swagger-ui.html) · OpenAPI(/v3/api-docs) · API 가이드(/admin/api-guide) · 예제 소스(/samples/**)
+  #            · Postman 컬렉션(/api/docs/**) · 화면 데이터(/api/admin/docs/**)
+  # 운영에서 제외 : 프로파일 prod (--spring.profiles.active=default,prod) 또는 환경변수 API_DOCS_ENABLED=false
+  #   → 위 주소는 모두 404, 좌측 메뉴에서도 숨김 (config.ApiDocsBlockFilter). 이전 이름 SWAGGER_ENABLED 도 인식
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:${SWAGGER_ENABLED:true}}
   # 로그인 : 사용자는 DB tb_user (비밀번호 BCrypt), 로그인 이력 tb_login_hist
   # ※ 초기 계정 admin / admin (db/users.sql) 은 데모용입니다. 운영 시 반드시 변경하세요.
   security:
@@ -78,9 +84,9 @@ app:
 # Swagger UI : /swagger-ui.html (ADMIN 로그인 필요) - 끄려면 SWAGGER_ENABLED=false
 springdoc:
   api-docs:
-    enabled: ${SWAGGER_ENABLED:true}
+    enabled: ${app.api-docs.enabled}
   swagger-ui:
-    enabled: ${SWAGGER_ENABLED:true}
+    enabled: ${app.api-docs.enabled}
     path: /swagger-ui.html
     csrf:
       enabled: true                             # XSRF-TOKEN 쿠키 → X-XSRF-TOKEN 헤더 (변경 요청)
@@ -133,3 +139,21 @@ app:
         connection-timeout: 5000
         connection-test-query: select 1        # jTDS 는 JDBC4 isValid() 미지원 → 검사 쿼리 필수
         initialization-fail-timeout: -1        # DB 가 꺼져 있어도 애플리케이션은 시작
+
+---
+# 운영 : --spring.profiles.active=default,prod  (Sybase 와 함께 : sybase,prod)
+#   Swagger UI · API 문서 · API 가이드 · 예제 소스를 제외 (환경변수로 켤 수 없음)
+spring:
+  config:
+    activate:
+      on-profile: prod
+  thymeleaf:
+    cache: true
+app:
+  api-docs:
+    enabled: false
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

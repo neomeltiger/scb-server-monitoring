@@ -2,8 +2,9 @@
 <html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <body>
 <!-- ===== LEFT : 좌측 트리 메뉴 ===== -->
-<!-- 사용: <div th:replace="fragments/left :: left(${menu})"></div>  (menu: main | network | servers | logs | heartbeat | fallback | agents | processes | users)
-     시스템관리 > 사용자 관리 는 ADMIN 에게만 보임 (pendingUserCount : web.LayoutModelAdvice) -->
+<!-- 사용: <div th:replace="fragments/left :: left(${menu})"></div>  (menu: main | network | servers | logs | heartbeat | fallback | agents | processes | users | apiguide)
+     시스템관리 > 사용자 관리 는 ADMIN 에게만 보임 (pendingUserCount : web.LayoutModelAdvice)
+     API 가이드 / API 문서(Swagger) 는 운영(prod, API_DOCS_ENABLED=false)에서 숨김 (apiDocsEnabled) -->
 <div class="sidebar-menu" id="sidebarMenu" th:fragment="left(menu)">
     <div class="sidebar-header">
         <h3>통합 서버 모니터링</h3>
@@ -37,7 +38,8 @@
             <ul class="submenu">
                 <li><a th:href="@{/admin/users}" class="tree-link" th:classappend="${menu == 'users'} ? 'active'"><span class="bullet">▪</span> 사용자 관리(가입 승인)
                     <span class="nav-count" id="navPendingCount" th:text="${pendingUserCount}" th:hidden="${pendingUserCount == null or pendingUserCount == 0}">0</span></a></li>
-                <li><a th:href="@{/swagger-ui.html}" class="tree-link" target="_blank" rel="noopener"><span class="bullet">▪</span> API 문서(Swagger)</a></li>
+                <li th:if="${apiDocsEnabled != false}"><a th:href="@{/admin/api-guide}" class="tree-link" th:classappend="${menu == 'apiguide'} ? 'active'"><span class="bullet">▪</span> API 가이드(예제·소스)</a></li>
+                <li th:if="${apiDocsEnabled != false}"><a th:href="@{/swagger-ui.html}" class="tree-link" target="_blank" rel="noopener"><span class="bullet">▪</span> API 문서(Swagger)</a></li>
             </ul>
         </li>
         <li class="tree-item">
