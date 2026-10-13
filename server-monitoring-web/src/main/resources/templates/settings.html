@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>환경 설정 - 통합 서버 관리 및 모니터링 시스템</title>
+    <!-- API 변경 요청용 CSRF 토큰 (script.js apiRequest) -->
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <!--
+        환경 설정 (settings.SettingsController, js/settings.js) - 관리자 전용
+        흩어져 있던 설정을 한 화면에 : 서버별 토큰·하트비트·수집·로그 주기, 부하 시 수집 주기 연장, DB 연결, application.yml 현재 값, 설정 파일
+        바꾸기는 기존 API · 기존 화면을 그대로 사용 (링크)
+    -->
+    <div class="app-layout">
+        <div th:replace="fragments/left :: left(${menu})"></div>
+
+        <div class="main-content-wrapper">
+            <div th:replace="fragments/top :: top"></div>
+
+            <p th:replace="fragments/left :: crumb(${menu})"></p>
+
+            <div class="svc-page st-page">
+                <!-- 머리 + 바로가기 -->
+                <div class="spec-container">
+                    <div class="spec-header st-head">
+                        <h3>환경 설정 <span class="svc-sub">모니터링 시스템의 설정을 한 곳에서 확인하고 바꿉니다</span></h3>
+                        <div class="st-head-tools">
+                            <button type="button" class="btn svc-btn-light" id="stReload">새로고침</button>
+                            <button type="button" class="btn btn-primary" id="stSummary">요약본 내려받기</button>
+                        </div>
+                    </div>
+                    <div class="lg-status" id="stStatus" role="status">불러오는 중...</div>
+                    <nav class="st-links" aria-label="설정 화면 바로가기">
+                        <a th:href="@{/network}"><b>🔑 에이전트 토큰 발급</b><span>네트워크 구성도 › 서버 › 서버 에이전트</span></a>
+                        <a th:href="@{/agents}"><b>🛰 에이전트 관리</b><span>데몬 시작·중지·종료, 수집 주기</span></a>
+                        <a th:href="@{/heartbeat}"><b>💓 하트비트 모니터링</b><span>하트비트 상태·이벤트</span></a>
+                        <a th:href="@{/logs}"><b>📜 서버 로그</b><span>요청 주기, 수집할 로그 파일</span></a>
+                        <a th:href="@{/admin/db}"><b>🗄 DB 연결 관리</b><span>주 DB 전환, 자동 교체, 접속 정보</span></a>
+                        <a th:href="@{/admin/menu-auth}"><b>🔐 메뉴 권한</b><span>사용자별 · 권한별 메뉴</span></a>
+                        <a th:href="@{/admin/users}"><b>👥 사용자 관리</b><span>계정 · 가입 승인 · 잠금</span></a>
+                        <a th:href="@{/processes}"><b>⚙ 프로세스 관리</b><span>service.list · 서비스 제어</span></a>
+                    </nav>
+                </div>
+
+                <!-- 1. 서버별 수집 설정 -->
+                <div class="spec-container" id="stServers">
+                    <div class="spec-header"><h3>1. 서버별 에이전트 · 수집 설정 <span class="svc-sub">바꾸면 바로 저장되고, 서버의 데몬이 다음 확인(10초) 때 적용합니다</span></h3></div>
+                    <div class="svc-table-wrap">
+                        <table class="full-spec-table st-table m-cards">
+                            <thead>
+                                <tr><th data-m="key">서버</th><th>에이전트 토큰</th><th>하트비트 주기</th><th>수집 주기</th><th>서버 로그 요청 주기</th><th data-m="act">바로가기</th></tr>
+                            </thead>
+                            <tbody id="stServerBody"></tbody>
+                        </table>
+                    </div>
+                    <p class="svc-hint">· 토큰 발급·재발급은 네트워크 구성도의 서버 상세에서 합니다 (토큰은 한 번만 표시). · 하트비트 3회 연속 미수신이면 서버 Down 입니다.</p>
+                </div>
+
+                <!-- 2. 부하 시 수집 주기 연장 -->
+                <div class="spec-container">
+                    <div class="spec-header"><h3>2. 서버 부하 시 수집 주기 자동 연장</h3></div>
+                    <div class="st-rule" id="stLoad"></div>
+                </div>
+
+                <!-- 3. DB 연결 -->
+                <div class="spec-container">
+                    <div class="spec-header"><h3>3. DB 연결 <span class="svc-sub">전환 · 접속 정보 변경은 DB 연결 관리 화면에서</span></h3>
+                        <a class="btn svc-btn-light" th:href="@{/admin/db}">DB 연결 관리 →</a></div>
+                    <div class="st-kv" id="stDb">불러오는 중...</div>
+                </div>
+
+                <!-- 4. 애플리케이션 설정 -->
+                <div class="spec-container">
+                    <div class="spec-header"><h3>4. 애플리케이션 설정 (현재 값) <span class="svc-sub">읽기 전용 - 실행 패키지 conf/scb_web.env (환경 변수) 또는 conf/application.yml 에서 바꾸고 웹을 다시 시작</span></h3></div>
+                    <div class="st-runtime" id="stRuntime"></div>
+                    <div class="svc-table-wrap">
+                        <table class="full-spec-table st-table m-cards">
+                            <thead><tr><th>분류</th><th data-m="key">설정 키</th><th>현재 값</th><th>환경 변수 (conf/scb_web.env)</th><th>설명</th></tr></thead>
+                            <tbody id="stAppBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 5. 설정 파일 -->
+                <div class="spec-container">
+                    <div class="spec-header"><h3>5. 설정 파일 위치 · 용도</h3></div>
+                    <div class="svc-table-wrap">
+                        <table class="full-spec-table st-table m-cards">
+                            <thead><tr><th>위치</th><th data-m="key">파일</th><th>내용</th><th>바꾸는 방법</th><th>이 웹 서버</th></tr></thead>
+                            <tbody id="stFileBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/js/scb_dialog.js}"></script>
+
+    <script th:src="@{/js/script.js}"></script>
+    <script th:src="@{/js/settings.js}"></script>
+</body>
+</html>

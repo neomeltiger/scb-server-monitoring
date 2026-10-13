@@ -24,6 +24,11 @@ public class AgentProperties {
      */
     private String publicUrl = "";
 
+    /** 서버 부하 기준 (%) - CPU 또는 메모리가 이 값을 넘으면 수집 주기를 늘림 */
+    private double loadThrottlePct = 90;
+    /** 부하일 때 수집 주기 최소값 (초) - 사용자 설정이 이보다 짧으면 이 값, 길면 사용자 설정 그대로 */
+    private int loadThrottleMinSec = 60;
+
     public int getReportIntervalSec() { return reportIntervalSec; }
     public void setReportIntervalSec(int reportIntervalSec) { this.reportIntervalSec = reportIntervalSec; }
     public int getHistoryKeepDays() { return historyKeepDays; }
@@ -38,4 +43,8 @@ public class AgentProperties {
     public void setPublicUrl(String publicUrl) { this.publicUrl = publicUrl; }
     public int getStaleAfterSec() { return staleAfterSec; }
     public void setStaleAfterSec(int staleAfterSec) { this.staleAfterSec = staleAfterSec; }
+    public double getLoadThrottlePct() { return loadThrottlePct; }
+    public void setLoadThrottlePct(double loadThrottlePct) { this.loadThrottlePct = loadThrottlePct; }
+    public int getLoadThrottleMinSec() { return loadThrottleMinSec; }
+    public void setLoadThrottleMinSec(int loadThrottleMinSec) { this.loadThrottleMinSec = loadThrottleMinSec; }
 }

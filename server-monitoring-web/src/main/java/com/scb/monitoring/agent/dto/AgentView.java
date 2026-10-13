@@ -30,6 +30,10 @@ public class AgentView {
     // 웹 설정
     private boolean collectOn = true;
     private int collectIntervalSec = Agent.DEFAULT_COLLECT_INTERVAL;
+    /** 실제 적용 수집 주기 - 서버 부하(CPU/메모리 기준 초과) 시 늘어남 (agent.service.LoadThrottle) */
+    private int effectiveIntervalSec = Agent.DEFAULT_COLLECT_INTERVAL;
+    private boolean loadThrottled;
+    private String loadReason;
     private boolean shutdownPending;
     private String ctlUser;
     private String ctlDt;
@@ -86,6 +90,7 @@ public class AgentView {
         v.peerStatus = a.getPeerStatus();
         v.collectOn = a.isCollectOn();
         v.collectIntervalSec = a.getCollectIntervalSec();
+        v.effectiveIntervalSec = a.getCollectIntervalSec();
         v.shutdownPending = a.isShutdownRequested();
         v.ctlUser = a.getCtlUser();
         v.ctlDt = fmt(a.getCtlDt());
@@ -166,6 +171,18 @@ public class AgentView {
     public String getPeerStatus() { return peerStatus; }
     public boolean isCollectOn() { return collectOn; }
     public int getCollectIntervalSec() { return collectIntervalSec; }
+    public int getEffectiveIntervalSec() { return effectiveIntervalSec; }
+    public boolean isLoadThrottled() { return loadThrottled; }
+    public String getLoadReason() { return loadReason; }
+
+    /** 서버의 마지막 자원값으로 부하 시 수집 주기 연장 여부를 채움 */
+    public AgentView applyLoad(com.scb.monitoring.topology.domain.Server s, com.scb.monitoring.agent.AgentProperties p) {
+        if (s == null || "NONE".equals(state)) return this;   // 에이전트 없는 서버는 해당 없음
+        effectiveIntervalSec = com.scb.monitoring.agent.service.LoadThrottle.effectiveInterval(collectIntervalSec, s.getCpuPct(), s.getMemPct(), p);
+        loadReason = com.scb.monitoring.agent.service.LoadThrottle.reason(s.getCpuPct(), s.getMemPct(), p);
+        loadThrottled = loadReason != null;
+        return this;
+    }
     public boolean isShutdownPending() { return shutdownPending; }
     public String getCtlUser() { return ctlUser; }
     public String getCtlDt() { return ctlDt; }

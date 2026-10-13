@@ -128,6 +128,7 @@ footer { text-align: center; color: var(--sub); font-size: 12px; padding: 20px; 
         <li><a href="#users">사용자 관리 (관리자)</a></li>
         <li><a href="#swagger">API 문서 (Swagger, 관리자)</a></li>
         <li><a href="#apiguide">API 가이드 (예제·소스, 관리자)</a></li>
+        <li><a href="#settings">환경 설정 (관리자)</a></li>
         <li><a href="#agent">에이전트 설치·등록 절차</a></li>
         <li><a href="#mobile">휴대폰·태블릿에서 보기</a></li>
         <li><a href="#faq">자주 묻는 질문 / 문제 해결</a></li>
@@ -726,6 +727,28 @@ bin/scb_client.sh restart    # 다시 시작</pre>
         <li>예제는 컨트롤러의 API 정의에서 자동으로 만들어지므로 API 가 추가·변경되면 이 화면에 바로 반영됩니다.</li>
     </ul>
     <div class="note warn">운영 환경(프로파일 <code>prod</code> 또는 <code>API_DOCS_ENABLED=false</code>)에서는 이 화면과 데이터 API 가 제외됩니다 (위 13-2 참고).</div>
+</section>
+
+<!-- 13-4 -->
+<section id="settings">
+    <h2>13-4. 환경 설정 <span class="chip blue">관리자</span></h2>
+    <p>좌측 메뉴 <b>시스템관리 › 환경 설정</b> (<code>/admin/settings</code>). 여러 화면과 파일에 흩어져 있던 설정을 한 화면에서 확인하고, 서버별 주기는 바로 바꿉니다. 맨 위 바로가기로 토큰 발급(네트워크 구성도) · 에이전트 관리 · 하트비트 · 서버 로그 · DB 연결 관리 · 메뉴 권한 · 사용자 관리 · 프로세스 관리 화면으로 이동합니다.</p>
+    <div class="tbl"><table>
+        <tr><th>구역</th><th>내용</th><th>바꾸는 곳</th></tr>
+        <tr><td>1. 서버별 에이전트 · 수집 설정</td><td>서버마다 에이전트 토큰 발급 여부(일시 · 발급자 · 클라이언트 버전), 하트비트 주기, 수집 주기(부하로 늘어났으면 표시), 서버 로그 요청 주기</td><td>이 화면의 선택 상자 (바로 저장, 데몬이 10초 안에 적용) · 토큰은 [토큰 발급] → 네트워크 구성도</td></tr>
+        <tr><td>2. 서버 부하 시 수집 주기 자동 연장</td><td>규칙과 지금 늘어난 서버 목록</td><td>conf/scb_web.env 의 SCB_LOAD_THROTTLE_PCT · SCB_LOAD_THROTTLE_MIN_SEC</td></tr>
+        <tr><td>3. DB 연결</td><td>지금 주 DB, 우선순위, 자동 교체, 설정 파일 위치</td><td>[DB 연결 관리 →]</td></tr>
+        <tr><td>4. 애플리케이션 설정</td><td>application.yml 의 현재 값 (웹 서버 · 에이전트 연동 · 알람 · 보안 · 웹 콘솔 · DB). 비밀번호는 "설정됨" 만 표시</td><td>conf/scb_web.env (환경 변수 열) 또는 conf/application.yml → 웹 다시 시작</td></tr>
+        <tr><td>5. 설정 파일</td><td>웹 서버(conf/…) · 서버(client.env, scb.env, service.list) · 웹 DB 의 설정 위치와 용도, 이 웹 서버에 파일이 있는지</td><td>표의 "바꾸는 방법"</td></tr>
+    </table></div>
+    <p><b>[요약본 내려받기]</b> : 지금 값으로 위 다섯 구역을 텍스트 파일(scb_settings_summary_날짜.txt)로 내려받습니다. 점검 기록 · 인수인계용. 고정 문서는 <code>C:\scb\doc\환경설정_요약.md</code>.</p>
+    <h3>서버 부하 시 수집 주기 자동 연장</h3>
+    <ul>
+        <li>서버가 보고한 <b>CPU 또는 메모리 사용률이 90%를 넘으면</b> 웹이 그 서버의 수집 주기를 <b>최소 1분(60초)</b>으로 늘려 보냅니다. 수집 자체가 서버에 주는 부담을 줄이기 위한 것입니다.</li>
+        <li>사용자가 정한 주기가 이미 1분 이상이면 그대로 둡니다. 부하가 90% 이하로 내려가면 다음 확인(10초) 때 사용자가 정한 주기로 돌아갑니다. 사용자 설정 값 자체는 바뀌지 않습니다.</li>
+        <li>에이전트 관리 · 환경 설정 화면의 수집 주기 아래에 "부하(CPU 95%) → 1분 적용 중" 으로 표시되고, 웹 로그에 AGENT LOAD THROTTLE / AGENT LOAD NORMAL 이 남습니다.</li>
+        <li>서버 쪽 작업은 필요 없습니다 (데몬이 매번 받는 ctl|interval 값으로 적용). 기준은 conf/scb_web.env 의 <code>SCB_LOAD_THROTTLE_PCT</code>(기본 90) · <code>SCB_LOAD_THROTTLE_MIN_SEC</code>(기본 60).</li>
+    </ul>
 </section>
 
 <!-- 14 -->

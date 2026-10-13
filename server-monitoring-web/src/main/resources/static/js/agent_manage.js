@@ -90,6 +90,12 @@
               (a.collectIntervals || [10, 30, 60, 120, 300, 600]).map(s =>
                   '<option value="' + s + '"' + (s === a.collectIntervalSec ? ' selected' : '') + '>' + (INTERVAL_LABEL[s] || s + '초') + '</option>').join('') + '</select>'
             : escapeHtml(INTERVAL_LABEL[a.collectIntervalSec] || a.collectIntervalSec + '초');
+        // 서버 부하(CPU/메모리 90% 초과) 시 웹이 수집 주기를 최소 1분으로 늘려 보냄 (설정 값은 그대로)
+        const throttle = !a.loadThrottled ? ''
+            : (a.effectiveIntervalSec !== a.collectIntervalSec
+                ? '<span class="ua-sub am-warn" title="부하가 내려가면 설정한 주기로 돌아갑니다">부하(' + escapeHtml(a.loadReason || '') + ') → ' +
+                  escapeHtml(INTERVAL_LABEL[a.effectiveIntervalSec] || a.effectiveIntervalSec + '초') + ' 적용 중</span>'
+                : '<span class="ua-sub" title="설정 주기가 이미 1분 이상">부하(' + escapeHtml(a.loadReason || '') + ') · 설정 주기 유지</span>');
         const pid = a.daemonPid ? 'PID ' + a.daemonPid + '<span class="ua-sub">' + escapeHtml(a.daemonStartDt || '') + '</span>' : '-';
         const poll = a.lastPollDt ? escapeHtml(a.lastPollDt) + '<span class="ua-sub">' + ago(a.lastPollAgoSec) + '</span>' : '-';
         const reportCls = a.state === 'STALE' ? ' am-warn' : '';
@@ -109,7 +115,7 @@
               btn('reset', 'kill', '데이터 초기화', false, '토큰·수집 이력·하트비트·알람 삭제, 등록 상태 Active')
             : '-';
         return '<tr data-id="' + sid + '"><td class="ua-left">' + server + '</td><td>' + daemon + '</td><td>' + collect + collectSub + '</td>' +
-            '<td>' + interval + '</td><td class="svc-time">' + pid + '</td><td class="svc-time">' + poll + '</td>' +
+            '<td>' + interval + throttle + '</td><td class="svc-time">' + pid + '</td><td class="svc-time">' + poll + '</td>' +
             '<td class="svc-time">' + report + '</td><td class="am-ctl">' + ctl + '</td></tr>';
     }
 

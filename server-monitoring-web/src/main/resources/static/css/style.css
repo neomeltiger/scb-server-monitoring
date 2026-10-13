@@ -1961,6 +1961,28 @@ body.scb-dlg-open { overflow: hidden; }
 .mn-site-head .warn b { color: #e8590c; }
 .mn-site-head .crit b { color: #e03131; }
 
+/* ===================== 환경 설정 (/admin/settings, settings.js) ===================== */
+.st-page { display: flex; flex-direction: column; gap: 20px; }
+.st-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+.st-head-tools { display: flex; gap: 8px; }
+.st-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 4px; }
+.st-links a { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid #dbe3ee; border-radius: 8px; background: #f8fafc;
+    color: #1f2937; text-decoration: none; font-size: 13px; }
+.st-links a:hover, .st-links a:focus-visible { border-color: #385c95; background: #eef4fb; }
+.st-links a span { color: #64748b; font-size: 12px; }
+.st-table td { vertical-align: middle; }
+.st-table code { font-size: 12px; background: #f1f5f9; padding: 1px 4px; border-radius: 4px; word-break: break-all; }
+.st-table .st-sel { min-width: 96px; }
+.st-table .am-ctl { white-space: nowrap; }
+.st-table .am-ctl a { margin: 2px; display: inline-block; text-decoration: none; }
+.st-table tr.st-group-first td { border-top: 2px solid #cbd5e1; }
+.st-rule p { margin: 6px 0; font-size: 14px; line-height: 1.7; }
+.st-dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 13px; }
+.st-dl dt { color: #64748b; }
+.st-dl dd { margin: 0; word-break: break-all; }
+.st-runtime { margin-bottom: 10px; }
+@media (max-width: 760px) { .st-dl { grid-template-columns: 1fr; gap: 2px; } .st-dl dd { margin-bottom: 6px; } }
+
 /* ===================== 전체 화면 색 (상단 [화면 색] 드롭다운, fragments/top.html) ===================== */
 .pt-field { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #475569; }
 .pt-select { border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 6px; font-size: 13px; background: #fff; color: #1f2937; max-width: 150px; }

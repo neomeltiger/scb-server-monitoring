@@ -89,14 +89,39 @@ public class AgentService {
         for (Agent a : mapper.selectAgentList()) agents.put(a.getServerId(), a);
         List<AgentStatusView> list = new ArrayList<>();
         for (Server s : topologyMapper.selectServerList()) {
-            list.add(AgentStatusView.of(s, agents.get(s.getServerId()), props.getStaleAfterSec()));
+            AgentStatusView v = AgentStatusView.of(s, agents.get(s.getServerId()), props.getStaleAfterSec());
+            if (v.getAgent() != null) v.getAgent().applyLoad(s, props);
+            list.add(v);
         }
         return list;
     }
 
     public AgentView getAgent(Long serverId) {
-        findServer(serverId);
-        return AgentView.of(mapper.selectAgent(serverId), props.getStaleAfterSec());
+        Server s = findServer(serverId);
+        return AgentView.of(mapper.selectAgent(serverId), props.getStaleAfterSec()).applyLoad(s, props);
+    }
+
+    // ===================== 부하 시 수집 주기 연장 (LoadThrottle) =====================
+
+    /** 서버별 마지막 판정 (바뀔 때만 로그) */
+    private final Map<Long, Boolean> throttled = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** 데몬에 내려줄 수집 주기 : CPU 또는 메모리가 기준(90%)을 넘으면 최소 60초, 아니면 사용자 설정 */
+    int effectiveInterval(Agent ag, Server s) {
+        int user = ag.getCollectIntervalSec();
+        if (s == null) return user;
+        int eff = LoadThrottle.effectiveInterval(user, s.getCpuPct(), s.getMemPct(), props);
+        boolean now = LoadThrottle.overloaded(s.getCpuPct(), s.getMemPct(), props);
+        Boolean before = throttled.put(ag.getServerId(), now);
+        if (before == null ? now : before != now) {
+            if (now) {
+                log.warn("AGENT LOAD THROTTLE server={} {} > {}% → 수집 주기 {}s (사용자 설정 {}s)", ag.getServerId(),
+                        LoadThrottle.reason(s.getCpuPct(), s.getMemPct(), props), props.getLoadThrottlePct(), eff, user);
+            } else {
+                log.info("AGENT LOAD NORMAL server={} → 수집 주기 사용자 설정 {}s", ag.getServerId(), user);
+            }
+        }
+        return eff;
     }
 
     /** 토큰 (재)발급. 반환값(원문)은 다시 조회할 수 없습니다. 재발급하면 이전 토큰은 즉시 무효. */
@@ -145,7 +170,7 @@ public class AgentService {
         sb.append("server_id=").append(serverId).append('\n');
         sb.append("system_name=").append(s.getSystemNm()).append('\n');
         Agent ag = mapper.selectAgent(serverId);
-        sb.append("interval=").append(ag != null ? ag.getCollectIntervalSec() : props.getReportIntervalSec()).append('\n');
+        sb.append("interval=").append(ag != null ? effectiveInterval(ag, s) : props.getReportIntervalSec()).append('\n');
         sb.append("collect=").append(ag == null || ag.isCollectOn() ? "on" : "off").append('\n');
         if (s.getPairServerId() != null) {
             Server pair = topologyMapper.selectServer(s.getPairServerId());
@@ -286,7 +311,7 @@ public class AgentService {
         if (ag != null) {
             boolean shutdown = ag.isShutdownRequested() && daemonState != null;
             sb.append("ctl|collect=").append(ag.isCollectOn() ? "on" : "off")
-              .append("|interval=").append(ag.getCollectIntervalSec())
+              .append("|interval=").append(effectiveInterval(ag, topologyMapper.selectServer(serverId)))
               .append("|shutdown=").append(shutdown ? "Y" : "N")
               .append("|report=").append(daemonState != null && heartbeat.consumeReportNow(serverId) ? "Y" : "N").append('\n');
             if (shutdown) {

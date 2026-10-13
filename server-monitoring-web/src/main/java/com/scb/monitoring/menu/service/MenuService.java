@@ -58,6 +58,7 @@ public class MenuService {
             new Menu("menuauth", "g_auth", Menu.PAGE, "메뉴 권한", "/admin/menu-auth", null, 20, false, true, false),
             new Menu("menuedit", "g_auth", Menu.PAGE, "메뉴 이름·순서", "/admin/menus", null, 30, false, true, false),
             new Menu("g_system", null, Menu.GROUP, "시스템관리", null, "👤", 50, false, true, false),
+            new Menu("settings", "g_system", Menu.PAGE, "환경 설정", "/admin/settings", null, 5, false, true, false),
             new Menu("apiguide", "g_system", Menu.PAGE, "API 가이드(예제·소스)", "/admin/api-guide", null, 10, false, true, false),
             new Menu("swagger", "g_system", Menu.LINK, "API 문서(Swagger)", "/swagger-ui.html", null, 20, false, true, true),
             new Menu("dbconn", "g_system", Menu.PAGE, "DB 연결 관리", "/admin/db", null, 30, false, true, false),
