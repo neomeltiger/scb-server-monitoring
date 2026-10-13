@@ -1531,3 +1531,40 @@ img, svg, canvas { max-width: 100%; }
 @media (max-width: 1024px) {
     .snb-collapse { display: none; }
 }
+
+/* ===== DB 연결 관리 (db_admin.html) : 쓸 수 없는 DB 는 회색 · 선택 불가 ===== */
+.db-current { margin: 8px 0 4px; padding: 12px 16px; border: 1px solid #b6d4fe; border-radius: 8px; background: #f0f7ff; font-size: 14px; }
+.db-cur-main { font-size: 15px; margin-bottom: 4px; }
+.db-h { margin: 18px 0 8px; font-size: 15px; color: #203a43; }
+.db-list { display: flex; flex-direction: column; gap: 8px; }
+.db-card { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid #d0d7de; border-radius: 8px; background: #fff; }
+.db-card.current { border-color: #28a745; box-shadow: 0 0 0 2px rgba(40,167,69,.15); }
+.db-card.off { background: #f1f3f5; border-color: #dee2e6; color: #868e96; }
+.db-card.off .db-name { color: #868e96; }
+.db-rank { flex: 0 0 30px; height: 30px; border-radius: 50%; background: #e9ecef; color: #495057; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+.db-card.current .db-rank { background: #28a745; color: #fff; }
+.db-body { flex: 1; min-width: 0; }
+.db-name { font-weight: bold; font-size: 15px; color: #203a43; }
+.db-url { font-size: 12px; color: #64748b; word-break: break-all; margin-top: 2px; }
+.db-msg { font-size: 12px; color: #1e7e34; margin-top: 2px; word-break: break-all; }
+.db-msg.bad { color: #868e96; }
+.db-btns { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
+.db-btns .svc-btn { padding: 5px 10px; font-size: 12px; }
+.db-btns .svc-btn:disabled { opacity: .45; cursor: not-allowed; }
+.db-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: #adb5bd; vertical-align: middle; }
+.db-dot.ok { background: #28a745; }
+.db-badge-off { background: #e9ecef; color: #6c757d; }
+.db-settings { display: grid; gap: 8px; max-width: 560px; }
+.db-check { display: flex; gap: 6px; align-items: flex-start; font-size: 13px; color: #333; }
+.db-check[hidden] { display: none; }
+.db-check input { margin-top: 2px; }
+.db-actions { margin-top: 4px; }
+.db-modal { width: 560px; }
+.db-test { min-height: 18px; margin: 0; font-size: 13px; color: #475569; word-break: break-all; }
+.db-test.ok { color: #1e7e34; font-weight: bold; }
+.db-test.bad { color: #b02a37; font-weight: bold; }
+@media (max-width: 768px) {
+    .db-card { flex-wrap: wrap; }
+    .db-btns { width: 100%; justify-content: stretch; }
+    .db-btns .svc-btn { flex: 1; }
+}

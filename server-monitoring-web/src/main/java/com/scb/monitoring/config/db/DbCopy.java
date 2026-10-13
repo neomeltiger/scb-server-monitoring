@@ -9,6 +9,8 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Types;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -21,9 +23,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * DB 간 데이터 이전 (MySQL / MariaDB / H2 - 같은 테이블 구조).
+ * DB 간 데이터 이전 (Oracle / Sybase / MySQL / MariaDB / H2 - 같은 테이블 구조).
  * 원본의 모든 테이블을 대상의 같은 이름 테이블로 복사합니다 (대상 테이블 내용은 지우고 넣음, 양쪽에 있는 컬럼만).
- * 외래키 검사는 복사하는 동안 끄고, 끝나면 테이블별 건수를 비교합니다. H2 대상은 IDENTITY 다음 값을 맞춤.
+ * <ul>
+ *   <li>순서 : schema-ansi.sql 의 CREATE 순서 (부모 먼저), 지울 때는 반대 순서</li>
+ *   <li>외래키 : MySQL · MariaDB · H2 는 복사하는 동안 검사를 끔. Oracle · Sybase 는 끌 수 없어
+ *       자기 참조 컬럼(상위 노드, 짝 서버)을 비워 넣은 뒤 나중에 채움</li>
+ *   <li>IDENTITY : Sybase 는 IDENTITY_INSERT, H2 는 다음 값을 맞춤 (Oracle 은 DbSchema.restartOracleIdentities)</li>
+ * </ul>
+ * 끝나면 테이블별 건수를 비교합니다.
  */
 public final class DbCopy {
 
@@ -55,14 +63,28 @@ public final class DbCopy {
 
     public static List<Result> copy(DataSource source, DataSource target) throws SQLException {
         List<Result> out = new ArrayList<>();
+        String ansi = DbSchema.resource(DbSchema.ANSI);
+        List<String> order = DbDialect.tableOrder(ansi);
+        Map<String, String> identities = DbDialect.identityColumns(ansi);
         try (Connection src = source.getConnection(); Connection dst = target.getConnection()) {
-            Map<String, String> srcTables = tables(src);
-            Map<String, String> dstTables = tables(dst);
-            boolean h2 = product(dst).contains("h2");
+            DbKind sk = DbSchema.kindOf(src);
+            DbKind dk = DbSchema.kindOf(dst);
+            List<Map.Entry<String, String>> srcTables = new ArrayList<>(tables(src, sk).entrySet());
+            srcTables.sort(Comparator.comparingInt(e -> rank(order, e.getKey())));
+            Map<String, String> dstTables = tables(dst, dk);
+            boolean strictFk = dk == DbKind.ORACLE || dk == DbKind.SYBASE;
             dst.setAutoCommit(false);
             fkChecks(dst, false);
             try {
-                for (Map.Entry<String, String> t : srcTables.entrySet()) {
+                // 지우기 : 자식 테이블부터
+                for (int i = srcTables.size() - 1; i >= 0; i--) {
+                    String dstName = dstTables.get(srcTables.get(i).getKey());
+                    if (dstName == null) continue;
+                    if (strictFk) clearSelfRefs(dst, dk, dstName);
+                    exec(dst, "DELETE FROM " + dstName);
+                }
+                dst.commit();
+                for (Map.Entry<String, String> t : srcTables) {
                     String dstName = dstTables.get(t.getKey());
                     Result r = new Result(t.getValue(), count(src, t.getValue()));
                     out.add(r);
@@ -71,10 +93,17 @@ public final class DbCopy {
                         log.warn("DB 이전 : {} 대상에 없음", t.getValue());
                         continue;
                     }
-                    copyTable(src, t.getValue(), dst, dstName);
+                    boolean idInsert = dk == DbKind.SYBASE && identities.containsKey(t.getKey());
+                    if (idInsert) exec(dst, "SET IDENTITY_INSERT " + dstName + " ON");
+                    try {
+                        copyTable(src, t.getValue(), dst, dk, dstName,
+                                strictFk ? selfRefColumns(dst, dk, dstName) : Collections.<String, String>emptyMap());
+                    } finally {
+                        if (idInsert) exec(dst, "SET IDENTITY_INSERT " + dstName + " OFF");
+                    }
                     dst.commit();
                     r.target = count(dst, dstName);
-                    if (h2) restartIdentities(dst, dstName);
+                    if (dk == DbKind.H2) restartIdentities(dst, dstName);
                     log.info("DB 이전 : {}", r);
                 }
                 dst.commit();
@@ -89,12 +118,20 @@ public final class DbCopy {
         return out;
     }
 
+    private static int rank(List<String> order, String table) {
+        int i = order.indexOf(table);
+        return i < 0 ? Integer.MAX_VALUE : i;
+    }
+
     /** 소문자 이름 → 실제 이름 (현재 DB 의 일반 테이블) */
     static Map<String, String> tables(Connection c) throws SQLException {
+        return tables(c, DbSchema.kindOf(c));
+    }
+
+    static Map<String, String> tables(Connection c, DbKind kind) throws SQLException {
         Map<String, String> m = new TreeMap<>();
         DatabaseMetaData md = c.getMetaData();
-        String schema = product(c).contains("h2") ? "PUBLIC" : null;
-        try (ResultSet rs = md.getTables(c.getCatalog(), schema, "%", new String[] {"TABLE"})) {
+        try (ResultSet rs = md.getTables(c.getCatalog(), DbSchema.schemaOf(c, kind), "%", new String[] {"TABLE"})) {
             while (rs.next()) {
                 String n = rs.getString("TABLE_NAME");
                 m.put(n.toLowerCase(Locale.ROOT), n);
@@ -103,14 +140,31 @@ public final class DbCopy {
         return m;
     }
 
-    private static void copyTable(Connection src, String srcTable, Connection dst, String dstTable) throws SQLException {
+    /** 같은 테이블을 가리키는 외래키 컬럼 (소문자 컬럼 → 참조하는 키 컬럼) */
+    private static Map<String, String> selfRefColumns(Connection c, DbKind kind, String table) throws SQLException {
+        Map<String, String> m = new LinkedHashMap<>();
+        try (ResultSet rs = c.getMetaData().getImportedKeys(c.getCatalog(), DbSchema.schemaOf(c, kind), table)) {
+            while (rs.next()) {
+                if (table.equalsIgnoreCase(rs.getString("PKTABLE_NAME"))) {
+                    m.put(rs.getString("FKCOLUMN_NAME").toLowerCase(Locale.ROOT), rs.getString("PKCOLUMN_NAME"));
+                }
+            }
+        }
+        return m;
+    }
+
+    /** 지우기 전에 자기 참조 컬럼을 비움 (Oracle · Sybase - 외래키 검사를 끌 수 없음) */
+    private static void clearSelfRefs(Connection c, DbKind kind, String table) throws SQLException {
+        for (String col : selfRefColumns(c, kind, table).keySet()) exec(c, "UPDATE " + table + " SET " + col + " = NULL");
+    }
+
+    private static void copyTable(Connection src, String srcTable, Connection dst, DbKind dk, String dstTable,
+                                  Map<String, String> selfRefs) throws SQLException {
         List<String> dstCols = new ArrayList<>();
-        try (ResultSet rs = dst.getMetaData().getColumns(dst.getCatalog(), product(dst).contains("h2") ? "PUBLIC" : null, dstTable, "%")) {
+        try (ResultSet rs = dst.getMetaData().getColumns(dst.getCatalog(), DbSchema.schemaOf(dst, dk), dstTable, "%")) {
             while (rs.next()) dstCols.add(rs.getString("COLUMN_NAME").toLowerCase(Locale.ROOT));
         }
-        try (Statement del = dst.createStatement()) {
-            del.executeUpdate("DELETE FROM " + dstTable);
-        }
+        List<Object[]> later = new ArrayList<>();             // 자기 참조 값 : {컬럼, 값, 키 컬럼, 키 값}
         try (Statement st = src.createStatement(); ResultSet rs = st.executeQuery("SELECT * FROM " + srcTable)) {
             ResultSetMetaData md = rs.getMetaData();
             List<Integer> idx = new ArrayList<>();
@@ -131,8 +185,17 @@ public final class DbCopy {
                     for (int k = 0; k < idx.size(); k++) {
                         int i = idx.get(k);
                         int type = md.getColumnType(i);
-                        if (type == Types.TIMESTAMP || type == Types.DATE && "DATETIME".equalsIgnoreCase(md.getColumnTypeName(i))) {
+                        String col = cols.get(k).toLowerCase(Locale.ROOT);
+                        if (selfRefs.containsKey(col)) {
+                            Object v = rs.getObject(i);
+                            ps.setNull(k + 1, type);
+                            if (v != null) later.add(new Object[] {cols.get(k), v, selfRefs.get(col), rs.getObject(selfRefs.get(col))});
+                        } else if (type == Types.TIMESTAMP || type == Types.DATE && "DATETIME".equalsIgnoreCase(md.getColumnTypeName(i))) {
                             ps.setTimestamp(k + 1, rs.getTimestamp(i));
+                        } else if (type == Types.CLOB || type == Types.NCLOB || type == Types.LONGVARCHAR) {
+                            String v = rs.getString(i);
+                            if (v == null) ps.setNull(k + 1, Types.VARCHAR);
+                            else ps.setString(k + 1, v);
                         } else {
                             Object v = rs.getObject(i);
                             if (v == null) ps.setNull(k + 1, type);
@@ -144,6 +207,19 @@ public final class DbCopy {
                 }
                 ps.executeBatch();
             }
+        }
+        for (Object[] u : later) {
+            try (PreparedStatement ps = dst.prepareStatement("UPDATE " + dstTable + " SET " + u[0] + " = ? WHERE " + u[2] + " = ?")) {
+                ps.setObject(1, u[1]);
+                ps.setObject(2, u[3]);
+                ps.executeUpdate();
+            }
+        }
+    }
+
+    private static void exec(Connection c, String sql) throws SQLException {
+        try (Statement st = c.createStatement()) {
+            st.execute(sql);
         }
     }
 

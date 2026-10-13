@@ -160,16 +160,30 @@
 
     <!-- 최근 이벤트 (serverId 가 없으면 전체) -->
     <select id="selectHbHist" resultType="com.scb.monitoring.agent.domain.HeartbeatHist">
-        SELECT t.hist_id, t.server_id, t.system_nm, t.event_cd, t.event_dt, t.daemon_pid, t.gap_sec, t.detail
-          FROM (SELECT h.hist_id, h.server_id, s.system_nm, h.event_cd, h.event_dt, h.daemon_pid, h.gap_sec, h.detail,
-                       ROW_NUMBER() OVER (ORDER BY h.hist_id DESC) AS rn
-                  FROM tb_heartbeat_hist h
-                  JOIN tb_server s ON s.server_id = h.server_id
-                <where>
-                    <if test="serverId != null">h.server_id = #{serverId}</if>
-                </where>) t
-         WHERE t.rn &lt;= #{rows}
-         ORDER BY t.hist_id DESC
+        <choose>
+            <!-- Sybase ASE : 윈도 함수(ROW_NUMBER) 없음 - ROW_NUMBER() 대신 TOP / 상관 하위 질의 -->
+            <when test="@com.scb.monitoring.config.db.DbDialect@sybase()">
+            SELECT TOP ${rows} h.hist_id, h.server_id, s.system_nm, h.event_cd, h.event_dt, h.daemon_pid, h.gap_sec, h.detail
+              FROM tb_heartbeat_hist h
+              JOIN tb_server s ON s.server_id = h.server_id
+            <where>
+                <if test="serverId != null">h.server_id = #{serverId}</if>
+            </where>
+             ORDER BY h.hist_id DESC
+            </when>
+            <otherwise>
+            SELECT t.hist_id, t.server_id, t.system_nm, t.event_cd, t.event_dt, t.daemon_pid, t.gap_sec, t.detail
+              FROM (SELECT h.hist_id, h.server_id, s.system_nm, h.event_cd, h.event_dt, h.daemon_pid, h.gap_sec, h.detail,
+                           ROW_NUMBER() OVER (ORDER BY h.hist_id DESC) AS rn
+                      FROM tb_heartbeat_hist h
+                      JOIN tb_server s ON s.server_id = h.server_id
+                    <where>
+                        <if test="serverId != null">h.server_id = #{serverId}</if>
+                    </where>) t
+             WHERE t.rn &lt;= #{rows}
+             ORDER BY t.hist_id DESC
+            </otherwise>
+        </choose>
     </select>
 
     <delete id="deleteHbHistBefore">

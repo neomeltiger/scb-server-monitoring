@@ -280,17 +280,36 @@ public class TopologyService {
     public Map<Long, HistoryView> getHistory(int points) {
         int n = Math.max(2, Math.min(points, 360));
         Map<Long, HistoryView> map = new LinkedHashMap<>();
-        for (MetricHist h : mapper.selectMetricHistory(n)) {
+        for (MetricHist h : lastN(mapper.selectMetricHistory(n), MetricHist::getServerId, n)) {
             map.computeIfAbsent(h.getServerId(), k -> new HistoryView()).addServerPoint(h);
         }
-        for (MetricHist h : mapper.selectProcessHistory(n)) {
+        for (MetricHist h : lastN(mapper.selectProcessHistory(n), MetricHist::getProcId, n)) {
             map.computeIfAbsent(h.getServerId(), k -> new HistoryView()).addProcessPoint(h);
         }
         // 프로세스 관리(service.list) 서비스 CPU 이력 - 메인 홈에서 골라서 그래프로 보기
-        for (com.scb.monitoring.svcctl.domain.ServiceMetricHist h : serviceCtlMapper.selectServiceHistory(n)) {
+        for (com.scb.monitoring.svcctl.domain.ServiceMetricHist h
+                : lastN(serviceCtlMapper.selectServiceHistory(n), com.scb.monitoring.svcctl.domain.ServiceMetricHist::getSvcId, n)) {
             map.computeIfAbsent(h.getServerId(), k -> new HistoryView()).addServicePoint(h);
         }
         return map;
+    }
+
+    /**
+     * 키(서버·프로세스·서비스)별로 정렬된 이력에서 키마다 마지막 n 건만 (순서 유지).
+     * ROW_NUMBER 로 이미 n 건씩 받은 DB 는 그대로이고, Sybase(최근 24시간 전체를 받음)는 여기서 자름.
+     */
+    public static <T> List<T> lastN(List<T> rows, java.util.function.Function<T, Object> key, int n) {
+        Map<Object, Integer> total = new java.util.HashMap<>();
+        for (T r : rows) total.merge(key.apply(r), 1, Integer::sum);
+        if (total.values().stream().allMatch(c -> c <= n)) return rows;
+        Map<Object, Integer> seen = new java.util.HashMap<>();
+        List<T> out = new java.util.ArrayList<>();
+        for (T r : rows) {
+            Object k = key.apply(r);
+            int i = seen.merge(k, 1, Integer::sum);
+            if (i > total.get(k) - n) out.add(r);
+        }
+        return out;
     }
 
     // ===================== 내부 =====================

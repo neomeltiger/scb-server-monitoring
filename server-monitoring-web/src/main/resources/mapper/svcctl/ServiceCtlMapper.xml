@@ -109,13 +109,25 @@
 
     <!-- 서비스별 최근 N건 : LIMIT 대신 ROW_NUMBER() (ANSI) -->
     <select id="selectServiceHistory" resultType="com.scb.monitoring.svcctl.domain.ServiceMetricHist">
-        SELECT t.svc_id, t.server_id, t.svc_nm, t.collect_dt, t.cpu_pct, t.mem_pct, t.running_yn
-          FROM (SELECT h.svc_id, h.server_id, v.svc_nm, h.collect_dt, h.cpu_pct, h.mem_pct, h.running_yn, h.hist_id,
-                       ROW_NUMBER() OVER (PARTITION BY h.svc_id ORDER BY h.collect_dt DESC, h.hist_id DESC) AS rn
-                  FROM tb_service_metric_hist h
-                 INNER JOIN tb_service v ON v.svc_id = h.svc_id) t
-         WHERE t.rn &lt;= #{points}
-         ORDER BY t.server_id, t.svc_id, t.collect_dt, t.hist_id
+        <choose>
+            <!-- Sybase ASE : 윈도 함수(ROW_NUMBER) 없음 - 최근 24시간 중 서비스별 최근 N건은 서비스(TopologyService.lastN)에서 자름 -->
+            <when test="@com.scb.monitoring.config.db.DbDialect@sybase()">
+            SELECT h.svc_id, h.server_id, v.svc_nm, h.collect_dt, h.cpu_pct, h.mem_pct, h.running_yn
+              FROM tb_service_metric_hist h
+             INNER JOIN tb_service v ON v.svc_id = h.svc_id
+             WHERE h.collect_dt &gt;= dateadd(hh, -24, getdate())
+             ORDER BY h.server_id, h.svc_id, h.collect_dt, h.hist_id
+            </when>
+            <otherwise>
+            SELECT t.svc_id, t.server_id, t.svc_nm, t.collect_dt, t.cpu_pct, t.mem_pct, t.running_yn
+              FROM (SELECT h.svc_id, h.server_id, v.svc_nm, h.collect_dt, h.cpu_pct, h.mem_pct, h.running_yn, h.hist_id,
+                           ROW_NUMBER() OVER (PARTITION BY h.svc_id ORDER BY h.collect_dt DESC, h.hist_id DESC) AS rn
+                      FROM tb_service_metric_hist h
+                     INNER JOIN tb_service v ON v.svc_id = h.svc_id) t
+             WHERE t.rn &lt;= #{points}
+             ORDER BY t.server_id, t.svc_id, t.collect_dt, t.hist_id
+            </otherwise>
+        </choose>
     </select>
 
     <delete id="deleteServiceHistBefore">
@@ -170,27 +182,51 @@
 
     <!-- 최근 N 건 : ROW_NUMBER() OVER (ANSI) - LIMIT 미사용 -->
     <select id="selectRecentCommands" resultType="com.scb.monitoring.svcctl.domain.ServiceCommand">
-        SELECT t.cmd_id, t.server_id, t.target, t.cmd_cd, t.state_cd, t.req_user, t.req_dt, t.sent_dt, t.end_dt, t.exit_cd, t.result_msg
-          FROM (SELECT <include refid="commandColumns"/>,
-                       ROW_NUMBER() OVER (ORDER BY c.cmd_id DESC) AS rn
-                  FROM tb_service_cmd c
-                 WHERE c.server_id = #{serverId}) t
-         WHERE t.rn &lt;= #{rows}
-         ORDER BY t.cmd_id DESC
+        <choose>
+            <!-- Sybase ASE : 윈도 함수(ROW_NUMBER) 없음 - ROW_NUMBER() 대신 TOP / 상관 하위 질의 -->
+            <when test="@com.scb.monitoring.config.db.DbDialect@sybase()">
+            SELECT TOP ${rows} <include refid="commandColumns"/>
+              FROM tb_service_cmd c
+             WHERE c.server_id = #{serverId}
+             ORDER BY c.cmd_id DESC
+            </when>
+            <otherwise>
+            SELECT t.cmd_id, t.server_id, t.target, t.cmd_cd, t.state_cd, t.req_user, t.req_dt, t.sent_dt, t.end_dt, t.exit_cd, t.result_msg
+              FROM (SELECT <include refid="commandColumns"/>,
+                           ROW_NUMBER() OVER (ORDER BY c.cmd_id DESC) AS rn
+                      FROM tb_service_cmd c
+                     WHERE c.server_id = #{serverId}) t
+             WHERE t.rn &lt;= #{rows}
+             ORDER BY t.cmd_id DESC
+            </otherwise>
+        </choose>
     </select>
 
     <!-- 서비스별 제어 이력 : 서비스명 / group:N / level:N / all 대상 명령 -->
     <select id="selectCommandsByTargets" resultType="com.scb.monitoring.svcctl.domain.ServiceCommand">
-        SELECT t.cmd_id, t.server_id, t.target, t.cmd_cd, t.state_cd, t.req_user, t.req_dt, t.sent_dt, t.end_dt, t.exit_cd, t.result_msg
-          FROM (SELECT <include refid="commandColumns"/>,
-                       ROW_NUMBER() OVER (ORDER BY c.cmd_id DESC) AS rn
-                  FROM tb_service_cmd c
-                 WHERE c.server_id = #{serverId}
-                   AND c.target IN
-                   <foreach collection="targets" item="t" open="(" separator="," close=")">#{t}</foreach>
-               ) t
-         WHERE t.rn &lt;= #{rows}
-         ORDER BY t.cmd_id DESC
+        <choose>
+            <!-- Sybase ASE : 윈도 함수(ROW_NUMBER) 없음 - ROW_NUMBER() 대신 TOP / 상관 하위 질의 -->
+            <when test="@com.scb.monitoring.config.db.DbDialect@sybase()">
+            SELECT TOP ${rows} <include refid="commandColumns"/>
+              FROM tb_service_cmd c
+             WHERE c.server_id = #{serverId}
+               AND c.target IN
+               <foreach collection="targets" item="t" open="(" separator="," close=")">#{t}</foreach>
+             ORDER BY c.cmd_id DESC
+            </when>
+            <otherwise>
+            SELECT t.cmd_id, t.server_id, t.target, t.cmd_cd, t.state_cd, t.req_user, t.req_dt, t.sent_dt, t.end_dt, t.exit_cd, t.result_msg
+              FROM (SELECT <include refid="commandColumns"/>,
+                           ROW_NUMBER() OVER (ORDER BY c.cmd_id DESC) AS rn
+                      FROM tb_service_cmd c
+                     WHERE c.server_id = #{serverId}
+                       AND c.target IN
+                       <foreach collection="targets" item="t" open="(" separator="," close=")">#{t}</foreach>
+                   ) t
+             WHERE t.rn &lt;= #{rows}
+             ORDER BY t.cmd_id DESC
+            </otherwise>
+        </choose>
     </select>
 
     <select id="selectPendingCommands" resultType="com.scb.monitoring.svcctl.domain.ServiceCommand">

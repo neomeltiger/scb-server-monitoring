@@ -242,21 +242,43 @@
 
     <!-- 서버별 최근 N 건 : ROW_NUMBER() OVER (ANSI SQL:2003) - LIMIT 미사용 -->
     <select id="selectMetricHistory" resultType="MetricHist">
-        SELECT t.server_id, t.collect_dt, t.cpu_pct, t.mem_pct, t.disk_pct, t.session_cnt, t.src_cd
-          FROM (SELECT h.server_id, h.collect_dt, h.cpu_pct, h.mem_pct, h.disk_pct, h.session_cnt, h.src_cd, h.hist_id,
-                       ROW_NUMBER() OVER (PARTITION BY h.server_id ORDER BY h.collect_dt DESC, h.hist_id DESC) AS rn
-                  FROM tb_server_metric_hist h) t
-         WHERE t.rn &lt;= #{points}
-         ORDER BY t.server_id, t.collect_dt, t.hist_id
+        <choose>
+            <!-- Sybase ASE : 윈도 함수(ROW_NUMBER) 없음 - 최근 24시간 중 서버별 최근 N건은 서비스(TopologyService.lastN)에서 자름 -->
+            <when test="@com.scb.monitoring.config.db.DbDialect@sybase()">
+            SELECT h.server_id, h.collect_dt, h.cpu_pct, h.mem_pct, h.disk_pct, h.session_cnt, h.src_cd
+              FROM tb_server_metric_hist h
+             WHERE h.collect_dt &gt;= dateadd(hh, -24, getdate())
+             ORDER BY h.server_id, h.collect_dt, h.hist_id
+            </when>
+            <otherwise>
+            SELECT t.server_id, t.collect_dt, t.cpu_pct, t.mem_pct, t.disk_pct, t.session_cnt, t.src_cd
+              FROM (SELECT h.server_id, h.collect_dt, h.cpu_pct, h.mem_pct, h.disk_pct, h.session_cnt, h.src_cd, h.hist_id,
+                           ROW_NUMBER() OVER (PARTITION BY h.server_id ORDER BY h.collect_dt DESC, h.hist_id DESC) AS rn
+                      FROM tb_server_metric_hist h) t
+             WHERE t.rn &lt;= #{points}
+             ORDER BY t.server_id, t.collect_dt, t.hist_id
+            </otherwise>
+        </choose>
     </select>
 
     <select id="selectProcessHistory" resultType="MetricHist">
-        SELECT t.proc_id, t.server_id, t.collect_dt, t.cpu_pct, t.mem_pct, t.running_yn, t.src_cd
-          FROM (SELECT h.proc_id, h.server_id, h.collect_dt, h.cpu_pct, h.mem_pct, h.running_yn, h.src_cd, h.hist_id,
-                       ROW_NUMBER() OVER (PARTITION BY h.proc_id ORDER BY h.collect_dt DESC, h.hist_id DESC) AS rn
-                  FROM tb_process_metric_hist h) t
-         WHERE t.rn &lt;= #{points}
-         ORDER BY t.proc_id, t.collect_dt, t.hist_id
+        <choose>
+            <!-- Sybase ASE : 윈도 함수(ROW_NUMBER) 없음 - 최근 24시간 중 프로세스별 최근 N건은 서비스(TopologyService.lastN)에서 자름 -->
+            <when test="@com.scb.monitoring.config.db.DbDialect@sybase()">
+            SELECT h.proc_id, h.server_id, h.collect_dt, h.cpu_pct, h.mem_pct, h.running_yn, h.src_cd
+              FROM tb_process_metric_hist h
+             WHERE h.collect_dt &gt;= dateadd(hh, -24, getdate())
+             ORDER BY h.proc_id, h.collect_dt, h.hist_id
+            </when>
+            <otherwise>
+            SELECT t.proc_id, t.server_id, t.collect_dt, t.cpu_pct, t.mem_pct, t.running_yn, t.src_cd
+              FROM (SELECT h.proc_id, h.server_id, h.collect_dt, h.cpu_pct, h.mem_pct, h.running_yn, h.src_cd, h.hist_id,
+                           ROW_NUMBER() OVER (PARTITION BY h.proc_id ORDER BY h.collect_dt DESC, h.hist_id DESC) AS rn
+                      FROM tb_process_metric_hist h) t
+             WHERE t.rn &lt;= #{points}
+             ORDER BY t.proc_id, t.collect_dt, t.hist_id
+            </otherwise>
+        </choose>
     </select>
 
     <!-- 보관 기간이 지난 이력 삭제 (기준 시각은 애플리케이션에서 계산) -->

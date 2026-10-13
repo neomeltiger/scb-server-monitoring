@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.scb.monitoring.config.SybaseJdbc;
-import com.scb.monitoring.config.db.DbSelection;
+import com.scb.monitoring.config.db.DbManager;
 import com.scb.monitoring.config.db.H2Jdbc;
 import com.scb.monitoring.config.db.MariaDbJdbc;
 import com.scb.monitoring.config.db.MysqlJdbc;
@@ -23,23 +23,24 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
- * DB 연결 상태 (로그인 사용자) : 주 DB 선택 결과(SCB_DB, 이유) + MySQL / MariaDB / H2 / Sybase / Oracle 개별 연결 확인.
+ * DB 연결 상태 (로그인 사용자) : 주 DB (선택 이유·자동 교체) + MySQL / MariaDB / H2 / Sybase / Oracle 개별 연결 확인.
+ * 주 DB 전환·연결 설정은 관리자 화면 /admin/db (DbAdminController).
  * 주 DB 가 아닌 임베디드 MariaDB · H2 는 상태 확인만으로 시작·생성하지 않습니다.
  */
 @Tag(name = "7. 기타", description = "웹 콘솔·DB 상태")
 @RestController
 public class DbStatusController {
 
-    private final DbSelection selection;
+    private final DbManager manager;
     private final MysqlJdbc mysql;
     private final MariaDbJdbc mariadb;
     private final H2Jdbc h2;
     private final ObjectProvider<SybaseJdbc> sybase;
     private final ObjectProvider<OracleJdbc> oracle;
 
-    public DbStatusController(DbSelection selection, MysqlJdbc mysql, MariaDbJdbc mariadb, H2Jdbc h2,
+    public DbStatusController(DbManager manager, MysqlJdbc mysql, MariaDbJdbc mariadb, H2Jdbc h2,
                               ObjectProvider<SybaseJdbc> sybase, ObjectProvider<OracleJdbc> oracle) {
-        this.selection = selection;
+        this.manager = manager;
         this.mysql = mysql;
         this.mariadb = mariadb;
         this.h2 = h2;
@@ -52,9 +53,12 @@ public class DbStatusController {
     public ResponseEntity<Map<String, Object>> status() {
         Map<String, Object> body = new LinkedHashMap<>();
         Map<String, Object> primary = new LinkedHashMap<>();
-        primary.put("db", selection.getDb());
-        primary.put("mode", selection.getMode());
-        primary.put("reason", selection.getReason());
+        DbManager.Active a = manager.current();
+        primary.put("db", a.kind.key());
+        primary.put("mode", manager.getStore().get().getPrimary());
+        primary.put("failover", manager.getStore().get().isFailover());
+        primary.put("since", a.since.withNano(0).toString());
+        primary.put("reason", a.reason);
         body.put("primary", primary);
 
         List<Map<String, Object>> dbs = new ArrayList<>();
@@ -71,7 +75,7 @@ public class DbStatusController {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("key", key);
         m.put("enabled", true);
-        m.put("primary", selection.is(key));
+        m.put("primary", key.equals(manager.currentKind().key()));
         m.putAll(j.status());
         return m;
     }

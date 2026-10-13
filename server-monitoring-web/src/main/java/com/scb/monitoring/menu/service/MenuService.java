@@ -12,12 +12,10 @@ import java.util.Map;
 import java.util.Set;
 
 import javax.annotation.PostConstruct;
-import javax.sql.DataSource;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -62,13 +60,13 @@ public class MenuService {
             new Menu("g_system", null, Menu.GROUP, "시스템관리", null, "👤", 50, false, true, false),
             new Menu("apiguide", "g_system", Menu.PAGE, "API 가이드(예제·소스)", "/admin/api-guide", null, 10, false, true, false),
             new Menu("swagger", "g_system", Menu.LINK, "API 문서(Swagger)", "/swagger-ui.html", null, 20, false, true, true),
+            new Menu("dbconn", "g_system", Menu.PAGE, "DB 연결 관리", "/admin/db", null, 30, false, true, false),
             new Menu("manual", null, Menu.LINK, "사용자 매뉴얼", "/manual/index.html", "📖", 60, true, false, true)));
 
     /** API 문서를 끈 운영 환경(prod)에서 숨기는 메뉴 */
     private static final Set<String> API_DOC_MENUS = new HashSet<>(Arrays.asList("apiguide", "swagger"));
 
     private final MenuMapper mapper;
-    private final JdbcTemplate jdbc;
     private volatile List<Menu> cache = Collections.emptyList();
     /** 사용자별 허용 메뉴 (사용자별 권한이 아니면 빈 Optional) - 바꿀 때 지움 */
     private final Map<String, java.util.Optional<Set<String>>> userMenus = new java.util.concurrent.ConcurrentHashMap<>();
@@ -76,16 +74,14 @@ public class MenuService {
     @Value("${app.api-docs.enabled:true}")
     private boolean apiDocsEnabled = true;
 
-    public MenuService(MenuMapper mapper, DataSource dataSource) {
+    public MenuService(MenuMapper mapper) {
         this.mapper = mapper;
-        this.jdbc = new JdbcTemplate(dataSource);
     }
 
     // ---------------------------------------------------------------- 시작
 
     @PostConstruct
     public void init() {
-        ensureTable();
         Set<String> have = new HashSet<>();
         for (Menu m : mapper.selectMenuList()) have.add(m.getMenuId());
         int added = 0;
@@ -98,23 +94,11 @@ public class MenuService {
         reload();
     }
 
-    /** tb_menu 가 없는 DB (v10 이전) 에서 바로 만들기 - MySQL / MariaDB / H2 공통 DDL */
-    private void ensureTable() {
-        jdbc.execute("CREATE TABLE IF NOT EXISTS tb_menu ("
-                + " menu_id VARCHAR(30) NOT NULL,"
-                + " parent_id VARCHAR(30),"
-                + " menu_type VARCHAR(10) NOT NULL,"
-                + " menu_nm VARCHAR(50) NOT NULL,"
-                + " default_nm VARCHAR(50) NOT NULL,"
-                + " url VARCHAR(200),"
-                + " icon VARCHAR(10),"
-                + " sort_ord INT DEFAULT 0 NOT NULL,"
-                + " user_yn CHAR(1) DEFAULT 'Y' NOT NULL,"
-                + " admin_only CHAR(1) DEFAULT 'N' NOT NULL,"
-                + " new_window CHAR(1) DEFAULT 'N' NOT NULL,"
-                + " upd_user VARCHAR(30),"
-                + " upd_dt TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,"
-                + " PRIMARY KEY (menu_id))");
+    /** 주 DB 가 바뀌면 (자동 교체 · 관리자 전환) 그 DB 의 메뉴로 다시 읽음 - 기본 메뉴가 없으면 넣음 */
+    @org.springframework.context.event.EventListener(com.scb.monitoring.config.db.DbSwitchedEvent.class)
+    public void onDbSwitched() {
+        userMenus.clear();
+        init();
     }
 
     public synchronized void reload() {

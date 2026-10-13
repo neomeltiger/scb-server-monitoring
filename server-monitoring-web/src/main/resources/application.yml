@@ -26,12 +26,14 @@ mybatis:
 
 app:
   # ---------------------------------------------------------------- DB (config.db.DbConfig)
-  # 주 DB 선택 SCB_DB : auto (기본) = MySQL → (연결 안 되면) MariaDB 임베디드 → (MariaDB 프로그램이 없으면, 예: Solaris) H2
-  #                     mysql / mariadb / h2 = 그 DB 만 (실행 패키지 conf/scb_web.env 의 SCB_DB)
+  # 주 DB : 우선순위 Oracle → Sybase → MySQL → MariaDB → H2 (켜진 DB 중 연결되는 첫 DB), 연결이 끊기면 다음 순위로 자동 교체
+  #   설정 파일 conf/scb-db.properties (SCB_DB_CONFIG 로 위치 지정, 템플릿 db/scb-db.properties.template) - 관리자 화면 /admin/db 에서 저장
+  #   파일이 없거나 값이 비면 아래 값 : SCB_DB = auto / oracle / sybase / mysql / mariadb / h2, Oracle·Sybase 는 SCB_ORACLE_URL · SYBASE_HOST 가 있을 때만
   # 개별 연결 : MysqlJdbc / MariaDbJdbc / H2Jdbc / SybaseJdbc(sybase 프로필) / OracleJdbc(oracle 프로필), 상태 GET /api/db/status
   # 데이터 이전 : --app.db.migrate=mysql:mariadb (또는 mysql:h2) - 실행 패키지 bin\scb_web.bat migrate-db mysql:mariadb
   db:
     primary: ${SCB_DB:auto}
+    config-file: ${SCB_DB_CONFIG:}
     probe-timeout-ms: ${SCB_DB_PROBE_MS:3000}
     # MySQL 8.x (스키마 scb_mon_agent) - 테이블 생성 db\init-mysql.bat
     #   ※ 비밀번호는 저장소에 두지 않습니다. 실행 전 MYSQL_PASSWORD 환경변수로 지정하세요.

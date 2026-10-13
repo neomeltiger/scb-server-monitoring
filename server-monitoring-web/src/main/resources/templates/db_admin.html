@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DB 연결 관리 - 통합 서버 관리 및 모니터링 시스템</title>
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <!--
+        DB 연결 관리 (ADMIN, web.DbAdminController, js/db_admin.js)
+        주 DB 우선순위 Oracle → Sybase → MySQL → MariaDB → H2, 연결이 끊기면 다음 순위로 자동 교체 (config.db.DbManager)
+        API : GET /api/admin/db , POST /api/admin/db/{db}/test , PUT /api/admin/db/{db} , POST /api/admin/db/{db}/switch , PUT /api/admin/db/settings
+    -->
+    <div class="app-layout">
+        <div th:replace="fragments/left :: left(${menu})"></div>
+
+        <div class="main-content-wrapper">
+            <div th:replace="fragments/top :: top"></div>
+            <p th:replace="fragments/left :: crumb(${menu})"></p>
+
+            <div class="svc-page">
+                <div class="spec-container">
+                    <div class="spec-header">
+                        <h3>DB 연결 관리 <span class="svc-sub">주 DB 선택 · 연결 확인 · 자동 교체</span></h3>
+                        <div class="svc-toolbar">
+                            <button type="button" class="btn svc-btn-light" id="dbReload">연결 다시 확인</button>
+                        </div>
+                    </div>
+
+                    <div class="db-current" id="dbCurrent" aria-live="polite">불러오는 중...</div>
+                    <div class="data-error" id="dbError" hidden></div>
+                    <p class="mn-status" id="dbStatus" role="status" aria-live="polite"></p>
+
+                    <h4 class="db-h">DB 목록 <span class="svc-sub">위에서부터 우선순위 - 회색은 지금 연결할 수 없는 DB (선택 불가)</span></h4>
+                    <div class="db-list" id="dbList"></div>
+
+                    <h4 class="db-h">자동 교체 · 시작 DB</h4>
+                    <div class="db-settings">
+                        <label class="db-check"><input type="checkbox" id="dbFailover">
+                            주 DB 연결이 끊기면 다음 순위 DB 로 자동 교체 <span class="ua-sub">(위 순위로 되돌리는 것은 이 화면에서 [이 DB 로 전환])</span></label>
+                        <label class="ua-label" for="dbPrimary">웹을 시작할 때 쓸 DB</label>
+                        <select id="dbPrimary" class="ua-select db-primary">
+                            <option value="auto">자동 - 우선순위대로 연결되는 첫 DB</option>
+                            <option value="oracle">Oracle</option>
+                            <option value="sybase">Sybase ASE</option>
+                            <option value="mysql">MySQL</option>
+                            <option value="mariadb">MariaDB</option>
+                            <option value="h2">H2</option>
+                        </select>
+                        <div class="db-actions"><button type="button" class="btn btn-primary" id="dbSaveSettings">설정 저장</button></div>
+                        <p class="ua-sub" id="dbFile"></p>
+                    </div>
+
+                    <h4 class="db-h">전환 · 교체 기록 <span class="svc-sub">최근 50건 (웹을 다시 시작하면 지워짐)</span></h4>
+                    <div class="svc-table-wrap">
+                        <table class="full-spec-table m-cards">
+                            <thead>
+                                <tr><th data-m="key">일시</th><th>구분</th><th>DB</th><th>내용</th><th>처리자</th></tr>
+                            </thead>
+                            <tbody id="dbEvents"><tr><td colspan="5" class="svc-empty">불러오는 중...</td></tr></tbody>
+                        </table>
+                    </div>
+                    <p class="svc-hint">DB 마다 데이터는 따로 저장됩니다. 자동 교체된 동안 쌓인 수집 이력은 그 DB 에만 있습니다.
+                        전환할 때 [지금 DB 데이터 복사] 를 고르면 지금 DB 의 내용으로 대상 DB 를 덮어씁니다.
+                        테이블이 없는 빈 DB 로 전환하면 테이블과 기본 데이터(서버 목록, 초기 관리자 계정)를 만듭니다.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 연결 설정 -->
+    <div class="modal-overlay" id="connModal">
+        <div class="modal-card ua-modal db-modal" role="dialog" aria-modal="true" aria-labelledby="connTitle">
+            <h3 id="connTitle">연결 설정</h3>
+            <div class="uc-grid">
+                <label class="db-check"><input type="checkbox" id="cEnabled"> 이 DB 사용 (우선순위·자동 교체 대상)</label>
+                <label class="db-check" id="cEmbeddedRow" hidden><input type="checkbox" id="cEmbedded"> 임베디드 MariaDB (웹이 직접 띄움, 127.0.0.1:13307)</label>
+                <label class="ua-label" for="cUrl">JDBC URL <span class="ua-sub" id="cUrlHint"></span></label>
+                <input type="text" id="cUrl" class="ua-input" autocomplete="off" spellcheck="false">
+                <label class="ua-label" for="cUser">사용자</label>
+                <input type="text" id="cUser" class="ua-input" autocomplete="off" spellcheck="false">
+                <label class="ua-label" for="cPw">비밀번호 <span class="ua-sub" id="cPwHint"></span></label>
+                <input type="password" id="cPw" class="ua-input" autocomplete="new-password">
+                <label class="db-check"><input type="checkbox" id="cClearPw"> 저장된 비밀번호 지우기</label>
+            </div>
+            <p class="ua-sub">비밀번호는 conf/scb-db.properties 에 암호화(ENC)되어 저장되고 화면에 다시 보이지 않습니다. 비워 두면 그대로 둡니다.</p>
+            <p class="db-test" id="connTest" role="status" aria-live="polite"></p>
+            <div class="cc-error" id="connError"></div>
+            <div class="cc-btns">
+                <button type="button" class="btn svc-btn-light" id="connCancel">닫기</button>
+                <button type="button" class="btn svc-btn-light" id="connTestBtn">연결 시험</button>
+                <button type="button" class="btn btn-primary" id="connSave">저장</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 전환 확인 -->
+    <div class="modal-overlay" id="switchModal">
+        <div class="modal-card ua-modal" role="dialog" aria-modal="true" aria-labelledby="switchTitle">
+            <h3 id="switchTitle">DB 전환</h3>
+            <p class="svc-modal-help" id="switchText"></p>
+            <label class="db-check"><input type="checkbox" id="swCopy"> 지금 DB 데이터 복사 (대상 DB 의 기존 데이터는 지워지고 지금 DB 내용으로 바뀜)</label>
+            <div class="cc-error" id="switchError"></div>
+            <div class="cc-btns">
+                <button type="button" class="btn svc-btn-light" id="switchCancel">취소</button>
+                <button type="button" class="btn btn-primary" id="switchOk">전환</button>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/js/script.js}"></script>
+    <script th:src="@{/js/db_admin.js}"></script>
+</body>
+</html>

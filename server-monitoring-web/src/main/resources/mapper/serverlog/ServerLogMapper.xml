@@ -135,14 +135,27 @@
 
     <!-- LIMIT/OFFSET 대신 ROW_NUMBER() (ANSI) -->
     <select id="selectOldSnapshotIds" resultType="long">
-        SELECT x.snap_id
-          FROM (
-                SELECT n.snap_id,
-                       ROW_NUMBER() OVER (ORDER BY n.collect_dt DESC, n.snap_id DESC) AS rn
-                  FROM tb_log_snapshot n
-                 WHERE n.log_id = #{logId}
-               ) x
-         WHERE x.rn &gt; #{keep}
+        <choose>
+            <!-- Sybase ASE : 윈도 함수(ROW_NUMBER) 없음 - ROW_NUMBER() 대신 TOP / 상관 하위 질의 -->
+            <when test="@com.scb.monitoring.config.db.DbDialect@sybase()">
+            SELECT n.snap_id
+              FROM tb_log_snapshot n
+             WHERE n.log_id = #{logId}
+               AND (SELECT COUNT(*) FROM tb_log_snapshot m
+                     WHERE m.log_id = n.log_id
+                       AND (m.collect_dt &gt; n.collect_dt OR (m.collect_dt = n.collect_dt AND m.snap_id &gt; n.snap_id))) &gt;= #{keep}
+            </when>
+            <otherwise>
+            SELECT x.snap_id
+              FROM (
+                    SELECT n.snap_id,
+                           ROW_NUMBER() OVER (ORDER BY n.collect_dt DESC, n.snap_id DESC) AS rn
+                      FROM tb_log_snapshot n
+                     WHERE n.log_id = #{logId}
+                   ) x
+             WHERE x.rn &gt; #{keep}
+            </otherwise>
+        </choose>
     </select>
 
     <delete id="deleteSnapshots">
