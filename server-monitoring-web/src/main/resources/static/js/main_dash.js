@@ -355,15 +355,17 @@
                 const hasData = servers(si[0]).some(s => { const h = hist[s.id]; return h && h.ts && h.ts.length && h.ts[h.ts.length - 1] >= from; });
                 if (!hasData) {
                     out.push({ note: true, id: 'note-' + si[0], site: si[0], title: si[1] });
-                    return;
+                } else {
+                    st.panels.forEach(p => {
+                        if (p.metric === 'proc') {
+                            const s = allServers().find(x => String(x.id) === String(p.serverId));
+                            if (!s || siteOf(s) !== si[0]) return;
+                        }
+                        out.push(Object.assign({}, p, { id: p.id + '@' + si[0], baseId: p.id, site: si[0] }));
+                    });
                 }
-                st.panels.forEach(p => {
-                    if (p.metric === 'proc') {
-                        const s = allServers().find(x => String(x.id) === String(p.serverId));
-                        if (!s || siteOf(s) !== si[0]) return;
-                    }
-                    out.push(Object.assign({}, p, { id: p.id + '@' + si[0], baseId: p.id, site: si[0] }));
-                });
+                // 그 사이트의 서버 카드 (script.js renderProcessSection 이 이 칸에 그림)
+                out.push({ cards: true, id: 'cards-' + si[0], site: si[0] });
             });
             return out;
         }
@@ -422,6 +424,7 @@
 
     function panelHtml(p) {
         if (p.head) return siteHeadHtml(p);
+        if (p.cards) return '<div class="mn-site-cards" id="mnCards-' + esc(p.site) + '"></div>';
         if (p.note) {
             return '<div class="mn-site-empty" role="status">' + esc(p.title) + ' : 조회 범위(' + esc((RANGES.find(r => r[0] === st.range) || [0, ''])[1]) +
                 ') 안에 수집값이 있는 서버가 없어 그래프 ' + st.panels.length + '개를 생략했습니다. 에이전트(svr_collect_client)가 보고를 시작하면 이 사이트의 그래프가 나타납니다.</div>';
@@ -470,7 +473,7 @@
         renderSel();
         const grid = $('mnGrid');
         grid.style.setProperty('--mn-cols', st.cols);
-        const panels = curPanels();
+        const panels = curPanels().filter(p => !(p.cards && st.folded));
         grid.innerHTML = panels.map(panelHtml).join('') || (st.view === 'split'
             ? '<div class="mn-empty">선택한 서버가 없습니다. [서버] 에서 서버를 고르세요.</div>'
             : '<div class="mn-empty">패널이 없습니다. [+ 패널 추가] 를 누르세요.</div>');
@@ -481,6 +484,8 @@
             });
         }
         $('mnUpdated').textContent = lastLoad ? '갱신 ' + lastLoad.toTimeString().slice(0, 8) : '';
+        // 서버 카드 : 사이트별 보기면 각 사이트 그래프 아래 칸으로, 아니면 원래 자리(#processGroups)로
+        if (typeof renderProcessSection === 'function' && typeof serversData !== 'undefined') renderProcessSection();
         if (zoomId) drawZoom();
     }
 
@@ -708,6 +713,9 @@
             render();
         });
         bindSel();
+        // [전체 / ITC / DRC] · [카드 순서 초기화] 는 대시보드 위 도구 줄로 옮김 (카드가 사이트 그래프 아래로 들어가므로)
+        const scopeWrap = document.querySelector('#processSection .proc-scope-wrap');
+        if (scopeWrap) { scopeWrap.classList.add('mn-scope'); $('mnDash').querySelector('.mn-bar').insertAdjacentElement('afterend', scopeWrap); }
         $('mnEdMetric').addEventListener('change', syncEdit);
         $('mnEdCancel').addEventListener('click', closeEdit);
         $('mnEdSave').addEventListener('click', saveEdit);

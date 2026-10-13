@@ -1944,6 +1944,17 @@ body.scb-dlg-open { overflow: hidden; }
 .mn-site-head { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding: 8px 12px; margin-top: 4px;
     background: var(--mn-head); border: 1px solid var(--mn-panel-bd); border-left: 5px solid #007bff; border-radius: 8px; font-size: 13px; color: var(--mn-sub); }
 .mn-site-head.drc { border-left-color: #17a2b8; }
+/* 사이트별 보기 : 서버 카드를 그 사이트 그래프 아래로 (script.js renderProcessSection) */
+.mn-site-cards { grid-column: 1 / -1; }
+.mn-site-cards:empty { display: none; }
+.mn-site-cards .proc-group.in-dash { margin-bottom: 4px; padding: 14px 16px; border-top-width: 3px; box-shadow: none; border: 1px solid var(--mn-panel-bd); border-top: 3px solid #007bff; }
+.mn-site-cards .proc-group.in-dash.drc { border-top-color: #17a2b8; }
+.mn-site-cards .proc-group.in-dash .proc-group-head { margin-bottom: 12px; }
+.mn-site-cards .proc-group.in-dash .proc-group-head h3 { font-size: 15px; }
+#processSection.cards-in-dash { display: none; }
+.mn-scope { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.mn-scope .proc-scope button { padding: 6px 14px; font-size: 13px; }
+.mn-scope .proc-order-reset { font-size: 12px; }
 .mn-site-empty { grid-column: 1 / -1; padding: 14px 12px; border: 1px dashed var(--mn-panel-bd); border-radius: 8px; color: var(--mn-sub); font-size: 13px; text-align: center; }
 .mn-site-head > b { font-size: 15px; color: var(--mn-text); margin-right: 6px; }
 .mn-site-head span b { color: var(--mn-text); }

@@ -1806,7 +1806,9 @@ function renderProcessSection() {
         { key: 'itc', title: 'ITC · GASAN MTR-A', test: s => s.location !== 'DRC' },
         { key: 'drc', title: 'DRC', test: s => s.location === 'DRC' }
     ];
-    container.innerHTML = groups
+    // 대시보드 사이트별 보기(main_dash.js)에 사이트 칸(#mnCards-itc / -drc)이 있으면 카드는 그 사이트 그래프 아래로
+    const slotOf = g => document.getElementById('mnCards-' + g.key);
+    const html = groups
         .filter(g => processScope === 'all' || processScope === g.key)
         .map(g => {
             const list = serversData.filter(g.test);
@@ -1822,11 +1824,18 @@ function renderProcessSection() {
                     ? '🔌 이 구역에 에이전트가 연결된 서버가 없습니다. (서버 ' + list.length + '대 모두 미연결)' +
                       '<button type="button" class="proc-btn" onclick="scrollToAgentReg()">미등록 서버 목록 보기</button>'
                     : '서버 연결 상태를 불러오지 못했습니다. 잠시 후 자동으로 다시 확인합니다.') + '</div>';
-            return '<div class="proc-group ' + g.key + '">' +
-                '<div class="proc-group-head"><h3>' + g.title + '</h3>' +
+            const inDash = !!slotOf(g);
+            const out = '<div class="proc-group ' + g.key + (inDash ? ' in-dash' : '') + '">' +
+                '<div class="proc-group-head"><h3>' + (inDash ? '서버 카드' : g.title) + '</h3>' +
                 '<span>연결 서버 ' + conn.length + ' / ' + list.length + '대 · 프로세스 실행 중 ' + on + ' / ' + all + '</span></div>' +
                 body + '</div>';
+            if (inDash) { slotOf(g).innerHTML = out; return ''; }
+            return out;
         }).join('');
+    container.innerHTML = html;
+    // 카드가 모두 대시보드로 옮겨지면 아래쪽 카드 영역 머리는 숨김
+    const section = document.getElementById('processSection');
+    if (section) section.classList.toggle('cards-in-dash', !html);
     // 알람이 있는 서버 카드 표시 (main_alarm.js)
     if (typeof applyAlarmMarks === 'function') applyAlarmMarks();
 }

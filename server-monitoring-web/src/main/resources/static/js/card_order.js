@@ -174,15 +174,16 @@ function flashCard(card) {
 window.addEventListener('DOMContentLoaded', function () {
     const groups = document.getElementById('processGroups');
     if (!groups) return;
-    groups.addEventListener('pointerdown', e => {
+    // 카드는 #processGroups 또는 대시보드 사이트별 칸(#mnCards-itc / -drc)에 있으므로 문서 전체에서 받음
+    document.addEventListener('pointerdown', e => {
         const h = e.target.closest('.proc-drag');
         if (h) startCardDrag(e, h);
     });
     document.addEventListener('pointermove', moveCardDrag);
     document.addEventListener('pointerup', endCardDrag);
     document.addEventListener('pointercancel', endCardDrag);
-    groups.addEventListener('keydown', e => {
-        const h = e.target.closest('.proc-drag');
+    document.addEventListener('keydown', e => {
+        const h = e.target.closest && e.target.closest('.proc-drag');
         if (h && moveCardByKey(h, e.key)) e.preventDefault();
     });
     const reset = document.getElementById('cardOrderReset');
