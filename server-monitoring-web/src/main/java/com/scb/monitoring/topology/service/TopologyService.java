@@ -59,13 +59,16 @@ public class TopologyService {
     private final DataSource dataSource;
     private final AlarmMapper alarmMapper;
     private final ServerLogMapper serverLogMapper;
+    private final com.scb.monitoring.srvreport.mapper.ServerReportMapper reportMapper;
     private final AlarmService alarmService;
     /** 에이전트 보고 끊김 기준 (app.agent.stale-after-sec) */
     private final int staleAfterSec;
 
     public TopologyService(TopologyMapper mapper, ServiceCtlMapper serviceCtlMapper, AgentMapper agentMapper, DataSource dataSource,
                            AlarmMapper alarmMapper, AlarmService alarmService, ServerLogMapper serverLogMapper,
+                           com.scb.monitoring.srvreport.mapper.ServerReportMapper reportMapper,
                            @org.springframework.beans.factory.annotation.Value("${app.agent.stale-after-sec:300}") int staleAfterSec) {
+        this.reportMapper = reportMapper;
         this.staleAfterSec = staleAfterSec;
         this.alarmMapper = alarmMapper;
         this.serverLogMapper = serverLogMapper;
@@ -173,6 +176,7 @@ public class TopologyService {
         serverLogMapper.deleteSnapshotsByServer(serverId);
         serverLogMapper.deleteSourcesByServer(serverId);
         serverLogMapper.deletePolicy(serverId);
+        reportMapper.deleteReportsByServer(serverId);
         agentMapper.deleteFallback(serverId);
         agentMapper.deleteHbHistByServer(serverId);
         agentMapper.deleteAgent(serverId);
@@ -198,6 +202,7 @@ public class TopologyService {
         serviceCtlMapper.resetServiceStatesByServer(serverId);
         alarmMapper.deleteAlarmsByServer(serverId);
         serverLogMapper.deleteSnapshotsByServer(serverId);
+        reportMapper.deleteReportsByServer(serverId);
         agentMapper.deleteFallback(serverId);
         agentMapper.deleteHbHistByServer(serverId);
         agentMapper.deleteAgent(serverId);

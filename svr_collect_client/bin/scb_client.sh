@@ -17,7 +17,7 @@
 #   config     웹 서버 설정 받기 (수집 주기, 감시 프로세스, 동기화 대상)  → run/config.txt
 #   collect    수집 결과를 화면에 출력 (전송하지 않음, 점검용)
 #   report     수집 + 웹 서버로 1회 전송 (점검용, 데몬 실행 중에는 불가)
-#   commands   웹 확인 1회 : 제어 명령 실행 + 요청된 서버 로그 전송 (점검용)
+#   commands   웹 확인 1회 : 제어 명령 실행 + 요청된 서버 로그·점검 리포트 전송 (점검용)
 #
 # 데몬 동작
 #   10초(POLL_SEC)마다 웹 확인(heartbeat) : GET /agent-api/v1/commands?state=RUNNING|PAUSED&pid=N&ver=V
@@ -27,6 +27,7 @@
 #       shutdown=Y   → 데몬 종료 (웹 [종료])
 #     cmd|...  서비스 제어 명령 실행 (수집 중지 중에도 처리)
 #     log|...  서버 로그 요청 (수집 중일 때만)
+#     rpt|...  서버 점검 리포트 요청 (웹 관리자 화면에서 요청할 때만, 수집 중지 중에도 처리) → collect_report.sh (1.12~)
 #   수집 주기마다 자료 수집 → POST /agent-api/v1/report
 #   하트비트 감시자 (1.5~) : bin/scb_heartbeat.sh 가 데몬과 따로 실행 → 웹이 정한 주기(기본 10초)마다
 #     GET /agent-api/v1/heartbeat?pid=&daemon=RUNNING|PAUSED|STOPPED|DEAD
@@ -47,6 +48,8 @@
 # 제어 실행 / 로그
 #   exec_command.sh     scb_main.sh <명령> <대상> 실행
 #   collect_log.sh      요청받은 로그 파일의 마지막 N줄 (SCB_LOG_ALLOW 허용 경로만)
+#   collect_report.sh   서버 점검 리포트 (보안 / 자원 / 서비스·스케줄러 / 패키지·환경 변화) - 웹 요청 때만
+#                       직접 확인 : bin/collect_report.sh [sec,res,svc,chg]
 #
 # 설정 : etc/client.env (SCB_WEB_URL, SCB_AGENT_TOKEN, SCB_AGENT_HOME, SCB_LOG_ALLOW)
 # 로그 : log/scb_client.log    데몬 PID : run/daemon.pid    데몬 상태 : run/daemon.state
@@ -126,6 +129,34 @@ do_logs() {
     return 0
 }
 
+# 서버 점검 리포트 요청 (1.12~) : rpt|ID|분야 → collect_report.sh → POST /agent-api/v1/reports/ID?status=OK|ERROR
+#   웹 관리자 화면 [리포트 요청] 때만 옴. 관리자가 요청한 것이므로 수집 중지 중에도 처리
+do_reports() {
+    grep '^rpt|' $RUN_DIR/commands.txt > $RUN_DIR/rpts.list 2>/dev/null
+    [ -s $RUN_DIR/rpts.list ] || return 0
+    exec 7<&0 < $RUN_DIR/rpts.list
+    while IFS='|' read tag rid rsec; do
+        IFS=$OIFS
+        case "$rid" in
+            ''|*[!0-9]*) clog "WARN: 잘못된 리포트 요청 줄 무시"; continue ;;
+        esac
+        case "$rsec" in
+            ''|*[!a-z,]*) rsec=all ;;
+        esac
+        clog "REPORT #$rid : $rsec 시작"
+        sh $BIN_DIR/collect_report.sh "$rsec" > $RUN_DIR/rpt_$rid.out 2>&1 < /dev/null
+        rc=$?
+        rst=OK
+        [ $rc -ne 0 ] && rst=ERROR
+        clog "REPORT #$rid : $rst (`wc -c < $RUN_DIR/rpt_$rid.out | sed 's/ //g'` bytes)"
+        http_call POST "/agent-api/v1/reports/$rid?status=$rst" $RUN_DIR/rpt_$rid.resp $RUN_DIR/rpt_$rid.out
+        rm -f $RUN_DIR/rpt_$rid.out $RUN_DIR/rpt_$rid.resp
+    done
+    IFS=$OIFS
+    exec 0<&7 7<&-
+    return 0
+}
+
 # 제어 명령 : cmd|ID|명령|대상 → exec_command.sh → 결과 전송. 실행한 건수를 CMD_RAN 에
 run_cmds() {
     CMD_RAN=0
@@ -154,6 +185,7 @@ run_cmds() {
 do_commands() {
     http_call GET /agent-api/v1/commands $RUN_DIR/commands.txt || return 1
     do_logs
+    do_reports
     run_cmds
     [ $CMD_RAN -gt 0 ] && do_report
     return 0
@@ -276,6 +308,7 @@ daemon_main() {
                     ;;
             esac
             [ "$DSTATE" = "RUNNING" ] && do_logs
+            do_reports
             run_cmds
             # 명령 실행 후 바뀐 상태를 바로 화면에 반영 / 서버 복구 직후(웹 report=Y) 바로 수집·보고
             if [ "$DSTATE" = "RUNNING" ] && { [ $CMD_RAN -gt 0 ] || [ "$CTL_REPORT" = "Y" ]; }; then

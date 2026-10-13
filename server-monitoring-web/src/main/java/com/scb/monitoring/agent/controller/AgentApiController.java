@@ -43,6 +43,7 @@ import com.scb.monitoring.topology.service.TopologyException;
  * POST /agent-api/v1/fallback                 데몬 중단 중 감시자가 대신 수집한 결과 ([metric] [proc] [service], 1.7~)
  * POST /agent-api/v1/commands/{id}/result?exit=N  실행 결과 (본문 = 출력)
  * POST /agent-api/v1/logs/{logId}?status=OK      요청받은 서버 로그 (본문 = 마지막 N줄, status: OK|NOT_FOUND|DENIED|ERROR)
+ * POST /agent-api/v1/reports/{reportId}?status=OK 요청받은 서버 점검 리포트 (본문 = collect_report.sh 출력, status: OK|ERROR, 1.12~)
  * </pre>
  * 응답은 모두 text/plain (Bourne shell 에서 처리하기 쉽도록).
  */
@@ -59,10 +60,13 @@ public class AgentApiController {
     private final ServerLogService serverLogService;
     private final com.scb.monitoring.agent.service.HeartbeatService heartbeat;
     private final com.scb.monitoring.agent.service.FallbackService fallback;
+    private final com.scb.monitoring.srvreport.service.ServerReportService reportService;
 
     public AgentApiController(AgentService service, AgentProperties props, ServerLogService serverLogService,
                               com.scb.monitoring.agent.service.HeartbeatService heartbeat,
-                              com.scb.monitoring.agent.service.FallbackService fallback) {
+                              com.scb.monitoring.agent.service.FallbackService fallback,
+                              com.scb.monitoring.srvreport.service.ServerReportService reportService) {
+        this.reportService = reportService;
         this.fallback = fallback;
         this.heartbeat = heartbeat;
         this.service = service;
@@ -158,6 +162,17 @@ public class AgentApiController {
         Long serverId = auth(token, req);
         boolean ok = serverLogService.ingestLog(serverId, logId, status, bodyText(body));
         return ok ? text("ok\n") : ResponseEntity.status(HttpStatus.NOT_FOUND).body("ignored: unknown log id\n");
+    }
+
+    @Operation(summary = "요청받은 서버 점검 리포트 올리기 (1.12~)")
+    @PostMapping(value = "/reports/{reportId}", consumes = MediaType.ALL_VALUE)
+    public ResponseEntity<String> reportUpload(@RequestHeader(value = TOKEN_HEADER, required = false) String token,
+                                               @PathVariable("reportId") Long reportId,
+                                               @RequestParam(value = "status", defaultValue = "OK") String status,
+                                               @RequestBody(required = false) byte[] body, HttpServletRequest req) {
+        Long serverId = auth(token, req);
+        boolean ok = reportService.ingest(serverId, reportId, status, bodyText(body));
+        return ok ? text("ok\n") : ResponseEntity.status(HttpStatus.NOT_FOUND).body("ignored: unknown report id\n");
     }
 
     // ---- 내부 ----

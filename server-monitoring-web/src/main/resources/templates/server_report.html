@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>서버 점검 리포트 - 통합 서버 관리 및 모니터링 시스템</title>
+    <!-- API 변경 요청용 CSRF 토큰 (script.js apiRequest) -->
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <!--
+        서버 점검 리포트 (srvreport.controller.ServerReportController, js/server_report.js) - 관리자 전용
+        [리포트 요청] → 에이전트 데몬이 다음 웹 확인(10초) 때 rpt|ID|분야 로 받음 → svr_collect_client 1.12 의 bin/collect_report.sh 실행
+        → POST /agent-api/v1/reports/ID → tb_server_report (서버별 최근 20건). 요청할 때만 만들고, 주기 수집은 하지 않음
+    -->
+    <div class="app-layout">
+        <div th:replace="fragments/left :: left(${menu})"></div>
+
+        <div class="main-content-wrapper">
+            <div th:replace="fragments/top :: top"></div>
+
+            <p th:replace="fragments/left :: crumb(${menu})"></p>
+
+            <div class="svc-page lg-page rp-page">
+                <!-- 서버 / 분야 / 요청 -->
+                <div class="spec-container">
+                    <div class="spec-header">
+                        <h3>서버 점검 리포트 <span class="svc-sub">관리자가 요청할 때만 서버(svr_collect_client)가 점검해서 보냅니다</span></h3>
+                    </div>
+                    <div class="lg-toolbar">
+                        <label class="lg-field">
+                            <span>대상 서버</span>
+                            <select id="rpServer" class="lg-select">
+                                <option th:each="s : ${servers}" th:value="${s.id}"
+                                        th:text="${s.systemName} + ' (' + ${s.ip} + ')'">MUREX MXG AP #1 (10.0.13.217)</option>
+                            </select>
+                        </label>
+                        <fieldset class="rp-sections" aria-label="점검 분야">
+                            <legend>점검 분야</legend>
+                            <label><input type="checkbox" name="rpSec" value="sec" checked> 보안·접근</label>
+                            <label><input type="checkbox" name="rpSec" value="res" checked> 시스템 자원</label>
+                            <label><input type="checkbox" name="rpSec" value="svc" checked> 서비스·스케줄러</label>
+                            <label><input type="checkbox" name="rpSec" value="chg" checked> 패키지·변경</label>
+                        </fieldset>
+                        <div class="lg-actions">
+                            <button type="button" class="btn btn-primary" id="rpRequest">리포트 요청</button>
+                            <button type="button" class="btn svc-btn-light" id="rpReload">새로고침</button>
+                        </div>
+                    </div>
+                    <div class="lg-status" id="rpStatus" role="status">불러오는 중...</div>
+                    <p class="svc-hint">
+                        · 에이전트 데몬은 10초마다 웹 서버를 확인하므로 요청이 서버에 전달되기까지 최대 10초, 점검에 10~30초 걸립니다. 진행 중에는 5초마다 자동으로 확인합니다.<br>
+                        · 서버에 svr_collect_client <b>1.12 이상</b>이 설치되어 있어야 합니다. 로그 대부분은 root 만 읽을 수 있으므로 클라이언트를 root 로 실행해야 전체 내용이 나옵니다.<br>
+                        · 점검 항목 : 보안(SSH 로그인 실패·IP, sudo / su, 방화벽 차단) · 자원(디스크, 커널 메시지·OOM, Load / vmstat / iostat / sar) ·
+                          서비스(<b>★ 웹이 관리하는 서비스·프로세스</b>, cron, 웹·메일 서버) · 변경(패키지·패치, 최근 7일 /etc)
+                    </p>
+                </div>
+
+                <div class="lg-grid rp-grid">
+                    <!-- 리포트 목록 -->
+                    <div class="spec-container">
+                        <div class="spec-header"><h3>리포트 목록 <span class="svc-sub">서버별 최근 20건</span></h3></div>
+                        <ul class="rp-list" id="rpList"></ul>
+                    </div>
+
+                    <!-- 리포트 내용 -->
+                    <div class="spec-container rp-view-box">
+                        <div class="lg-viewer-head">
+                            <h3 id="rpViewTitle">리포트 내용</h3>
+                            <div class="lg-viewer-meta" id="rpViewMeta"></div>
+                        </div>
+                        <div class="lg-viewer-tools">
+                            <div class="ua-tabs" role="group" aria-label="표시">
+                                <button type="button" class="ua-tab active" data-mode="all">전체</button>
+                                <button type="button" class="ua-tab" data-mode="warn">경고·강조만</button>
+                            </div>
+                            <input type="search" id="rpFilter" class="lg-filter" placeholder="검색 (포함된 줄만 표시)" aria-label="리포트 검색">
+                            <button type="button" class="btn svc-btn-light" id="rpDownload">내려받기</button>
+                            <button type="button" class="btn svc-btn-light" id="rpPrint">인쇄</button>
+                        </div>
+                        <div class="rp-view" id="rpView" tabindex="0" aria-label="리포트 내용">
+                            <div class="lg-empty">왼쪽 목록에서 리포트를 고르거나 [리포트 요청] 을 누르세요.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/js/scb_dialog.js}"></script>
+
+    <script th:src="@{/js/script.js}"></script>
+    <script th:src="@{/js/server_report.js}"></script>
+</body>
+</html>

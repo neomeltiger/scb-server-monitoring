@@ -88,6 +88,10 @@ public final class DbDialect {
                 continue;
             }
             Matcher t = CREATE_TABLE.matcher(st);
+            if (t.matches() && kind.mysqlFamily()) {
+                out.add(mysqlTable(st));
+                continue;
+            }
             if (!t.matches() || kind == DbKind.H2 || kind.mysqlFamily()) {
                 out.add(st);
                 continue;
@@ -99,6 +103,12 @@ public final class DbDialect {
             out.add("CREATE TABLE " + t.group(1) + " (\n    " + String.join(",\n    ", items) + "\n)");
         }
         return out;
+    }
+
+    /** MySQL / MariaDB : 자동 증가 컬럼과 CLOB 만 바꿈 (보완 생성용 - 빈 DB 는 schema-mysql.sql) */
+    static String mysqlTable(String st) {
+        String s = IDENTITY.matcher(st).replaceAll("AUTO_INCREMENT");
+        return s.replaceAll("(?i)\\bCLOB\\b", "MEDIUMTEXT");
     }
 
     /** 컬럼 하나 (또는 제약조건) - Oracle */

@@ -61,6 +61,7 @@ public class MenuService {
             new Menu("apiguide", "g_system", Menu.PAGE, "API 가이드(예제·소스)", "/admin/api-guide", null, 10, false, true, false),
             new Menu("swagger", "g_system", Menu.LINK, "API 문서(Swagger)", "/swagger-ui.html", null, 20, false, true, true),
             new Menu("dbconn", "g_system", Menu.PAGE, "DB 연결 관리", "/admin/db", null, 30, false, true, false),
+            new Menu("srvreport", "g_system", Menu.PAGE, "서버 점검 리포트", "/admin/server-report", null, 40, false, true, false),
             new Menu("manual", null, Menu.LINK, "사용자 매뉴얼", "/manual/index.html", "📖", 60, true, false, true)));
 
     /** API 문서를 끈 운영 환경(prod)에서 숨기는 메뉴 */

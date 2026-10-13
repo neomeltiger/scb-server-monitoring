@@ -24,7 +24,7 @@ SCB_HTTP_TIMEOUT=${SCB_HTTP_TIMEOUT:-20}
 SCB_HTTP_INSECURE=${SCB_HTTP_INSECURE:-0}
 # 웹 서버가 요청할 수 있는 로그 경로 (공백 구분 셸 패턴, client.env 에서 바꿀 수 있음)
 SCB_LOG_ALLOW=${SCB_LOG_ALLOW:-"/var/adm/messages /var/adm/messages.[0-9]* /var/log/*.log /var/log/syslog $SCB_AGENT_HOME/log/* $SCB_AGENT_HOME/../../pos/log/* $CLIENT_HOME/log/*"}
-CLIENT_VER=1.11
+CLIENT_VER=1.12
 RUN_DIR=$CLIENT_HOME/run
 LOG_DIR=$CLIENT_HOME/log
 LOG_FILE=$LOG_DIR/scb_client.log

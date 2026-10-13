@@ -46,6 +46,7 @@ svr_collect_client - 서버 → 통합 모니터링 웹 연동 에이전트 (Sol
   bin/collect_net.sh      [net]      동기화 대상 서버 통신 (ping)         → 구성도 상세 "동기화 대상 통신"
   bin/exec_command.sh     제어 명령 1건 실행 : scb_main.sh <명령> <대상>
   bin/collect_log.sh      서버 로그 마지막 N줄 (웹 서버 요청, SCB_LOG_ALLOW 허용 경로만)
+  bin/collect_report.sh   서버 점검 리포트 (웹 관리자가 요청할 때만 : 보안 / 자원 / 서비스 / 변경, 1.12~)
   bin/collect_ps.sh       [ps] 서버 전체 실행 프로세스 - 데몬 중단 중 감시자가 대신 수집할 때만 (하트비트 감시자 제외, 1.8~)
   lib/scb_client_common.sh  공통 (설정, HTTP: curl 또는 /usr/sfw/bin/wget, 로그, 잠금)
   etc/client.env.sample   설정 예시 (SCB_WEB_URL, SCB_AGENT_TOKEN, SCB_AGENT_HOME ...)
@@ -106,6 +107,17 @@ svr_collect_client - 서버 → 통합 모니터링 웹 연동 에이전트 (Sol
   (데몬이 10초마다 웹을 확인하므로 10초 안에 처리)
   허용 경로 : etc/client.env 의 SCB_LOG_ALLOW (공백 구분 셸 패턴). 목록 밖 경로는 DENIED 로 응답하고 읽지 않음
   제한     : 최대 1000줄, 한 줄 2000자, 전체 256KB
+
+서버 점검 리포트 (1.12~, 웹 관리자 요청 시에만)
+  웹 화면 "서버 점검 리포트" 에서 [리포트 요청] → commands 응답에 rpt|ID|분야 → bin/collect_report.sh 실행
+  → POST /agent-api/v1/reports/ID. 수집 일시중지(PAUSED) 중에도 처리하며, 주기 수집은 하지 않습니다.
+  분야 : sec  SSH 로그인 실패·IP, sudo / su(sulog), 방화벽 차단(ipf / iptables / ufw)
+         res  디스크(df, 80% 경고 / 90% 위험), 커널 메시지·OOM·fmadm, Load / vmstat / iostat / sar
+         svc  ★ 웹이 관리하는 서비스(scb_main.sh status all)·등록 프로세스 강조, cron, Apache/Nginx 4xx·5xx, 메일 큐
+         chg  패키지·패치(/var/sadm, dpkg / dnf / yum / rpm), 최근 7일 /etc 변경
+  수동 실행 : bin/collect_report.sh all   (또는 sec,res 처럼 분야 지정, 화면에 출력)
+  로그 대부분은 root 만 읽을 수 있으므로 클라이언트를 root 로 실행해야 전체 내용이 나옵니다.
+  설정 : etc/client.env 의 SCB_RPT_SCAN(로그 끝 검사 줄 수, 20000), SCB_RPT_MAXKB(최대 크기 KB, 512)
 
 보안
   - 토큰은 서버별로 발급되며 웹 DB 에는 해시만 저장됩니다. client.env 는 root 만 읽도록(600) 두세요.

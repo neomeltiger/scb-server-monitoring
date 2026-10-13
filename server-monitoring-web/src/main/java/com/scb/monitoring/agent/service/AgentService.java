@@ -61,11 +61,14 @@ public class AgentService {
     private final ProcessStatusService processStatus;
     private final HeartbeatService heartbeat;
     private final FallbackService fallback;
+    private final com.scb.monitoring.srvreport.mapper.ServerReportMapper reportMapper;
 
     public AgentService(AgentMapper mapper, TopologyMapper topologyMapper, ServiceCtlService serviceCtl, AgentProperties props,
                         AlarmService alarmService, ServerLogService serverLogService,
                         com.scb.monitoring.svcctl.mapper.ServiceCtlMapper serviceCtlMapper,
-                        ProcessStatusService processStatus, HeartbeatService heartbeat, FallbackService fallback) {
+                        ProcessStatusService processStatus, HeartbeatService heartbeat, FallbackService fallback,
+                        com.scb.monitoring.srvreport.mapper.ServerReportMapper reportMapper) {
+        this.reportMapper = reportMapper;
         this.fallback = fallback;
         this.processStatus = processStatus;
         this.heartbeat = heartbeat;
@@ -256,6 +259,7 @@ public class AgentService {
      * 에이전트가 실행할 명령 (text/plain) - REQUESTED → SENT 변경이 있으므로 쓰기 트랜잭션
      *   cmd|ID|명령|대상      서비스 제어
      *   log|ID|줄수|경로      서버 로그 요청 (ServerLogService)
+     *   rpt|ID|분야           서버 점검 리포트 요청 (ServerReportService, 관리자가 요청할 때만, 1.12~)
      */
     @Transactional
     public String pullCommands(Long serverId) {
@@ -297,6 +301,8 @@ public class AgentService {
         }
         // 서버 로그 주기 요청 (요청 시각이 되었으면 log|ID|줄수|경로) - 수집 중지 중에는 보내지 않음
         if (ag == null || ag.isCollectOn()) sb.append(serverLogService.pullLogRequests(serverId));
+        // 서버 점검 리포트 요청 (rpt|ID|분야) - 관리자가 요청한 것이므로 수집 중지 중에도 보냄
+        sb.append(com.scb.monitoring.srvreport.service.ServerReportService.pullRequests(reportMapper, serverId));
         return sb.toString();
     }
 

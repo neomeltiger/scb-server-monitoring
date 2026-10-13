@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 서버 점검 리포트 (ANSI SQL) -->
+<mapper namespace="com.scb.monitoring.srvreport.mapper.ServerReportMapper">
+
+    <insert id="insertReport" parameterType="com.scb.monitoring.srvreport.domain.ServerReport"
+            useGeneratedKeys="true" keyProperty="reportId" keyColumn="report_id">
+        INSERT INTO tb_server_report (server_id, sections, status_cd, req_user, req_dt, warn_cnt, byte_cnt)
+        VALUES (#{serverId}, #{sections}, #{statusCd}, #{reqUser, jdbcType=VARCHAR}, CURRENT_TIMESTAMP, 0, 0)
+    </insert>
+
+    <select id="selectReportList" resultType="com.scb.monitoring.srvreport.domain.ServerReport">
+        SELECT r.report_id, r.server_id, r.sections, r.status_cd, r.req_user, r.req_dt, r.sent_dt, r.done_dt,
+               r.warn_cnt, r.byte_cnt
+          FROM tb_server_report r
+         WHERE r.server_id = #{serverId}
+         ORDER BY r.req_dt DESC, r.report_id DESC
+    </select>
+
+    <select id="selectReport" resultType="com.scb.monitoring.srvreport.domain.ServerReport">
+        SELECT r.report_id, r.server_id, r.sections, r.status_cd, r.req_user, r.req_dt, r.sent_dt, r.done_dt,
+               r.warn_cnt, r.byte_cnt, r.content
+          FROM tb_server_report r
+         WHERE r.report_id = #{reportId}
+    </select>
+
+    <select id="selectRequested" resultType="com.scb.monitoring.srvreport.domain.ServerReport">
+        SELECT r.report_id, r.server_id, r.sections, r.status_cd, r.req_user, r.req_dt
+          FROM tb_server_report r
+         WHERE r.server_id = #{serverId}
+           AND r.status_cd = 'REQUESTED'
+         ORDER BY r.report_id
+    </select>
+
+    <update id="markSent">
+        UPDATE tb_server_report
+           SET status_cd = 'SENT',
+               sent_dt   = CURRENT_TIMESTAMP
+         WHERE report_id = #{reportId}
+           AND status_cd = 'REQUESTED'
+    </update>
+
+    <update id="updateResult">
+        UPDATE tb_server_report
+           SET status_cd = #{statusCd},
+               done_dt   = CURRENT_TIMESTAMP,
+               warn_cnt  = #{warnCnt},
+               byte_cnt  = #{byteCnt},
+               content   = #{content, jdbcType=VARCHAR}
+         WHERE report_id = #{reportId}
+    </update>
+
+    <!-- LIMIT/OFFSET 대신 ROW_NUMBER() (ANSI) -->
+    <select id="selectOldReportIds" resultType="long">
+        <choose>
+            <!-- Sybase ASE : 윈도 함수(ROW_NUMBER) 없음 - 상관 하위 질의 -->
+            <when test="@com.scb.monitoring.config.db.DbDialect@sybase()">
+            SELECT r.report_id
+              FROM tb_server_report r
+             WHERE r.server_id = #{serverId}
+               AND (SELECT COUNT(*) FROM tb_server_report m
+                     WHERE m.server_id = r.server_id
+                       AND (m.req_dt &gt; r.req_dt OR (m.req_dt = r.req_dt AND m.report_id &gt; r.report_id))) &gt;= #{keep}
+            </when>
+            <otherwise>
+            SELECT x.report_id
+              FROM (
+                    SELECT r.report_id,
+                           ROW_NUMBER() OVER (ORDER BY r.req_dt DESC, r.report_id DESC) AS rn
+                      FROM tb_server_report r
+                     WHERE r.server_id = #{serverId}
+                   ) x
+             WHERE x.rn &gt; #{keep}
+            </otherwise>
+        </choose>
+    </select>
+
+    <delete id="deleteReports">
+        DELETE FROM tb_server_report
+         WHERE report_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </delete>
+
+    <delete id="deleteReport">
+        DELETE FROM tb_server_report
+         WHERE report_id = #{reportId}
+    </delete>
+
+    <delete id="deleteReportsByServer">
+        DELETE FROM tb_server_report
+         WHERE server_id = #{serverId}
+    </delete>
+
+</mapper>

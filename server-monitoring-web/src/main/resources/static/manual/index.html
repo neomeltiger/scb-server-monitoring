@@ -109,6 +109,7 @@ footer { text-align: center; color: var(--sub); font-size: 12px; padding: 20px; 
         <li><a href="#network">네트워크 구성도</a></li>
         <li><a href="#servers">서버 전체 목록</a></li>
         <li><a href="#serverlog">서버 로그</a></li>
+        <li><a href="#srvreport">서버 점검 리포트 (관리자)</a></li>
         <li><a href="#heartbeat">하트비트 모니터링</a></li>
         <li><a href="#fallback">데몬 중단 프로세스 현황</a></li>
         <li><a href="#agentmgr">에이전트 관리 (데몬)</a></li>
@@ -398,6 +399,32 @@ footer { text-align: center; color: var(--sub); font-size: 12px; padding: 20px; 
         <tr><td><span class="chip red">오류</span></td><td>읽기 권한이 없거나 처리 중 오류가 났습니다.</td></tr>
     </table></div>
     <div class="note info">보안 : 웹에서 어떤 경로를 등록해도 <b>서버의 허용 목록(SCB_LOG_ALLOW)이 최종 기준</b>입니다. 기본 허용 : <code>/var/adm/messages</code>, <code>/var/adm/messages.N</code>, <code>/var/log/*.log</code>, <code>/var/log/syslog</code>, svr_opt_agent / svr_collect_client 의 <code>log/</code> 폴더. 한 번에 최대 1000줄, 한 줄 2000자, 256KB 까지 보냅니다.</div>
+</section>
+
+<!-- 10-2-1 -->
+<section id="srvreport">
+    <h2>10-2-1. 서버 점검 리포트 <span class="chip blue">관리자</span></h2>
+    <p>좌측 메뉴 <b>시스템관리 › 서버 점검 리포트</b>. 관리자가 <b>[리포트 요청]</b>을 누를 때만 서버의 svr_collect_client(1.12 이상)가 점검해서 결과를 보냅니다. 주기 수집은 하지 않습니다.</p>
+    <div class="flow">
+        <span class="box">관리자<br><small>[리포트 요청]</small></span><span class="arr">→ 명령 확인(10초) 때 rpt 요청 →</span>
+        <span class="box">svr_collect_client<br><small>bin/collect_report.sh</small></span><span class="arr">→ 전송 →</span>
+        <span class="box">서버 점검 리포트 화면<br><small>서버별 최근 20건</small></span>
+    </div>
+    <h3>점검 분야</h3>
+    <div class="tbl"><table>
+        <tr><th>분야</th><th>내용</th><th>경고 기준</th></tr>
+        <tr><td>보안·접근</td><td>SSH 로그인 실패와 상위 IP (authlog / secure / auth.log), sudo·su 이력 (sulog), 방화벽 차단 (ipf / iptables / ufw)</td><td>SSH 실패 10건 이상, su 실패</td></tr>
+        <tr><td>시스템 자원</td><td>디스크(df), 커널 메시지·OOM·fmadm, Load / vmstat / iostat / sar 추이</td><td>디스크 80% 경고, 90% 위험</td></tr>
+        <tr><td>서비스·스케줄러</td><td><b>★ 웹이 관리하는 서비스(프로세스 관리 화면) · 등록 프로세스 상태를 강조 표시</b>, cron 오류, Apache / Nginx 4xx·5xx, 메일 큐</td><td>관리 서비스·프로세스 중지, cron 실패</td></tr>
+        <tr><td>패키지·변경</td><td>패키지·패치 설치 이력 (/var/sadm, dpkg / dnf / yum / rpm), 최근 7일 /etc 변경 파일</td><td>passwd / shadow / sudoers / sshd_config 등 변경</td></tr>
+    </table></div>
+    <h3>화면 사용</h3>
+    <ol class="steps">
+        <li><b>대상 서버</b>와 <b>점검 분야</b>를 고르고 <b>[리포트 요청]</b>. 서버에 전달까지 최대 10초, 점검에 10~30초 걸리며 진행 중에는 5초마다 자동 확인합니다.</li>
+        <li>왼쪽 <b>리포트 목록</b>에서 리포트를 누르면 오른쪽에 경고 요약 → 분야별 항목이 나옵니다. 경고는 빨간색, ★ 웹 관리 서비스는 강조 카드로 표시됩니다.</li>
+        <li>[경고·강조만] 걸러 보기, 검색, [내려받기](.txt), [인쇄], 목록의 [삭제].</li>
+    </ol>
+    <div class="note info">서버의 로그 대부분은 root 만 읽을 수 있으므로 svr_collect_client 를 root 로 실행해야 전체 내용이 나옵니다. 서버에서 직접 확인 : <code>bin/collect_report.sh all</code>. 크기 제한 : 기본 512KB (<code>SCB_RPT_MAXKB</code>).</div>
 </section>
 
 <!-- 10-3 -->

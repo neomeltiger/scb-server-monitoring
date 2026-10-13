@@ -1666,3 +1666,52 @@ body.scb-dlg-open { overflow: hidden; }
 }
 .login-info[data-status="warning"]::before, .login-error[data-status="warning"]::before { color: #1f2937; background: #f5a524; }
 .field-error:not(:empty)::before { content: "✕ "; }
+
+/* ===================== 서버 점검 리포트 (/admin/server-report, server_report.js) ===================== */
+.rp-sections { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin: 0; padding: 6px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 13px; }
+.rp-sections legend { padding: 0 4px; font-size: 12px; color: #64748b; }
+.rp-sections label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.rp-grid { grid-template-columns: minmax(260px, 320px) minmax(0, 1fr); }
+.rp-list { list-style: none; margin: 0; padding: 0; max-height: 70vh; overflow: auto; }
+.rp-item { position: relative; padding: 10px 34px 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px; cursor: pointer; background: #fff; }
+.rp-item:hover, .rp-item:focus { border-color: #94a3b8; outline: none; }
+.rp-item.active { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37, 99, 235, .15); background: #f8fbff; }
+.rp-item-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
+.rp-item-sub { margin-top: 3px; font-size: 12px; color: #64748b; }
+.rp-del { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border: 0; border-radius: 4px; background: transparent; color: #94a3b8; cursor: pointer; }
+.rp-del:hover { background: #fdecee; color: #b02a37; }
+.rp-badge { display: inline-block; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--st-bd); background: var(--st-bg); color: var(--st); font-size: 12px; font-weight: bold; }
+.rp-warn-cnt { font-size: 12px; font-weight: bold; color: #b02a37; }
+.rp-ok-cnt { font-size: 12px; color: #198754; }
+.rp-view { max-height: 75vh; overflow: auto; padding: 4px 2px; }
+.rp-head { padding: 8px 12px; margin-bottom: 10px; border-radius: 8px; background: #f1f5f9; font-size: 13px; color: #334155; }
+.rp-summary { padding: 10px 14px; margin-bottom: 14px; border: 1px solid var(--st-bd); border-left: 5px solid var(--st); border-radius: 8px; background: var(--st-bg); }
+.rp-summary-title { font-weight: bold; color: var(--st); }
+.rp-summary ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+.rp-summary li { margin: 2px 0; }
+.rp-sum-where { display: inline-block; margin-right: 4px; padding: 0 6px; border-radius: 4px; background: rgba(0, 0, 0, .06); font-size: 11px; color: #475569; }
+.rp-sec { margin-bottom: 18px; }
+.rp-sec h4 { margin: 0 0 8px; padding-bottom: 6px; border-bottom: 2px solid #203a43; font-size: 15px; color: #203a43; }
+.rp-item-box { margin-bottom: 10px; padding: 10px 12px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
+.rp-item-title { font-weight: bold; font-size: 14px; color: #1e293b; margin-bottom: 6px; }
+.rp-src { margin-left: 8px; font-weight: normal; font-size: 11px; color: #94a3b8; }
+.rp-line { margin: 3px 0; padding: 3px 8px; border-radius: 4px; font-size: 13px; white-space: pre-wrap; word-break: break-all; }
+.rp-sum { background: #f1f5f9; color: #0f172a; font-weight: bold; }
+.rp-warn { background: #fdecee; color: #b02a37; font-weight: bold; }
+.rp-warn::before { content: "⚠ "; }
+.rp-hl { background: #fff5e1; color: #7c4a03; border-left: 4px solid #e8890c; font-weight: bold; }
+.rp-raw { margin: 4px 0; padding: 8px 10px; border-radius: 6px; background: #1e1e1e; color: #d4d4d4; font-size: 12px; line-height: 1.45; overflow: auto; white-space: pre; }
+/* ★ 통합 모니터링 웹이 관리하는 프로세스 : 강조 카드 */
+.rp-scb { border: 2px solid #e8890c; background: #fffaf0; box-shadow: 0 2px 8px rgba(232, 137, 12, .15); }
+.rp-scb .rp-item-title { color: #b45309; font-size: 15px; }
+@media (max-width: 1024px) {
+    .rp-grid { grid-template-columns: minmax(0, 1fr); }
+    .rp-list { max-height: 40vh; }
+}
+@media print {
+    .rp-page .lg-toolbar, .rp-page .svc-hint, .rp-page .lg-viewer-tools, .rp-page .rp-grid > .spec-container:first-child,
+    .app-layout > :first-child, .main-content-wrapper > :first-child { display: none !important; }
+    .rp-view { max-height: none; overflow: visible; }
+    .rp-grid { display: block; }
+    .rp-raw { white-space: pre-wrap; }
+}
