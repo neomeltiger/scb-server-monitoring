@@ -127,36 +127,36 @@
             return;
         }
         if (action === 'revoke') {
-            if (!confirm('[' + name + '] 클라이언트에 발급한 에이전트 토큰을 제거하시겠습니까?\n\n'
-                + '제거하면 그 서버의 svr_collect_client 는 더 이상 보고할 수 없습니다 (수집 이력은 남음).\n다시 연결하려면 토큰을 새로 발급하세요.')) return;
+            if (!(await scbConfirm('[' + name + '] 클라이언트에 발급한 에이전트 토큰을 제거하시겠습니까?\n\n'
+                + '제거하면 그 서버의 svr_collect_client 는 더 이상 보고할 수 없습니다 (수집 이력은 남음).\n다시 연결하려면 토큰을 새로 발급하세요.'))) return;
             try {
                 const r = await apiRequest('DELETE', API + '/' + id + '/token');
-                alert(r.message);
-            } catch (e) { alert(e.message); }
+                scbAlert(r.message, 'success');
+            } catch (e) { scbAlert(e.message, 'error'); }
             load();
             return;
         }
         if (action === 'reset') {
-            const typed = prompt('[' + name + '] 서버 데이터를 초기화합니다.\n\n'
+            const typed = (await scbPrompt('[' + name + '] 서버 데이터를 초기화합니다.\n\n'
                 + '삭제 : 에이전트 토큰, 자원·프로세스·서비스 수집 이력, 하트비트 이력, 제어 명령, 수집 로그, 알람\n'
                 + '유지 : 서버 등록 정보, 주요 프로세스·service.list·로그 수집 설정\n'
-                + '등록 상태가 Down 이면 Active 로 바꿉니다.\n\n계속하려면 서버 이름을 그대로 입력하세요 : ' + name);
+                + '등록 상태가 Down 이면 Active 로 바꿉니다.\n\n계속하려면 서버 이름을 그대로 입력하세요 : ' + name, { type: 'error', title: '위험 - 서버 데이터 초기화', placeholder: name }));
             if (typed === null) return;
-            if (typed.trim() !== String(name)) { alert('서버 이름이 일치하지 않아 취소했습니다.'); return; }
+            if (typed.trim() !== String(name)) { scbAlert('서버 이름이 일치하지 않아 취소했습니다.'); return; }
             try {
                 await apiRequest('POST', API + '/' + id + '/reset?activate=true');
-                alert('[' + name + '] 서버 데이터를 초기화했습니다.');
-            } catch (e) { alert(e.message); }
+                scbAlert('[' + name + '] 서버 데이터를 초기화했습니다.');
+            } catch (e) { scbAlert(e.message, 'error'); }
             load();
             return;
         }
-        if (!confirm(msg)) return;
+        if (!(await scbConfirm(msg))) return;
         busy = true;
         try {
             const a = await apiRequest('POST', API + '/' + id + '/daemon', { action: action });
             if (v) v.agent = a;
             render();
-        } catch (e) { alert(e.message); }
+        } catch (e) { scbAlert(e.message, 'error'); }
         finally { busy = false; }
     }
 
@@ -168,7 +168,7 @@
             const v = list.find(x => Number(x.serverId) === id);
             if (v) v.agent = a;
             render();
-        } catch (e) { alert(e.message); load(); }
+        } catch (e) { scbAlert(e.message, 'error'); load(); }
         finally { busy = false; }
     }
 

@@ -73,7 +73,7 @@
 
     <!-- 연결 설정 -->
     <div class="modal-overlay" id="connModal">
-        <div class="modal-card ua-modal db-modal" role="dialog" aria-modal="true" aria-labelledby="connTitle">
+        <div class="modal-card ua-modal db-modal" data-status="info" role="dialog" aria-modal="true" aria-labelledby="connTitle">
             <h3 id="connTitle">연결 설정</h3>
             <div class="uc-grid">
                 <label class="db-check"><input type="checkbox" id="cEnabled"> 이 DB 사용 (우선순위·자동 교체 대상)</label>
@@ -99,7 +99,7 @@
 
     <!-- 전환 확인 -->
     <div class="modal-overlay" id="switchModal">
-        <div class="modal-card ua-modal" role="dialog" aria-modal="true" aria-labelledby="switchTitle">
+        <div class="modal-card ua-modal" data-status="warning" role="dialog" aria-modal="true" aria-labelledby="switchTitle">
             <h3 id="switchTitle">DB 전환</h3>
             <p class="svc-modal-help" id="switchText"></p>
             <label class="db-check"><input type="checkbox" id="swCopy"> 지금 DB 데이터 복사 (대상 DB 의 기존 데이터는 지워지고 지금 DB 내용으로 바뀜)</label>
@@ -110,6 +110,8 @@
             </div>
         </div>
     </div>
+
+    <script th:src="@{/js/scb_dialog.js}"></script>
 
     <script th:src="@{/js/script.js}"></script>
     <script th:src="@{/js/db_admin.js}"></script>

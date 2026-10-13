@@ -128,7 +128,7 @@
 
     <!-- service.list 가져오기 -->
     <div id="importModal" class="modal-overlay">
-        <div class="modal-card" style="width: 760px; max-width: 94vw;">
+        <div class="modal-card" data-status="info" style="width: 760px; max-width: 94vw;">
             <div class="modal-header">
                 <h2>service.list 가져오기</h2>
                 <button class="close-btn" type="button" onclick="closeImport()" aria-label="닫기">&times;</button>
@@ -155,7 +155,7 @@
 
     <!-- 프로세스(서비스) 추가 / 수정 (ADMIN) : service.list 1줄과 같은 항목 -->
     <div id="svcFormModal" class="modal-overlay">
-        <div class="modal-card sf-modal" role="dialog" aria-modal="true" aria-labelledby="svcFormTitle">
+        <div class="modal-card sf-modal" data-status="info" role="dialog" aria-modal="true" aria-labelledby="svcFormTitle">
             <div class="modal-header">
                 <h2 id="svcFormTitle">프로세스 추가</h2>
                 <button class="close-btn" type="button" onclick="closeSvcForm()" aria-label="닫기">&times;</button>
@@ -193,7 +193,7 @@
 
     <!-- service.list 문서 만들기 -->
     <div id="exportModal" class="modal-overlay">
-        <div class="modal-card" style="width: 820px; max-width: 94vw;" role="dialog" aria-modal="true" aria-labelledby="exportTitle">
+        <div class="modal-card" data-status="info" style="width: 820px; max-width: 94vw;" role="dialog" aria-modal="true" aria-labelledby="exportTitle">
             <div class="modal-header">
                 <h2 id="exportTitle">service.list 문서</h2>
                 <button class="close-btn" type="button" onclick="closeExport()" aria-label="닫기">&times;</button>
@@ -219,7 +219,7 @@
 
     <!-- 제어 이력 (전체 / 서비스별) -->
     <div id="histModal" class="modal-overlay">
-        <div class="modal-card" style="width: 960px; max-width: 96vw; max-height: 92vh;" role="dialog" aria-modal="true" aria-labelledby="histTitle">
+        <div class="modal-card" data-status="info" style="width: 960px; max-width: 96vw; max-height: 92vh;" role="dialog" aria-modal="true" aria-labelledby="histTitle">
             <div class="modal-header">
                 <h2 id="histTitle">제어 이력</h2>
                 <button class="close-btn" type="button" onclick="closeHist()" aria-label="닫기">&times;</button>
@@ -253,7 +253,7 @@
 
     <!-- 명령 실행 결과 -->
     <div id="resultModal" class="modal-overlay">
-        <div class="modal-card" style="width: 820px; max-width: 94vw;">
+        <div class="modal-card" data-status="info" style="width: 820px; max-width: 94vw;">
             <div class="modal-header">
                 <h2 id="resultTitle">실행 결과</h2>
                 <button class="close-btn" type="button" onclick="closeResult()" aria-label="닫기">&times;</button>
@@ -264,6 +264,8 @@
             </div>
         </div>
     </div>
+
+    <script th:src="@{/js/scb_dialog.js}"></script>
 
     <script th:src="@{/js/script.js}"></script>
     <script th:src="@{/js/process_service.js}"></script>

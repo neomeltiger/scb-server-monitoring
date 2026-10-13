@@ -74,7 +74,7 @@
 
     <!-- 승인 / 반려 확인 -->
     <div class="modal-overlay" id="decisionModal">
-        <div class="modal-card ua-modal" role="dialog" aria-modal="true" aria-labelledby="decisionTitle">
+        <div class="modal-card ua-modal" data-status="success" role="dialog" aria-modal="true" aria-labelledby="decisionTitle">
             <h3 id="decisionTitle">가입 승인</h3>
             <div id="decisionTarget" class="cc-meta"></div>
             <div id="approveBox">
@@ -98,7 +98,7 @@
 
     <!-- 계정 생성 / 임시 비밀번호 결과 -->
     <div class="modal-overlay" id="createModal">
-        <div class="modal-card ua-modal" role="dialog" aria-modal="true" aria-labelledby="createTitle">
+        <div class="modal-card ua-modal" data-status="info" role="dialog" aria-modal="true" aria-labelledby="createTitle">
             <h3 id="createTitle">계정 생성</h3>
             <div id="createForm">
                 <div class="uc-grid">
@@ -132,6 +132,8 @@
             </div>
         </div>
     </div>
+
+    <script th:src="@{/js/scb_dialog.js}"></script>
 
     <script th:src="@{/js/script.js}"></script>
     <script th:src="@{/js/admin_users.js}"></script>

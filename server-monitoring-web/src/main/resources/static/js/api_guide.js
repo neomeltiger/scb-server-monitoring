@@ -196,7 +196,7 @@
             showResp('<div class="ag-resp-head bad">경로는 /api/ 로 시작해야 합니다.</div>');
             return;
         }
-        if (e.write && !confirm(e.method + ' ' + path + '\n\n실제 데이터가 변경됩니다. 보낼까요?')) return;
+        if (e.write && !(await scbConfirm(e.method + ' ' + path + '\n\n실제 데이터가 변경됩니다. 보낼까요?'))) return;
         const opt = { method: e.method, credentials: 'same-origin', headers: Object.assign({ 'Accept': 'application/json, text/plain, */*' }, csrfHeaders()) };
         const bodyEl = $('agBody');
         if (bodyEl && e.method !== 'GET') {

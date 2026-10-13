@@ -92,7 +92,7 @@ async function loadServices(showError) {
         renderServices();
         renderCommands();
     } catch (e) {
-        if (showError) alert(e.message);
+        if (showError) scbAlert(e.message, 'error');
     } finally {
         svcLoading = false;
         schedulePoll();
@@ -235,10 +235,10 @@ async function requestCommand(target, cmd) {
     const a = svcData.agent || { state: 'NONE' };
     let msg = '[' + svcData.systemName + '] ' + targetLabel(target) + ' 에 ' + cmd + ' (' + CMD_LABEL[cmd] + ') 를 요청합니다.';
     if (a.state !== 'OK') msg += '\n\n※ 에이전트 상태가 "' + (AGENT_STATE_LABEL[a.state] || [a.state])[0] + '" 입니다. 에이전트가 동작하지 않으면 실행되지 않고 만료됩니다.';
-    if (cmd !== 'status' && !confirm(msg + '\n\n계속하시겠습니까?')) return;
+    if (cmd !== 'status' && !(await scbConfirm(msg + '\n\n계속하시겠습니까?'))) return;
     try {
         await apiRequest('POST', SVC_API + '/' + encodeURIComponent(currentServerId()) + '/commands', { target: target, cmd: cmd });
-    } catch (e) { alert(e.message); return; }
+    } catch (e) { scbAlert(e.message, 'error'); return; }
     svcLastActive = Date.now();
     loadServices(true);
 }
@@ -248,6 +248,8 @@ function showResult(id) {
     if (!c) return;
     document.getElementById('resultTitle').innerText = '#' + c.id + ' ' + targetLabel(c.target) + ' ' + c.cmd + ' 결과 (종료코드 ' + (c.exitCode == null ? '-' : c.exitCode) + ')';
     document.getElementById('resultBody').textContent = c.result || '';
+    // 상태 색 : 종료코드 0 = 성공(초록), 그 밖 = 오류(빨강), 아직 없음 = 안내(파랑)
+    scbModalStatus('resultModal', c.exitCode == null ? 'info' : (Number(c.exitCode) === 0 ? 'success' : 'error'));
     document.getElementById('resultModal').style.display = 'flex';
 }
 
@@ -271,7 +273,7 @@ function closeImport() {
 function readImportFile(e) {
     const f = e.target.files && e.target.files[0];
     if (!f) return;
-    if (f.size > 200000) { alert('파일이 너무 큽니다. (200KB 이하)'); return; }
+    if (f.size > 200000) { scbAlert('파일이 너무 큽니다. (200KB 이하)'); return; }
     const r = new FileReader();
     r.onload = () => { document.getElementById('importText').value = r.result; };
     r.readAsText(f, 'UTF-8');
@@ -282,7 +284,7 @@ async function runImport() {
     const home = document.getElementById('importHome').value.trim();
     const msg = document.getElementById('importMsg');
     if (!text.trim()) { msg.textContent = 'service.list 내용을 입력하세요.'; return; }
-    if (!confirm('[' + (svcData ? svcData.systemName : '') + '] 의 서비스 목록을 이 내용으로 바꿉니다. 계속하시겠습니까?')) return;
+    if (!(await scbConfirm('[' + (svcData ? svcData.systemName : '') + '] 의 서비스 목록을 이 내용으로 바꿉니다. 계속하시겠습니까?'))) return;
     try {
         const r = await apiRequest('POST', SVC_API + '/' + encodeURIComponent(currentServerId()) + '/import', { text: text, scriptHome: home });
         msg.textContent = '완료: 추가 ' + r.added + ' / 갱신 ' + r.updated + ' / 삭제 ' + r.removed +
@@ -389,12 +391,12 @@ async function saveSvcForm(e) {
 
 async function deleteSvc(id) {
     const s = svcData.services.find(x => x.id === id);
-    if (!s || !confirm('[' + s.name + '] 를 프로세스 목록에서 삭제하시겠습니까?\n뒤의 순번(NO)이 하나씩 당겨집니다.\n서버에 반영하려면 service.list 문서를 다시 만들어 적용하세요.')) return;
+    if (!s || !(await scbConfirm('[' + s.name + '] 를 프로세스 목록에서 삭제하시겠습니까?\n뒤의 순번(NO)이 하나씩 당겨집니다.\n서버에 반영하려면 service.list 문서를 다시 만들어 적용하세요.'))) return;
     try {
         await apiRequest('DELETE', SVC_API + '/' + encodeURIComponent(currentServerId()) + '/items/' + id);
         setDirty(currentServerId(), true);
         loadServices(true);
-    } catch (e) { alert(e.message); }
+    } catch (e) { scbAlert(e.message, 'error'); }
 }
 
 // ---------- service.list 문서 만들기 ----------

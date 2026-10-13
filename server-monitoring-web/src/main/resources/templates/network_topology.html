@@ -95,7 +95,7 @@
 
     <!-- Server Edit Modal -->
     <div id="serverEditModal" class="modal-overlay">
-        <div class="modal-card" style="width: 460px; max-width: 92vw;">
+        <div class="modal-card" data-status="info" style="width: 460px; max-width: 92vw;">
             <div class="modal-header">
                 <h2>서버 정보 수정</h2>
                 <button class="close-btn" onclick="closeServerEdit()">&times;</button>
@@ -120,7 +120,7 @@
 
     <!-- Web Console Connect Modal (더블클릭: 터미널 접속 확인 / 주소 직접 입력) -->
     <div id="consoleConnectModal" class="modal-overlay">
-        <div class="modal-card" style="width: 480px; max-width: 92vw;">
+        <div class="modal-card" data-status="warning" style="width: 480px; max-width: 92vw;">
             <div class="modal-header">
                 <h2 id="ccTitle">웹 콘솔 접속 확인</h2>
                 <button class="close-btn" onclick="closeConsoleConnect()" aria-label="닫기">&times;</button>
@@ -149,7 +149,7 @@
 
     <!-- 에이전트 토큰 발급 결과 (토큰 원문은 이 화면에서 한 번만 보여줌) -->
     <div id="agentTokenModal" class="modal-overlay">
-        <div class="modal-card" style="width: 640px; max-width: 94vw;">
+        <div class="modal-card" data-status="warning" style="width: 640px; max-width: 94vw;">
             <div class="modal-header">
                 <h2 id="agentTokenTitle">에이전트 토큰</h2>
                 <button class="close-btn" type="button" onclick="closeAgentToken()" aria-label="닫기">&times;</button>
@@ -179,7 +179,7 @@
 
     <!-- Server Status Modal -->
     <div id="statusModal" class="modal-overlay">
-        <div class="modal-card">
+        <div class="modal-card" data-status="info">
             <div class="modal-header">
                 <h2 id="modalServerName">서버 상태 정보</h2>
                 <button class="close-btn" onclick="closeModal()">&times;</button>
@@ -213,6 +213,8 @@
             <button class="btn btn-primary" onclick="closeModal()">확인</button>
         </div>
     </div>
+
+    <script th:src="@{/js/scb_dialog.js}"></script>
 
     <script th:src="@{/js/script.js}"></script>
 </body>

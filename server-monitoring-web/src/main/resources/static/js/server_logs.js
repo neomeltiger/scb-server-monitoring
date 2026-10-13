@@ -184,7 +184,7 @@
             data = await apiRequest('PUT', API + serverId + '/policy', { intervalMin: v });
             renderStatus();
         } catch (e) {
-            alert(e.message);
+            scbAlert(e.message, 'error');
             if (data) $('lgInterval').value = String(data.policy.intervalMin);
         }
     }
@@ -195,7 +195,7 @@
         try {
             data = await apiRequest('POST', API + serverId + '/request');
             renderStatus();
-        } catch (e) { alert(e.message); }
+        } catch (e) { scbAlert(e.message, 'error'); }
         finally { btn.disabled = false; }
     }
 
@@ -252,13 +252,13 @@
 
     async function deleteSource(id) {
         const s = data.sources.find(x => x.id === id);
-        if (!s || !confirm('[' + s.name + '] 로그를 삭제하시겠습니까?\n수집된 내용도 함께 삭제됩니다.')) return;
+        if (!s || !(await scbConfirm('[' + s.name + '] 로그를 삭제하시겠습니까?\n수집된 내용도 함께 삭제됩니다.'))) return;
         try {
             await apiRequest('DELETE', API + serverId + '/sources/' + id);
             if (selectedLog === id) selectedLog = null;
             resetForm();
             await loadServer(true);
-        } catch (e) { alert(e.message); }
+        } catch (e) { scbAlert(e.message, 'error'); }
     }
 
     function download() {
@@ -312,7 +312,7 @@
         $('lgSnap').addEventListener('change', async () => {
             const id = Number($('lgSnap').value);
             followLatest = snaps.length && snaps[0].id === id;
-            try { snap = await apiRequest('GET', API + serverId + '/snapshots/' + id); } catch (e) { alert(e.message); }
+            try { snap = await apiRequest('GET', API + serverId + '/snapshots/' + id); } catch (e) { scbAlert(e.message, 'error'); }
             renderViewer();
         });
         $('lgFilter').addEventListener('input', renderViewer);

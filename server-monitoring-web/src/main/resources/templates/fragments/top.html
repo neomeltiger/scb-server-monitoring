@@ -15,7 +15,7 @@
             (<span sec:authentication="name">admin</span>) 님 · <span sec:authentication="principal.roleLabel">관리자</span></span>
         <span class="user-time" th:if="${session.loginTime != null}" th:text="'접속 ' + ${session.loginTime}"></span>
         <a class="btn-logout btn-pw" th:href="@{/password}">비밀번호 변경</a>
-        <form class="logout-form" th:action="@{/logout}" method="post" onsubmit="return confirm('로그아웃 하시겠습니까?');">
+        <form class="logout-form" th:action="@{/logout}" method="post" data-confirm="로그아웃 하시겠습니까?" data-confirm-type="info">
             <button type="submit" class="btn-logout">로그아웃</button>
         </form>
     </div>

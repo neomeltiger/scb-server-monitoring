@@ -105,12 +105,12 @@ function renderAlarmBanner(data) {
 /** 토큰 제거 (ADMIN) : DELETE /api/agents/{id}/token */
 async function revokeAgentToken(serverId) {
     const name = serverNameForAlarm(serverId);
-    if (!confirm('[' + name + '] 클라이언트에 발급한 에이전트 토큰을 제거하시겠습니까?\n\n'
-        + '제거하면 그 서버의 svr_collect_client 는 더 이상 보고할 수 없습니다 (수집 이력은 남음).\n다시 연결하려면 토큰을 새로 발급하세요.')) return false;
+    if (!(await scbConfirm('[' + name + '] 클라이언트에 발급한 에이전트 토큰을 제거하시겠습니까?\n\n'
+        + '제거하면 그 서버의 svr_collect_client 는 더 이상 보고할 수 없습니다 (수집 이력은 남음).\n다시 연결하려면 토큰을 새로 발급하세요.'))) return false;
     try {
         const r = await apiRequest('DELETE', AGENT_API + '/' + serverId + '/token');
-        alert(r.message);
-    } catch (e) { alert(e.message); return false; }
+        scbAlert(r.message, 'success');
+    } catch (e) { scbAlert(e.message, 'error'); return false; }
     loadAlarms();
     if (typeof loadAgentRegistrations === 'function') loadAgentRegistrations();
     return true;
@@ -119,17 +119,17 @@ async function revokeAgentToken(serverId) {
 /** 서버 데이터 초기화 (ADMIN) : POST /api/agents/{id}/reset?activate=true */
 async function resetServerData(serverId) {
     const name = serverNameForAlarm(serverId);
-    const typed = prompt('[' + name + '] 서버 데이터를 초기화합니다.\n\n'
+    const typed = (await scbPrompt('[' + name + '] 서버 데이터를 초기화합니다.\n\n'
         + '삭제 : 에이전트 토큰, 자원·프로세스·서비스 수집 이력, 하트비트 이력, 제어 명령, 수집 로그, 알람\n'
         + '유지 : 서버 등록 정보, 주요 프로세스·service.list·로그 수집 설정\n'
         + '등록 상태가 Down 이면 Active 로 바꿉니다 (서버 장애 항목 해소).\n\n'
-        + '계속하려면 서버 이름을 그대로 입력하세요 : ' + name);
+        + '계속하려면 서버 이름을 그대로 입력하세요 : ' + name, { type: 'error', title: '위험 - 서버 데이터 초기화', placeholder: name }));
     if (typed === null) return false;
-    if (typed.trim() !== name) { alert('서버 이름이 일치하지 않아 취소했습니다.'); return false; }
+    if (typed.trim() !== name) { scbAlert('서버 이름이 일치하지 않아 취소했습니다.'); return false; }
     try {
         await apiRequest('POST', AGENT_API + '/' + serverId + '/reset?activate=true');
-        alert('[' + name + '] 서버 데이터를 초기화했습니다.');
-    } catch (e) { alert(e.message); return false; }
+        scbAlert('[' + name + '] 서버 데이터를 초기화했습니다.');
+    } catch (e) { scbAlert(e.message, 'error'); return false; }
     loadAlarms();
     if (typeof loadAgentRegistrations === 'function') loadAgentRegistrations();
     if (typeof loadServers === 'function') { try { await loadServers(); } catch (e) { /* 다음 갱신 때 반영 */ } }
@@ -357,7 +357,7 @@ window.addEventListener('DOMContentLoaded', function () {
         try {
             await apiRequest('POST', ALARM_API + '/check');
             await loadAlarms();
-        } catch (e) { alert(e.message); }
+        } catch (e) { scbAlert(e.message, 'error'); }
     });
     document.getElementById('alarmAckCancel').addEventListener('click', closeAlarmAck);
     document.getElementById('alarmAckOk').addEventListener('click', submitAlarmAck);

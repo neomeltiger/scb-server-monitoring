@@ -58,7 +58,7 @@
 
     <!-- 서버별 주요 프로세스 (tb_server_process) : 메인 홈 카드 / 그래프 대상. 등록·수정·삭제는 ADMIN -->
     <div id="specProcModal" class="modal-overlay">
-        <div class="modal-card" style="width: 820px; max-width: 94vw; max-height: 92vh;" role="dialog" aria-modal="true" aria-labelledby="specProcTitle">
+        <div class="modal-card" data-status="info" style="width: 820px; max-width: 94vw; max-height: 92vh;" role="dialog" aria-modal="true" aria-labelledby="specProcTitle">
             <div class="modal-header">
                 <h2 id="specProcTitle">주요 프로세스</h2>
                 <button class="close-btn" type="button" onclick="closeSpecProc()" aria-label="닫기">&times;</button>
@@ -83,6 +83,8 @@
             </form>
         </div>
     </div>
+
+    <script th:src="@{/js/scb_dialog.js}"></script>
 
     <script th:src="@{/js/script.js}"></script>
     <script th:src="@{/js/server_spec.js}"></script>

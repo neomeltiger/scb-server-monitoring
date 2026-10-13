@@ -99,7 +99,7 @@
 
     <!-- Process Search Popup -->
     <div id="procSearchModal" class="modal-overlay">
-        <div class="modal-card" style="width: 560px; max-width: 92vw;">
+        <div class="modal-card" data-status="info" style="width: 560px; max-width: 92vw;">
             <div class="modal-header">
                 <h2 id="procSearchTitle">프로세스 찾기</h2>
                 <button type="button" class="proc-btn" onclick="closeProcSearch()">닫기</button>
@@ -119,7 +119,7 @@
 
     <!-- Chart Zoom Popup -->
     <div id="chartZoomModal" class="modal-overlay">
-        <div class="modal-card" style="width: 860px; max-width: 94vw; max-height: 92vh; overflow-y: auto;">
+        <div class="modal-card" data-status="info" style="width: 860px; max-width: 94vw; max-height: 92vh; overflow-y: auto;">
             <div class="modal-header">
                 <h2 id="chartZoomTitle">프로세스 모니터링</h2>
                 <button type="button" class="proc-btn" onclick="closeChartZoom()">닫기</button>
@@ -130,7 +130,7 @@
 
     <!-- 그래프 항목 선택 (script.js openGraphPicker) : 카드 그래프에 표시할 주요 프로세스 / 서비스, 최대 6개 -->
     <div id="graphPickModal" class="modal-overlay">
-        <div class="modal-card gp-modal" role="dialog" aria-modal="true" aria-labelledby="graphPickTitle">
+        <div class="modal-card gp-modal" data-status="info" role="dialog" aria-modal="true" aria-labelledby="graphPickTitle">
             <div class="modal-header">
                 <h2 id="graphPickTitle">그래프 항목 선택</h2>
                 <button type="button" class="close-btn" onclick="closeGraphPicker()" aria-label="닫기">&times;</button>
@@ -152,7 +152,7 @@
 
     <!-- 알람 확인 / 조치 기록 (ADMIN) -->
     <div id="alarmAckModal" class="modal-overlay">
-        <div class="modal-card ua-modal" role="dialog" aria-modal="true" aria-labelledby="alarmAckTitle">
+        <div class="modal-card ua-modal" data-status="warning" role="dialog" aria-modal="true" aria-labelledby="alarmAckTitle">
             <h3 id="alarmAckTitle">알람 확인 / 조치 기록</h3>
             <div id="alarmAckTarget" class="cc-meta"></div>
             <label class="ua-label" for="alarmAckMemo">조치 내용 (필수, 500자 이내)</label>
@@ -168,7 +168,7 @@
 
     <!-- 최근 해소 알람 -->
     <div id="alarmHistoryModal" class="modal-overlay">
-        <div class="modal-card" style="width: 860px; max-width: 94vw; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-card" data-status="info" style="width: 860px; max-width: 94vw; max-height: 90vh; overflow-y: auto;">
             <div class="modal-header">
                 <h2>최근 해소된 알람 (24시간)</h2>
                 <button type="button" class="proc-btn" id="alarmHistoryClose">닫기</button>
@@ -181,6 +181,8 @@
             </div>
         </div>
     </div>
+
+    <script th:src="@{/js/scb_dialog.js}"></script>
 
     <script th:src="@{/js/script.js}"></script>
     <script th:src="@{/js/main_alarm.js}"></script>

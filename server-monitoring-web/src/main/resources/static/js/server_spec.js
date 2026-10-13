@@ -89,7 +89,7 @@ async function saveSpecProc(e) {
 async function deleteSpecProc(id) {
     const s = specServer();
     const p = (s.processes || []).find(x => x.id === id);
-    if (!p || !confirm('[' + s.systemName + '] 의 주요 프로세스 "' + p.name + '" 를 삭제하시겠습니까?\n수집 이력도 함께 삭제됩니다.')) return;
+    if (!p || !(await scbConfirm('[' + s.systemName + '] 의 주요 프로세스 "' + p.name + '" 를 삭제하시겠습니까?\n수집 이력도 함께 삭제됩니다.'))) return;
     try {
         await apiRequest('DELETE', TOPO_API + '/servers/' + s.id + '/processes/' + id);
         s.processes = s.processes.filter(x => x.id !== id);
@@ -97,7 +97,7 @@ async function deleteSpecProc(id) {
         renderSpecProc();
         renderSpecTable();
     } catch (ex) {
-        alert(ex.message);
+        scbAlert(ex.message, 'error');
     }
 }
 

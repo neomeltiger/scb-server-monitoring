@@ -6,7 +6,7 @@ async function renderDashboard() {
     if (!isAdminUser()) document.body.classList.add('role-user');
     if (/[?&]denied(=|&|$)/.test(location.search)) {
         history.replaceState(null, '', location.pathname);
-        setTimeout(() => alert('관리자(ADMIN)만 사용할 수 있는 화면입니다. (사용자 관리 / 웹 콘솔)'), 0);
+        setTimeout(() => scbAlert('관리자(ADMIN)만 사용할 수 있는 화면입니다. (사용자 관리 / 웹 콘솔)', 'warning'), 0);
     }
     const dashboardContainer = document.getElementById('dashboard-container');
     if (!dashboardContainer) return; // 웹 콘솔 등 대시보드가 없는 화면
@@ -108,7 +108,7 @@ function showDataError(e) {
 }
 
 function apiAlert(e) {
-    alert(e.message || String(e));
+    scbAlert(e.message || String(e), 'error');
 }
 
 let network = null;
@@ -158,12 +158,12 @@ function topoCanRestart(server) {
 async function restartDaemon(serverId) {
     const server = (typeof serversData !== 'undefined' ? serversData : []).find(s => s.id === serverId);
     const name = server ? server.systemName : serverId;
-    if (!confirm('[' + name + '] 의 데몬(scb_client)을 재시작합니다.\n다음 하트비트 때 서버의 하트비트 감시자가 bin/scb_client.sh start 를 실행합니다.\n\n계속하시겠습니까?')) return null;
+    if (!(await scbConfirm('[' + name + '] 의 데몬(scb_client)을 재시작합니다.\n다음 하트비트 때 서버의 하트비트 감시자가 bin/scb_client.sh start 를 실행합니다.\n\n계속하시겠습니까?'))) return null;
     let a;
     try {
         a = await apiRequest('POST', 'api/agents/' + encodeURIComponent(serverId) + '/restart');
-    } catch (e) { alert(e.message); return null; }
-    alert('재시작 요청을 보냈습니다. 다음 하트비트(최대 ' + (a.hbIntervalSec || 10) + '초) 때 서버에서 데몬을 시작합니다.');
+    } catch (e) { scbAlert(e.message, 'error'); return null; }
+    scbAlert('재시작 요청을 보냈습니다. 다음 하트비트(최대 ' + (a.hbIntervalSec || 10) + '초) 때 서버에서 데몬을 시작합니다.');
     return a;
 }
 
@@ -746,11 +746,11 @@ async function saveHeartbeatInterval(serverId) {
 async function issueAgentToken(serverId) {
     const server = serversData.find(s => s.id === serverId);
     const name = server ? server.systemName : serverId;
-    if (!confirm('[' + name + '] 의 에이전트 토큰을 발급합니다.\n이미 발급된 토큰이 있으면 즉시 무효가 되어, 서버의 client.env 도 새 토큰으로 바꿔야 합니다.\n\n계속하시겠습니까?')) return;
+    if (!(await scbConfirm('[' + name + '] 의 에이전트 토큰을 발급합니다.\n이미 발급된 토큰이 있으면 즉시 무효가 되어, 서버의 client.env 도 새 토큰으로 바꿔야 합니다.\n\n계속하시겠습니까?'))) return;
     let r;
     try {
         r = await apiRequest('POST', 'api/agents/' + encodeURIComponent(serverId) + '/token');
-    } catch (e) { alert(e.message); return; }
+    } catch (e) { scbAlert(e.message, 'error'); return; }
     document.getElementById('agentTokenTitle').innerText = name + ' 에이전트 토큰';
     document.getElementById('agentTokenEnv').value = r.clientEnv;
     // 서버에서 접속할 웹 주소 확인 (localhost 는 서버 자신을 가리킴)
@@ -921,7 +921,7 @@ function openWebConsole(target) {
     const w = window.open('console?' + query, name,
         'width=1100,height=720,menubar=no,toolbar=no,location=no,status=no,resizable=yes');
     if (w) w.focus();
-    else alert('팝업이 차단되어 웹 콘솔을 열 수 없습니다. 브라우저에서 이 사이트의 팝업을 허용해 주세요.');
+    else scbAlert('팝업이 차단되어 웹 콘솔을 열 수 없습니다. 브라우저에서 이 사이트의 팝업을 허용해 주세요.');
     return !!w;
 }
 
@@ -932,7 +932,7 @@ function openConsoleConnect(server) {
     const modal = document.getElementById('consoleConnectModal');
     if (!modal) return;
     if (!isAdminUser()) {
-        alert('웹 콘솔(원격 접속)은 관리자(ADMIN)만 사용할 수 있습니다.');
+        scbAlert('웹 콘솔(원격 접속)은 관리자(ADMIN)만 사용할 수 있습니다.', 'warning');
         return;
     }
     consoleConnectServer = server || null;
@@ -1058,7 +1058,7 @@ async function addServer() {
         status: document.getElementById('addStatus').value
     };
     if (!form.systemName || !form.fqdn || !form.ip) {
-        alert('시스템명, FQDN, IP 주소를 모두 입력해주세요.');
+        scbAlert('시스템명, FQDN, IP 주소를 모두 입력해주세요.', 'warning');
         return;
     }
     let created;
@@ -1072,7 +1072,7 @@ async function addServer() {
     document.getElementById('addName').value = '';
     document.getElementById('addFqdn').value = '';
     document.getElementById('addIp').value = '';
-    alert('서버가 성공적으로 추가되었습니다.');
+    scbAlert('서버가 성공적으로 추가되었습니다.');
 }
 
 async function removeServerById(nodeId) {
@@ -1088,7 +1088,7 @@ async function removeServerById(nodeId) {
     if (detailContent) {
         detailContent.innerHTML = '<p style="color: #888; font-style: italic; font-size: 13px;">다이어그램에서 서버 노드를 클릭하세요.</p>';
     }
-    alert('서버가 제거되었습니다.');
+    scbAlert('서버가 제거되었습니다.');
 }
 
 function removeServer() {
@@ -1097,16 +1097,16 @@ function removeServer() {
     const nodeId = parseInt(select.value);
 
     if (!nodeId) {
-        alert('제거할 서버를 선택해주세요.');
+        scbAlert('제거할 서버를 선택해주세요.', 'warning');
         return;
     }
     removeServerById(nodeId);
 }
 
-function deleteServerFromDetail(serverId) {
+async function deleteServerFromDetail(serverId) {
     const server = serversData.find(s => s.id === serverId);
     if (!server) return;
-    if (confirm('정말 "' + server.systemName + '" 서버를 삭제하시겠습니까?\n메인 홈의 서버 항목에서도 함께 삭제됩니다.')) {
+    if ((await scbConfirm('정말 "' + server.systemName + '" 서버를 삭제하시겠습니까?\n메인 홈의 서버 항목에서도 함께 삭제됩니다.'))) {
         removeServerById(serverId);
     }
 }
@@ -1143,7 +1143,7 @@ async function saveServerEdit() {
         status: document.getElementById('editStatus').value
     };
     if (!form.systemName || !form.fqdn || !form.ip) {
-        alert('시스템명, FQDN, IP 주소를 모두 입력해주세요.');
+        scbAlert('시스템명, FQDN, IP 주소를 모두 입력해주세요.', 'warning');
         return;
     }
     let updated;
@@ -1157,7 +1157,7 @@ async function saveServerEdit() {
     updateRemoveSelect();
     const detail = document.getElementById('detail-content');
     if (detail) { detail.innerHTML = topoDetailHtml(updated); loadTopoAgent(updated.id); }
-    alert('서버 정보가 수정되었습니다. 메인 홈의 서버 항목에도 반영됩니다.');
+    scbAlert('서버 정보가 수정되었습니다. 메인 홈의 서버 항목에도 반영됩니다.');
 }
 
 
@@ -1858,7 +1858,7 @@ async function toggleServerProcess(serverId, idx) {
 async function deleteServerProcess(serverId, idx) {
     const server = serversData.find(s => s.id == serverId);
     if (!server || !server.processes[idx]) return;
-    if (confirm('정말 "' + server.processes[idx].name + '" 프로세스를 삭제하시겠습니까?')) {
+    if ((await scbConfirm('정말 "' + server.processes[idx].name + '" 프로세스를 삭제하시겠습니까?'))) {
         try {
             await apiRequest('DELETE', TOPO_API + '/servers/' + server.id + '/processes/' + server.processes[idx].id);
         } catch (e) { apiAlert(e); return; }
@@ -1939,7 +1939,7 @@ async function addManualProcess() {
     const name = document.getElementById('procManualName').value.trim();
     const path = document.getElementById('procManualPath').value.trim();
     if (!name || !path) {
-        alert('프로세스명과 실행 파일 경로를 모두 입력해주세요.');
+        scbAlert('프로세스명과 실행 파일 경로를 모두 입력해주세요.', 'warning');
         return;
     }
     await addProcessToServer(procSearchServerId, name, path);

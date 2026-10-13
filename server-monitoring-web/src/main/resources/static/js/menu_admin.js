@@ -126,17 +126,17 @@
             document.querySelectorAll('#maBody input[type=checkbox]:not(:disabled)').forEach(b => { b.checked = false; });
             dirty = true; count();
         });
-        $('maReload').addEventListener('click', () => { if (!dirty || confirm('저장하지 않은 변경을 버리고 다시 읽을까요?')) load(); });
+        $('maReload').addEventListener('click', async () => { if (!dirty || (await scbConfirm('저장하지 않은 변경을 버리고 다시 읽을까요?'))) load(); });
         $('maSave').addEventListener('click', async () => {
             const allowed = Array.from(document.querySelectorAll('#maBody input[type=checkbox]:checked')).map(b => b.getAttribute('data-id'));
             try {
                 if (!target) {
-                    if (!confirm('일반 사용자 기본 메뉴 권한을 저장하시겠습니까?\n허용 ' + allowed.length + '개 메뉴 - 개별 지정이 없는 일반 사용자의 좌측 메뉴에 바로 반영됩니다.')) return;
+                    if (!(await scbConfirm('일반 사용자 기본 메뉴 권한을 저장하시겠습니까?\n허용 ' + allowed.length + '개 메뉴 - 개별 지정이 없는 일반 사용자의 좌측 메뉴에 바로 반영됩니다.'))) return;
                     list = await apiRequest('PUT', API + '/access', { allowed: allowed });
                     status('maStatus', '저장했습니다. (기본 권한 허용 ' + allowed.length + '개 메뉴)');
                 } else {
                     const custom = editable();
-                    if (!confirm('[' + target + '] 의 메뉴 권한을 저장하시겠습니까?\n' + (custom ? '허용 ' + allowed.length + '개 메뉴 (이 사용자만)' : '일반 사용자 기본 권한을 따름'))) return;
+                    if (!(await scbConfirm('[' + target + '] 의 메뉴 권한을 저장하시겠습니까?\n' + (custom ? '허용 ' + allowed.length + '개 메뉴 (이 사용자만)' : '일반 사용자 기본 권한을 따름')))) return;
                     access = await apiRequest('PUT', API + '/access/' + encodeURIComponent(target), { custom: custom, allowed: allowed });
                     status('maStatus', '저장했습니다. [' + target + '] ' + (custom ? '허용 ' + allowed.length + '개 메뉴' : '기본 권한 따름') + ' - 그 사용자가 다음 화면을 열 때 반영됩니다.');
                     await loadUsers();
@@ -146,7 +146,7 @@
             } catch (e) { showError('maError', '저장 실패 : ' + e.message); }
         });
         $('maTarget').addEventListener('change', async e => {
-            if (dirty && !confirm('저장하지 않은 변경을 버리고 대상을 바꿀까요?')) { e.target.value = target; return; }
+            if (dirty && !(await scbConfirm('저장하지 않은 변경을 버리고 대상을 바꿀까요?'))) { e.target.value = target; return; }
             target = e.target.value;
             history.replaceState(null, '', target ? '?user=' + encodeURIComponent(target) : location.pathname);
             await load();
@@ -383,7 +383,7 @@
             } catch (e) { showError('meError', '저장 실패 : ' + e.message); }
         });
         $('meReset').addEventListener('click', async () => {
-            if (!confirm('모든 메뉴의 이름·순서·그룹과 일반 사용자 메뉴 권한을 처음 상태로 되돌리시겠습니까?')) return;
+            if (!(await scbConfirm('모든 메뉴의 이름·순서·그룹과 일반 사용자 메뉴 권한을 처음 상태로 되돌리시겠습니까?'))) return;
             try {
                 tree = toTree(await apiRequest('POST', API + '/reset'));
                 dirty = false;
@@ -392,7 +392,7 @@
                 setTimeout(() => location.reload(), 800);
             } catch (e) { showError('meError', '되돌리기 실패 : ' + e.message); }
         });
-        $('meReload').addEventListener('click', () => { if (!dirty || confirm('저장하지 않은 변경을 버리고 다시 읽을까요?')) load(); });
+        $('meReload').addEventListener('click', async () => { if (!dirty || (await scbConfirm('저장하지 않은 변경을 버리고 다시 읽을까요?'))) load(); });
         window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
         load();
     }

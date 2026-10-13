@@ -96,7 +96,7 @@
             toUser: '[' + userId + '] 의 권한을 일반 사용자(조회 전용)로 내리시겠습니까?',
             delete: '[' + userId + '] 계정을 삭제하시겠습니까?\n삭제하면 되돌릴 수 없습니다.'
         }[action];
-        if (!confirm(confirmMsg)) return;
+        if (!(await scbConfirm(confirmMsg))) return;
         const url = API + '/' + encodeURIComponent(userId);
         try {
             let r;
@@ -104,9 +104,9 @@
             else if (action === 'disable' || action === 'enable') r = await apiRequest('PUT', url + '/use', { use: action === 'enable' });
             else if (action === 'toAdmin' || action === 'toUser') r = await apiRequest('PUT', url + '/role', { roleCd: action === 'toAdmin' ? 'ADMIN' : 'USER' });
             else if (action === 'delete') r = await apiRequest('DELETE', url);
-            alert(r.message);
+            scbAlert(r.message, 'success');
         } catch (e) {
-            alert(e.message);
+            scbAlert(e.message, 'error');
         }
         load();
     }
@@ -114,6 +114,7 @@
     function openDecision(type, u) {
         decision = { type: type, user: u };
         $('decisionTitle').textContent = type === 'approve' ? '가입 승인' : '가입 반려';
+        scbModalStatus('decisionModal', type === 'approve' ? 'success' : 'error');
         $('decisionTarget').innerHTML = '<b>' + escapeHtml(u.userId) + '</b> (' + esc(u.userNm) + ', ' + esc(u.deptNm) + ')<br>신청 사유: ' + esc(u.reqReason);
         $('approveBox').hidden = type !== 'approve';
         $('rejectBox').hidden = type !== 'reject';
@@ -138,7 +139,7 @@
         let body;
         if (decision.type === 'approve') {
             body = { roleCd: $('approveRole').value };
-            if (body.roleCd === 'ADMIN' && !confirm('관리자 권한으로 승인하면 수정/삭제/제어가 모두 가능합니다. 계속하시겠습니까?')) return;
+            if (body.roleCd === 'ADMIN' && !(await scbConfirm('관리자 권한으로 승인하면 수정/삭제/제어가 모두 가능합니다. 계속하시겠습니까?'))) return;
         } else {
             body = { reason: $('rejectReason').value.trim() };
             if (!body.reason) { $('decisionError').textContent = '반려 사유를 입력하세요.'; return; }
@@ -147,7 +148,7 @@
         try {
             const r = await apiRequest('POST', url, body);
             closeDecision();
-            alert(r.message);
+            scbAlert(r.message, 'success');
             load();
         } catch (e) {
             $('decisionError').textContent = e.message;
@@ -164,6 +165,7 @@
         ['cUserId', 'cUserNm', 'cDeptNm', 'cEmail'].forEach(id => { $(id).value = ''; });
         $('cRole').value = 'USER';
         $('createTitle').textContent = '계정 생성';
+        scbModalStatus('createModal', 'info');
         $('createForm').hidden = false;
         $('createResult').hidden = true;
         $('createError').textContent = '';
@@ -177,6 +179,7 @@
     function showTemp(title, msg, userId, tempPw, roleCd) {
         createOpen = true;
         $('createTitle').textContent = title;
+        scbModalStatus('createModal', 'success');
         $('createForm').hidden = true;
         $('createResult').hidden = false;
         $('createDone').innerHTML = msg;
@@ -204,7 +207,7 @@
         };
         if (!/^[A-Za-z][A-Za-z0-9._-]{3,29}$/.test(body.userId)) { $('createError').textContent = '아이디는 영문으로 시작하는 4~30자 (영문·숫자·. _ -)로 입력하세요.'; $('cUserId').focus(); return; }
         if (!body.userNm) { $('createError').textContent = '이름을 입력하세요.'; $('cUserNm').focus(); return; }
-        if (body.roleCd === 'ADMIN' && !confirm('관리자 계정은 모든 메뉴와 수정/삭제/제어가 가능합니다. 계속하시겠습니까?')) return;
+        if (body.roleCd === 'ADMIN' && !(await scbConfirm('관리자 계정은 모든 메뉴와 수정/삭제/제어가 가능합니다. 계속하시겠습니까?'))) return;
         $('createOk').disabled = true;
         try {
             const r = await apiRequest('POST', API, body);
@@ -220,12 +223,12 @@
     }
 
     async function issueTempPassword(u) {
-        if (!confirm('[' + u.userId + '] 에게 새 임시 비밀번호를 발급하시겠습니까?\n지금 비밀번호는 쓸 수 없게 되고, 잠금도 풀리며, 첫 로그인 때 비밀번호를 바꿔야 합니다.')) return;
+        if (!(await scbConfirm('[' + u.userId + '] 에게 새 임시 비밀번호를 발급하시겠습니까?\n지금 비밀번호는 쓸 수 없게 되고, 잠금도 풀리며, 첫 로그인 때 비밀번호를 바꿔야 합니다.'))) return;
         try {
             const r = await apiRequest('POST', API + '/' + encodeURIComponent(u.userId) + '/temp-password');
             showTemp('임시 비밀번호 발급', '<b>' + escapeHtml(u.userId) + '</b> (' + esc(u.userNm) + ') 의 새 임시 비밀번호입니다.', u.userId, r.tempPassword, u.roleCd);
             load();
-        } catch (e) { alert(e.message); }
+        } catch (e) { scbAlert(e.message, 'error'); }
     }
 
     async function copyTemp() {

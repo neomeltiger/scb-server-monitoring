@@ -101,6 +101,7 @@ footer { text-align: center; color: var(--sub); font-size: 12px; padding: 20px; 
         <li><a href="#roles">사용자 권한</a></li>
         <li><a href="#login">로그인 / 로그아웃</a></li>
         <li><a href="#signup">사용자 가입 신청</a></li>
+        <li><a href="#popup">팝업 · 안내 색상</a></li>
         <li><a href="#password">비밀번호 변경</a></li>
         <li><a href="#main">메인 홈</a></li>
         <li><a href="#alarm">장애 알람과 조치</a></li>
@@ -209,6 +210,22 @@ footer { text-align: center; color: var(--sub); font-size: 12px; padding: 20px; 
         <li>관리자가 <a href="#users">사용자 관리</a> 화면에서 승인하면 로그인할 수 있습니다.</li>
     </ol>
     <div class="note warn">입력 오류가 있으면 해당 칸 아래에 빨간 글씨로 표시됩니다. 보안을 위해 이때 비밀번호 칸은 비워지므로 다시 입력하세요.</div>
+</section>
+
+<section id="popup">
+    <h2>4-1. 팝업 · 안내 색상</h2>
+    <p>모든 화면의 팝업(알림·확인·입력)과 안내 문구는 상태에 따라 같은 색과 아이콘을 씁니다.</p>
+    <table>
+        <tr><th>상태</th><th>색 · 아이콘</th><th>예</th></tr>
+        <tr><td>성공 / 완료</td><td>초록 ✓</td><td>저장했습니다, 가입 신청 접수, 비밀번호 변경 완료, 제어 결과(종료코드 0)</td></tr>
+        <tr><td>정보 / 안내</td><td>파랑 ℹ</td><td>로그아웃 확인, 조회·입력 창, 승인 대기 안내</td></tr>
+        <tr><td>경고 / 주의</td><td>주황 ⚠</td><td>임시 비밀번호 변경 필요, 웹 콘솔 접속 확인, 토큰 발급, DB 전환, 저장하지 않은 변경</td></tr>
+        <tr><td>위험 / 오류</td><td>빨강 ✕</td><td>로그인 실패, 요청 실패, 삭제·제거·초기화 확인 (취소 버튼에 먼저 초점)</td></tr>
+    </table>
+    <ul>
+        <li>키보드 : Enter = 확인, Esc = 취소(알림은 닫기), Tab 은 팝업 안에서만 이동합니다.</li>
+        <li>휴대폰(폭 600px 이하) : 팝업이 화면 아래에서 올라오고 버튼이 세로로 크게 나옵니다.</li>
+    </ul>
 </section>
 
 <!-- 5 -->

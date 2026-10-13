@@ -1568,3 +1568,101 @@ img, svg, canvas { max-width: 100%; }
     .db-btns { width: 100%; justify-content: stretch; }
     .db-btns .svc-btn { flex: 1; }
 }
+
+/* =============================================================
+   상태별 색상 · 아이콘 표준 (팝업 · 화면 안의 팝업 · 오류 안내)
+     success 초록 ✓ / info 파랑 ℹ / warning 주황 ⚠ / error 빨강 ✕
+   공통 팝업 : js/scb_dialog.js (scbAlert / scbConfirm / scbPrompt)
+   화면 안의 팝업 : .modal-card[data-status] (scbModalStatus 로 바꿈)
+   ============================================================= */
+:root {
+    --st-success: #198754; --st-success-bg: #e9f7ef; --st-success-bd: #a3d9b8;
+    --st-info: #0d6efd;    --st-info-bg: #e8f1ff;    --st-info-bd: #a9c8fb;
+    --st-warning: #e8890c; --st-warning-bg: #fff5e1; --st-warning-bd: #f6cf8a;
+    --st-error: #dc3545;   --st-error-bg: #fdecee;   --st-error-bd: #f1aeb5;
+}
+[data-status="success"] { --st: var(--st-success); --st-bg: var(--st-success-bg); --st-bd: var(--st-success-bd); --st-icon: "✓"; }
+[data-status="info"]    { --st: var(--st-info);    --st-bg: var(--st-info-bg);    --st-bd: var(--st-info-bd);    --st-icon: "ℹ"; }
+[data-status="warning"] { --st: var(--st-warning); --st-bg: var(--st-warning-bg); --st-bd: var(--st-warning-bd); --st-icon: "⚠"; }
+[data-status="error"]   { --st: var(--st-error);   --st-bg: var(--st-error-bg);   --st-bd: var(--st-error-bd);   --st-icon: "✕"; }
+
+/* ---- 공통 팝업 (alert / confirm / prompt 대체) ---- */
+.scb-dlg-overlay {
+    position: fixed; inset: 0; z-index: 5000; display: flex; align-items: center; justify-content: center;
+    padding: 16px; box-sizing: border-box; background: rgba(15, 23, 42, .45);
+    animation: scbDlgFade .12s ease-out;
+}
+body.scb-dlg-open { overflow: hidden; }
+.scb-dlg {
+    width: 440px; max-width: 100%; max-height: calc(100vh - 32px); overflow-y: auto; box-sizing: border-box;
+    background: #fff; border-radius: 12px; border-top: 5px solid var(--st);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, .25); padding: 22px 24px 18px;
+    animation: scbDlgPop .14s ease-out;
+}
+.scb-dlg-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.scb-dlg-icon {
+    flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: var(--st-bg); color: var(--st); border: 2px solid var(--st-bd); font-size: 18px; font-weight: bold; line-height: 1;
+}
+.scb-dlg-title { margin: 0; font-size: 17px; color: var(--st); }
+.scb-dlg-msg { white-space: pre-line; word-break: keep-all; overflow-wrap: anywhere; font-size: 14px; line-height: 1.6; color: #334155; padding-left: 48px; }
+.scb-dlg-input {
+    display: block; width: 100%; box-sizing: border-box; margin: 12px 0 0; padding: 9px 10px; font-size: 14px;
+    border: 1px solid #cbd5e1; border-radius: 6px;
+}
+.scb-dlg-input:focus { outline: 2px solid var(--st-bd); border-color: var(--st); }
+.scb-dlg-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.scb-dlg-btns .btn { min-width: 88px; padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; }
+.scb-dlg-cancel { border: 1px solid #cbd5e1; background: #fff; color: #334155; }
+.scb-dlg-cancel:hover { background: #f1f5f9; }
+.scb-dlg-ok { border: 1px solid var(--st); background: var(--st); color: #fff; font-weight: bold; }
+.scb-dlg-ok:hover { filter: brightness(.93); }
+.scb-dlg[data-status="warning"] .scb-dlg-ok { color: #1f2937; background: #f5a524; border-color: #f5a524; }
+.scb-dlg-btns .btn:focus-visible { outline: 3px solid var(--st-bd); outline-offset: 1px; }
+@keyframes scbDlgFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scbDlgPop { from { transform: translateY(8px) scale(.98); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .scb-dlg-overlay, .scb-dlg { animation: none; } }
+
+/* ---- 화면 안의 팝업 (.modal-card) : 위쪽 색 띠 + 제목 앞 아이콘 ---- */
+.modal-card[data-status] { border-top: 5px solid var(--st); }
+.modal-card[data-status] > h3:first-child, .modal-card[data-status] .modal-header h2 {
+    display: flex; align-items: center; gap: 10px; color: var(--st);
+}
+.modal-card[data-status] > h3:first-child::before, .modal-card[data-status] .modal-header h2::before {
+    content: var(--st-icon); flex: 0 0 30px; width: 30px; height: 30px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 15px; font-weight: bold;
+    background: var(--st-bg); color: var(--st); border: 2px solid var(--st-bd);
+}
+.modal-card[data-status] .modal-header { border-bottom-color: var(--st-bd); }
+
+/* ---- 화면 안의 오류 · 안내 문구 ---- */
+.data-error { display: flex; gap: 10px; align-items: flex-start; border-color: var(--st-error-bd); background: var(--st-error-bg); color: #842029; }
+.data-error::before { content: "✕"; flex: 0 0 22px; width: 22px; height: 22px; border-radius: 50%; background: var(--st-error); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+.data-error[hidden] { display: none; }
+.cc-error:not(:empty)::before { content: "✕ "; }
+.mn-status.bad:not(:empty)::before { content: "✕ "; }
+.st-msg { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--st-bd); background: var(--st-bg); color: #1f2937; font-size: 13px; }
+.st-msg::before { content: var(--st-icon); color: var(--st); font-weight: bold; }
+
+/* ---- 반응형 : 휴대폰에서는 아래에서 올라오는 시트, 버튼은 세로로 ---- */
+@media (max-width: 600px) {
+    .scb-dlg-overlay { align-items: flex-end; padding: 0; }
+    .scb-dlg { width: 100%; max-height: 88vh; border-radius: 14px 14px 0 0; padding: 18px 16px calc(14px + env(safe-area-inset-bottom)); }
+    .scb-dlg-msg { padding-left: 0; }
+    .scb-dlg-btns { flex-direction: column-reverse; }
+    .scb-dlg-btns .btn { width: 100%; min-height: 44px; }
+    .modal-card[data-status] > h3:first-child, .modal-card[data-status] .modal-header h2 { font-size: 17px; }
+}
+
+/* ---- 로그인 · 가입 · 비밀번호 화면 안내 (상태 색 + 왼쪽 아이콘) ---- */
+.login-error[data-status], .login-info[data-status], .signup-notice[data-status] {
+    position: relative; padding: 11px 12px 11px 44px; border: 1px solid var(--st-bd); border-left: 4px solid var(--st);
+    border-radius: 6px; background: var(--st-bg); color: #1f2937; text-align: left; font-weight: normal;
+}
+.login-error[data-status]::before, .login-info[data-status]::before, .signup-notice[data-status]::before {
+    content: var(--st-icon); position: absolute; left: 12px; top: 10px; width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; background: var(--st); color: #fff; font-size: 12px; font-weight: bold;
+}
+.login-info[data-status="warning"]::before, .login-error[data-status="warning"]::before { color: #1f2937; background: #f5a524; }
+.field-error:not(:empty)::before { content: "✕ "; }
