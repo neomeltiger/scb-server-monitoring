@@ -151,3 +151,16 @@ svr_collect_client - 서버 → 통합 모니터링 웹 연동 에이전트 (Sol
       svr_collect_client/bin/scb_client.sh install-boot      (root : 부팅 자동 시작을 새 위치로)
     확인 후 이전 폴더(krcasmrx11_client)는 지워도 됩니다. 토큰은 그대로 씁니다.
   - svr_opt_agent 가 아직 이전 이름(krcasmrx11_agent)이면 그것을 자동으로 사용합니다.
+
+[1.12 업그레이드 - 서버 점검 리포트의 서버 직접 점검]
+  - 1.11 이하는 웹 화면에서 "웹 기본 리포트"(웹에 수집된 자료)만 만들어집니다. 서버 직접 점검은 1.12 이상.
+  - PC 의 압축 풀린 폴더 C:\scb\agent\opt\agent\svr_collect_client 를 그대로 올립니다 (etc/client.env 없음).
+      1) 서버 root : /shared/opt/agent/svr_collect_client/bin/scb_client.sh stopall
+      2) WinSCP 로 svr_collect_client 폴더를 /shared/opt/agent/ 에 덮어쓰기 (전송 모드 Binary)
+      3) 서버 root :
+      cd /shared/opt/agent/svr_collect_client
+      chmod 755 bin/*.sh lib/*.sh
+      bin/scb_client.sh start
+      bin/scb_client.sh status
+  - etc/client.env 는 올리는 폴더에 없으므로 그대로 유지됩니다 (토큰 재발급 불필요).
+  - 10초 뒤 웹 "서버 점검 리포트" 에서 클라이언트 1.12, 버튼 [리포트 요청] 으로 바뀌면 완료.

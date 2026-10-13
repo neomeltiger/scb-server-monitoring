@@ -680,6 +680,21 @@ chmod 600 etc/client.env</pre></li>
         <li><b>(서버)</b> 부팅 시 자동 시작 (한 번) : <code>cp etc/scb_client.init /etc/init.d/scb_client</code>, <code>chmod 744 /etc/init.d/scb_client</code>, <code>ln -s /etc/init.d/scb_client /etc/rc3.d/S99scb_client</code>, <code>ln -s /etc/init.d/scb_client /etc/rc0.d/K01scb_client</code></li>
         <li><b>(웹)</b> 메인 홈 “에이전트 미등록 서버” 에서 해당 서버의 <b>[등록 확인]</b> → “✔ 등록 확인됨”</li>
     </ol>
+    <h3>1.12 로 업그레이드 (서버 점검 리포트의 서버 직접 점검)</h3>
+    <p>서버 점검 리포트의 <b>서버 직접 점검</b>(로그 전체, sudo·su, 방화벽, 패키지·/etc 변경)은 svr_collect_client <b>1.12 이상</b>에서만 됩니다. 1.11 이하는 웹 기본 리포트만 만들어집니다.</p>
+    <ol class="steps">
+        <li><b>(PC)</b> 1.12 는 압축하지 않은 폴더로 준비되어 있습니다 : <code>C:\scb\agent\opt\agent\svr_collect_client</code> (서버의 <code>/shared/opt/agent/svr_collect_client</code> 와 같은 구조, <code>etc/client.env</code> 없음)</li>
+        <li><b>(서버 root)</b> 서버에 접속 - 터미널(PuTTY 등) 또는 웹의 <b>네트워크 구성도 › 서버 › 웹 콘솔</b> (관리자, 본인 계정으로 로그인) - 먼저 클라이언트를 멈춤
+<pre>/shared/opt/agent/svr_collect_client/bin/scb_client.sh stopall</pre></li>
+        <li><b>(PC → 서버)</b> WinSCP 로 PC 의 <code>svr_collect_client</code> 폴더를 서버 <code>/shared/opt/agent/</code> 에 그대로 올려 덮어쓰기 (전송 모드 <b>Binary</b>). 서버의 <code>etc/client.env</code> 는 PC 폴더에 없으므로 그대로 남습니다.</li>
+        <li><b>(서버 root)</b> 실행 권한을 다시 주고 시작
+<pre>cd /shared/opt/agent/svr_collect_client
+chmod 755 bin/*.sh lib/*.sh
+bin/scb_client.sh start
+bin/scb_client.sh status</pre></li>
+        <li><b>(웹)</b> 10초 뒤 시스템관리 › 서버 점검 리포트에서 [새로고침] → 클라이언트 <b>1.12</b>, 버튼이 <b>[리포트 요청]</b> 으로 바뀌면 완료</li>
+        <li><b>(서버, 선택)</b> 바로 확인 : <code>svr_collect_client/bin/collect_report.sh all | more</code></li>
+    </ol>
     <div class="note info">에이전트는 웹 서버로 나가는 연결만 사용하며 서버에 포트를 열지 않습니다. 토큰은 서버별로 다르고 DB 에는 해시값만 저장됩니다.</div>
 </section>
 
