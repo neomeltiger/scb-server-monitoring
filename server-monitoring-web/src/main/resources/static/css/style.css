@@ -1940,6 +1940,16 @@ body.scb-dlg-open { overflow: hidden; }
 .mn-srv-st.Down { background: #e03131; }
 @media (max-width: 760px) { .mn-srv-pop { position: fixed; left: 8px; right: 8px; top: 80px; width: auto; } }
 
+/* 대시보드 사이트별 보기 (ITC / DRC) 머리 */
+.mn-site-head { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding: 8px 12px; margin-top: 4px;
+    background: var(--mn-head); border: 1px solid var(--mn-panel-bd); border-left: 5px solid #007bff; border-radius: 8px; font-size: 13px; color: var(--mn-sub); }
+.mn-site-head.drc { border-left-color: #17a2b8; }
+.mn-site-empty { grid-column: 1 / -1; padding: 14px 12px; border: 1px dashed var(--mn-panel-bd); border-radius: 8px; color: var(--mn-sub); font-size: 13px; text-align: center; }
+.mn-site-head > b { font-size: 15px; color: var(--mn-text); margin-right: 6px; }
+.mn-site-head span b { color: var(--mn-text); }
+.mn-site-head .warn b { color: #e8590c; }
+.mn-site-head .crit b { color: #e03131; }
+
 /* ===================== 전체 화면 색 (상단 [화면 색] 드롭다운, fragments/top.html) ===================== */
 .pt-field { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #475569; }
 .pt-select { border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 6px; font-size: 13px; background: #fff; color: #1f2937; max-width: 150px; }

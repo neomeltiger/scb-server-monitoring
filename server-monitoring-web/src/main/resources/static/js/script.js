@@ -1488,7 +1488,8 @@ function renderProcessCard(server) {
 //   tb_process_metric_hist → 프로세스 CPU, tb_server_metric_hist → 서버 CPU/MEM ("자원")
 //   서버 에이전트(svr_collect_client)가 보고하면 AGENT 이력이 쌓이고, 그 전에는 초기 샘플(SAMPLE)을 표시합니다.
 const PROC_COLORS = ['#007bff', '#0e7c8c', '#d9480f', '#7048e8', '#2f9e44', '#c2255c'];
-const CHART_TYPES = [['line', '선'], ['bar', '막대'], ['pie', '원'], ['res', '자원']];
+// 서버 자원(CPU·MEM) 그래프는 위쪽 모니터링 대시보드(사이트별)와 겹쳐서 카드에서는 뺌 - 카드는 프로세스·서비스 그래프만
+const CHART_TYPES = [['line', '선'], ['bar', '막대'], ['pie', '원']];
 const HISTORY_POINTS = 30;
 const HISTORY_REFRESH_MS = 60000;
 const procChartTypes = {};
@@ -1496,7 +1497,7 @@ let zoomServerId = null;
 let historyData = {};
 let historyTimer = null;
 
-function getChartType(serverId) { return procChartTypes[serverId] || 'line'; }
+function getChartType(serverId) { const t = procChartTypes[serverId]; return CHART_TYPES.some(c => c[0] === t) ? t : 'line'; }
 
 async function loadHistory() {
     try {

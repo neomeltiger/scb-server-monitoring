@@ -18,7 +18,9 @@
         // 서버별 나눠 보기 전용 : 서버 하나의 CPU · 메모리 · 디스크를 한 그래프에
         res: { name: '서버 자원 (CPU · 메모리 · 디스크)', unit: '%', max: 100, q: 'scb_server_resource_usage_percent' }
     };
-    const VIEWS = [['all', '패널 (서버 겹쳐 보기)'], ['split', '서버별 나눠 보기']];
+    const VIEWS = [['site', '사이트별 (ITC / DRC)'], ['all', '전체 합쳐 보기'], ['split', '서버별 나눠 보기']];
+    // 사이트 (서버 location : DRC 가 아니면 ITC)
+    const SITES = [['itc', 'ITC · GASAN MTR-A'], ['drc', 'DRC']];
     const TYPES = [['line', '선'], ['area', '영역'], ['bar', '막대 (현재값)'], ['gauge', '게이지 (현재값)']];
     const BGS = [
         ['light', '기본 (밝게)'], ['dark', '다크 (Grafana)'], ['midnight', '미드나잇 블루'], ['graphite', '그라파이트'],
@@ -59,7 +61,9 @@
             folded: !!s.folded,
             // 대시보드 전체 서버 선택 (빈 배열 = 전체) - Grafana 의 서버 변수처럼 모든 패널·요약 지표에 적용
             sel: Array.isArray(s.sel) ? s.sel.map(String) : [],
-            view: VIEWS.some(v => v[0] === s.view) ? s.view : 'all',
+            // 보기 기본값 = 사이트별 (이전에 저장된 보기는 viewV 2 부터 사이트별로 한 번 바꿈)
+            view: s.viewV === 2 && VIEWS.some(v => v[0] === s.view) ? s.view : 'site',
+            viewV: 2,
             panels: Array.isArray(s.panels) && s.panels.length ? s.panels.filter(p => p && METRICS[p.metric] && p.metric !== 'res') : DEFAULT_PANELS.map(p => Object.assign({}, p))
         };
     }
@@ -92,10 +96,13 @@
         return typeof serversData !== 'undefined' ? serversData : [];
     }
 
-    /** 위치(전체/ITC/DRC)와 대시보드 서버 선택을 모두 적용한 서버 */
-    function servers() {
+    function siteOf(s) { return s.location === 'DRC' ? 'drc' : 'itc'; }
+
+    /** 위치(전체/ITC/DRC)와 대시보드 서버 선택을 모두 적용한 서버. site 를 주면 그 사이트만 */
+    function servers(site) {
         const sel = st.sel.filter(id => allServers().some(s => String(s.id) === id));
-        return allServers().filter(scopeOk).filter(s => !sel.length || sel.includes(String(s.id)));
+        return allServers().filter(scopeOk).filter(s => !sel.length || sel.includes(String(s.id)))
+            .filter(s => !site || siteOf(s) === site);
     }
 
     /** 패널 하나의 계열 : [{name, values[], ts[] (수집 시각 ms)}] */
@@ -128,7 +135,7 @@
             inWin.sort((a, b) => last(b.values) - last(a.values));
             return inWin.slice(0, 12);
         }
-        servers().forEach(s => {
+        servers(p.site).forEach(s => {
             if (p.servers && p.servers.length && !p.servers.map(String).includes(String(s.id))) return;
             const h = hist[s.id];
             if (!h || !h.ts || !h.ts.length) return;
@@ -161,8 +168,9 @@
             const s = allServers().find(x => String(x.id) === String(p.serverId));
             return m.q + '{server="' + (s ? s.systemName : '?') + '"}';
         }
-        const sc = typeof processScope === 'string' && processScope !== 'all' ? 'location="' + processScope.toUpperCase() + '"' : '';
-        const names = servers().filter(s => !(p.servers && p.servers.length) || p.servers.map(String).includes(String(s.id))).map(s => s.systemName);
+        const scope = p.site || (typeof processScope === 'string' && processScope !== 'all' ? processScope : '');
+        const sc = scope ? 'location="' + scope.toUpperCase() + '"' : '';
+        const names = servers(p.site).filter(s => !(p.servers && p.servers.length) || p.servers.map(String).includes(String(s.id))).map(s => s.systemName);
         const sv = st.sel.length || (p.servers && p.servers.length)
             ? 'server=~"' + (names.length <= 2 ? names.join('|') : names.length + '대 선택') + '"' : '';
         const lab = [sc, sv].filter(Boolean).join(',');
@@ -336,6 +344,29 @@
 
     /** 지금 보기의 패널 : 패널 보기 = 저장된 패널, 서버별 나눠 보기 = 선택 서버마다 자원 패널 1개 (Grafana 의 패널 반복) */
     function curPanels() {
+        if (st.view === 'site') {
+            // 사이트별 : 같은 패널 정의를 ITC / DRC 마다 한 번씩 (정의는 하나라 편집·삭제도 한 번에), 프로세스 패널은 그 서버의 사이트에만
+            const out = [];
+            const scope = typeof processScope === 'string' ? processScope : 'all';
+            SITES.filter(si => scope === 'all' || scope === si[0]).forEach(si => {
+                out.push({ head: true, id: 'site-' + si[0], site: si[0], title: si[1] });
+                // 조회 범위 안 수집값이 없는 사이트는 빈 패널을 여러 개 그리지 않고 안내 한 줄로 합침
+                const from = Date.now() - st.range * 60000;
+                const hasData = servers(si[0]).some(s => { const h = hist[s.id]; return h && h.ts && h.ts.length && h.ts[h.ts.length - 1] >= from; });
+                if (!hasData) {
+                    out.push({ note: true, id: 'note-' + si[0], site: si[0], title: si[1] });
+                    return;
+                }
+                st.panels.forEach(p => {
+                    if (p.metric === 'proc') {
+                        const s = allServers().find(x => String(x.id) === String(p.serverId));
+                        if (!s || siteOf(s) !== si[0]) return;
+                    }
+                    out.push(Object.assign({}, p, { id: p.id + '@' + si[0], baseId: p.id, site: si[0] }));
+                });
+            });
+            return out;
+        }
         if (st.view !== 'split') return st.panels;
         return servers().map(s => ({
             id: 'srv-' + s.id, title: s.systemName, metric: 'res', type: st.splitType || 'line', serverId: String(s.id), split: true
@@ -344,6 +375,33 @@
 
     function findPanel(id) {
         return curPanels().find(x => x.id === id) || st.panels.find(x => x.id === id);
+    }
+
+    /** 사이트별 보기의 복사 패널 → 저장된 원래 패널 */
+    function basePanel(p) {
+        return p && p.baseId ? st.panels.find(x => x.id === p.baseId) : p;
+    }
+
+    /** 사이트 머리 : 사이트 이름 + 서버 수 · 상태 · 연결 · 평균 CPU · 최고 디스크 */
+    function siteHeadHtml(p) {
+        const list = servers(p.site);
+        const conn = list.filter(s => typeof isServerConnected === 'function' && isServerConnected(s));
+        const curOf = (s, k) => {
+            const h = hist[s.id];
+            return h && h.ts && h.ts.length && h.ts[h.ts.length - 1] >= Date.now() - st.range * 60000 ? last((h[k] || []).map(Number)) : null;
+        };
+        const cpus = list.map(s => curOf(s, 'cpu')).filter(v => v !== null);
+        const disks = list.map(s => ({ s, v: curOf(s, 'disk') })).filter(x => x.v !== null).sort((a, b) => b.v - a.v);
+        const avg = cpus.length ? cpus.reduce((a, b) => a + b, 0) / cpus.length : null;
+        const down = list.filter(s => s.status === 'Down').length;
+        return '<div class="mn-site-head ' + esc(p.site) + '" role="heading" aria-level="4">' +
+            '<b>' + esc(p.title) + '</b>' +
+            '<span>서버 <b>' + list.length + '</b>대</span>' +
+            '<span class="' + (down ? 'crit' : '') + '">Down <b>' + down + '</b></span>' +
+            '<span>에이전트 연결 <b>' + conn.length + ' / ' + list.length + '</b></span>' +
+            '<span class="' + (avg === null ? '' : threshold({ metric: 'cpu' }, avg)) + '">평균 CPU <b>' + fmt(avg, '%') + '</b></span>' +
+            '<span class="' + (disks.length ? threshold({ metric: 'disk' }, disks[0].v) : '') + '">최고 디스크 <b>' +
+            (disks.length ? fmt(disks[0].v, '%') + '</b> (' + esc(disks[0].s.systemName) + ')' : '-</b>') + '</span></div>';
     }
 
     /** 서버별 패널 머리 : 상태 · IP · 현재 자원 · 세션 */
@@ -363,6 +421,11 @@
     }
 
     function panelHtml(p) {
+        if (p.head) return siteHeadHtml(p);
+        if (p.note) {
+            return '<div class="mn-site-empty" role="status">' + esc(p.title) + ' : 조회 범위(' + esc((RANGES.find(r => r[0] === st.range) || [0, ''])[1]) +
+                ') 안에 수집값이 있는 서버가 없어 그래프 ' + st.panels.length + '개를 생략했습니다. 에이전트(svr_collect_client)가 보고를 시작하면 이 사이트의 그래프가 나타납니다.</div>';
+        }
         if (p.split) {
             return '<article class="mn-panel mn-split" data-id="' + esc(p.id) + '">' +
                 '<header class="mn-panel-head"><div class="mn-panel-title">' + esc(p.title) +
@@ -460,7 +523,7 @@
     function drawZoom() {
         const p = findPanel(zoomId);
         if (!p) { closeZoom(); return; }
-        $('mnZoomTitle').textContent = p.title;
+        $('mnZoomTitle').textContent = p.title + (p.site ? ' · ' + (SITES.find(x => x[0] === p.site) || ['', ''])[1] : '');
         $('mnZoomQuery').textContent = query(p);
         drawPanel($('mnZoomBody'), p, true);
     }
@@ -660,6 +723,7 @@
             if (!sel) return;
             const p = findPanel(sel.closest('.mn-panel').dataset.id);
             if (p.split) { st.splitType = sel.value; save(); render(); return; }   // 서버별 패널은 모두 같은 방식
+            if (p.baseId) { basePanel(p).type = sel.value; save(); render(); return; }   // 사이트별 : ITC · DRC 함께
             p.type = sel.value;
             save();
             drawPanel(sel.closest('.mn-panel'), p, false);
@@ -677,18 +741,20 @@
             else if (act === 'only') { st.sel = [p.serverId]; save(); render(); }
             else if (act === 'proc') {
                 st.panels.push({ id: 'p' + Date.now().toString(36), title: p.title + ' 프로세스 CPU', metric: 'proc', type: 'line', servers: [], serverId: p.serverId });
-                st.view = 'all';
-                $('mnView').value = 'all';
+                st.view = 'site';
+                $('mnView').value = 'site';
                 save(); render();
-                scbAlert('"' + p.title + '" 의 프로세스·서비스 CPU 패널을 추가했습니다. (패널 보기 맨 아래)', 'success');
+                scbAlert('"' + p.title + '" 의 프로세스·서비스 CPU 패널을 추가했습니다. (그 서버 사이트의 맨 아래)', 'success');
             }
-            else if (act === 'edit') openEdit(p.id);
+            else if (act === 'edit') openEdit(basePanel(p).id);
             else if (act === 'dup') {
-                st.panels.splice(st.panels.indexOf(p) + 1, 0, Object.assign({}, p, { id: 'p' + Date.now().toString(36), title: p.title + ' (복제)' }));
+                const b = basePanel(p);
+                st.panels.splice(st.panels.indexOf(b) + 1, 0, Object.assign({}, b, { id: 'p' + Date.now().toString(36), title: b.title + ' (복제)' }));
                 save(); render();
             } else if (act === 'del') {
-                if (!(await scbConfirm('"' + p.title + '" 패널을 삭제하시겠습니까?'))) return;
-                st.panels = st.panels.filter(x => x !== p);
+                const b = basePanel(p);
+                if (!(await scbConfirm('"' + b.title + '" 패널을 삭제하시겠습니까?' + (p.baseId ? ' (ITC · DRC 모두에서 빠집니다)' : '')))) return;
+                st.panels = st.panels.filter(x => x !== b);
                 save(); render();
             }
         });
