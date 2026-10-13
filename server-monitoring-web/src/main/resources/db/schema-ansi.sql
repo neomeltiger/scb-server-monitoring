@@ -1,4 +1,4 @@
--- 테스트용 (H2 메모리 DB) : schema-mysql.sql 과 같은 테이블을 ANSI SQL DDL 로 정의
+-- H2 (실행 : 임베디드 파일 DB, 테스트 : 메모리 DB) : schema-mysql.sql 과 같은 테이블을 ANSI SQL DDL 로 정의
 -- (MySQL 전용 옵션 ENGINE / COMMENT / AUTO_INCREMENT 대신 표준 IDENTITY 사용)
 DROP TABLE IF EXISTS tb_proc_fallback;
 DROP TABLE IF EXISTS tb_heartbeat_hist;

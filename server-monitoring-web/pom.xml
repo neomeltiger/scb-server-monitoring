@@ -70,6 +70,24 @@
             <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!-- MariaDB (임베디드 / 외부) : MariaDB Connector/J 3.1.4 (Spring Boot 관리 버전, 오프라인 저장소에 최소 pom 으로 넣음) -->
+        <dependency>
+            <groupId>org.mariadb.jdbc</groupId>
+            <artifactId>mariadb-java-client</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- H2 : 자바만으로 도는 임베디드 파일 DB (Windows · Solaris 10 SPARC), 테스트 메모리 DB 로도 사용 -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <!-- Oracle 보조 연결 (oracle 프로필) : ojdbc8 21.5.0.0 (JDK 8, Spring Boot 관리 버전) -->
+        <dependency>
+            <groupId>com.oracle.database.jdbc</groupId>
+            <artifactId>ojdbc8</artifactId>
+            <scope>runtime</scope>
+        </dependency>
 
         <!-- 화면 템플릿 -->
         <dependency>
@@ -140,11 +158,6 @@
             <groupId>org.mybatis.spring.boot</groupId>
             <artifactId>mybatis-spring-boot-starter-test</artifactId>
             <version>${mybatis-spring-boot.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

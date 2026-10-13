@@ -13,19 +13,7 @@ spring:
   thymeleaf:
     cache: true
 
-  # 주 DB : MySQL 8.x (스키마 scb_mon_agent) - 네트워크 구성도 서버/프로세스
-  #   테이블 생성: db\init-mysql.bat (src/main/resources/db/schema-mysql.sql, data.sql)
-  #   접속 정보는 환경변수로 바꿀 수 있습니다: MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD
-  #   ※ 비밀번호는 저장소에 두지 않습니다. 실행 전 MYSQL_PASSWORD 환경변수로 지정하세요.
-  datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:13306}/scb_mon_agent?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
-    username: ${MYSQL_USER:root}
-    password: ${MYSQL_PASSWORD:}
-    hikari:
-      pool-name: mysql-pool
-      maximum-pool-size: 10
-      connection-timeout: 5000
+  # 주 DB 는 app.db (config.db.DbConfig) 가 만듭니다 - spring.datasource 는 쓰지 않음
 
 # MyBatis : Mapper XML = resources/mapper/**/*.xml (ANSI SQL)
 mybatis:
@@ -37,6 +25,42 @@ mybatis:
     default-statement-timeout: 30
 
 app:
+  # ---------------------------------------------------------------- DB (config.db.DbConfig)
+  # 주 DB 선택 SCB_DB : auto (기본) = MySQL → (연결 안 되면) MariaDB 임베디드 → (MariaDB 프로그램이 없으면, 예: Solaris) H2
+  #                     mysql / mariadb / h2 = 그 DB 만 (실행 패키지 conf/scb_web.env 의 SCB_DB)
+  # 개별 연결 : MysqlJdbc / MariaDbJdbc / H2Jdbc / SybaseJdbc(sybase 프로필) / OracleJdbc(oracle 프로필), 상태 GET /api/db/status
+  # 데이터 이전 : --app.db.migrate=mysql:mariadb (또는 mysql:h2) - 실행 패키지 bin\scb_web.bat migrate-db mysql:mariadb
+  db:
+    primary: ${SCB_DB:auto}
+    probe-timeout-ms: ${SCB_DB_PROBE_MS:3000}
+    # MySQL 8.x (스키마 scb_mon_agent) - 테이블 생성 db\init-mysql.bat
+    #   ※ 비밀번호는 저장소에 두지 않습니다. 실행 전 MYSQL_PASSWORD 환경변수로 지정하세요.
+    mysql:
+      url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:13306}/scb_mon_agent?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      username: ${MYSQL_USER:root}
+      password: ${MYSQL_PASSWORD:}
+      maximum-pool-size: 10
+      connection-timeout: 5000
+    # MariaDB : 임베디드(기본)면 아래 embedded 설정을 쓰고, 외부 MariaDB 면 SCB_MARIADB_EMBEDDED=false + SCB_MARIADB_URL
+    mariadb:
+      url: ${SCB_MARIADB_URL:jdbc:mariadb://127.0.0.1:13307/scb_mon_agent}
+      username: ${SCB_MARIADB_USER:root}
+      password: ${SCB_MARIADB_PASSWORD:}      # 임베디드 : 비우면 처음 만들 때 무작위 비밀번호 → {data}.scb-embedded.properties
+      maximum-pool-size: 10
+      connection-timeout: 5000
+    # MariaDB 임베디드 : 웹이 mariadb/<플랫폼>/bin/mariadbd 를 시작·종료 (127.0.0.1:13307 전용)
+    #   Windows : 실행 패키지 mariadb/windows-x64 (MariaDB 10.11 LTS), Solaris 10 SPARC : MariaDB 배포본 없음 → H2 사용
+    embedded:
+      enabled: ${SCB_MARIADB_EMBEDDED:true}
+      home: ${SCB_MARIADB_HOME:}              # 비우면 실행 폴더의 mariadb/<플랫폼>
+      data: ${SCB_MARIADB_DATA:}              # 비우면 실행 폴더의 data/mariadb
+      port: ${SCB_MARIADB_PORT:13307}
+      start-timeout-sec: 60
+    # H2 파일 DB : 자바만으로 동작 (Windows · Solaris 10 SPARC), 파일 {dir}/scb_mon_agent.mv.db
+    h2:
+      enabled: ${SCB_H2_ENABLED:true}
+      dir: ${SCB_H2_DATA:}                    # 비우면 실행 폴더의 data/h2
+
   # API 문서 : Swagger UI(/swagger-ui.html) · OpenAPI(/v3/api-docs) · API 가이드(/admin/api-guide) · 예제 소스(/samples/**)
   #            · Postman 컬렉션(/api/docs/**) · 화면 데이터(/api/admin/docs/**)
   # 운영에서 제외 : 프로파일 prod (--spring.profiles.active=default,prod) 또는 환경변수 API_DOCS_ENABLED=false
@@ -140,6 +164,22 @@ app:
         connection-timeout: 5000
         connection-test-query: select 1        # jTDS 는 JDBC4 isValid() 미지원 → 검사 쿼리 필수
         initialization-fail-timeout: -1        # DB 가 꺼져 있어도 애플리케이션은 시작
+
+---
+# Oracle 보조 연결 (oracle 프로필) : --spring.profiles.active=default,oracle  (OracleJdbc, 상태 /api/db/status)
+#   SCB_ORACLE_URL 예) jdbc:oracle:thin:@//10.0.0.20:1521/ORCLPDB1 , SCB_ORACLE_USER, SCB_ORACLE_PASSWORD (비밀번호는 파일에 쓰지 마세요)
+spring:
+  config:
+    activate:
+      on-profile: oracle
+app:
+  oracle:
+    datasource:
+      url: ${SCB_ORACLE_URL:jdbc:oracle:thin:@//127.0.0.1:1521/ORCLPDB1}
+      username: ${SCB_ORACLE_USER:scbmon}
+      password: ${SCB_ORACLE_PASSWORD:}
+      maximum-pool-size: 5
+      connection-timeout: 5000
 
 ---
 # 운영 : --spring.profiles.active=default,prod  (Sybase 와 함께 : sybase,prod)

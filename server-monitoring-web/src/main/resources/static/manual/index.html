@@ -120,6 +120,7 @@ footer { text-align: center; color: var(--sub); font-size: 12px; padding: 20px; 
         <li><a href="#mobile">휴대폰·태블릿에서 보기</a></li>
         <li><a href="#faq">자주 묻는 질문 / 문제 해결</a></li>
         <li><a href="#ops">운영 담당자 참고</a></li>
+        <li><a href="#dbconf">DB 구성 (MySQL · MariaDB · H2 · Sybase · Oracle)</a></li>
     </ol>
 </nav>
 
@@ -652,6 +653,28 @@ chmod 600 etc/client.env</pre></li>
         <li>비밀번호는 BCrypt 해시로만 저장되며 화면이나 로그에 표시되지 않습니다.</li>
     </ul>
 </section>
+
+<!-- 16-2 -->
+<section id="dbconf">
+    <h2>16-2. DB 구성 (MySQL · MariaDB · H2 · Sybase · Oracle) <span class="chip blue">운영</span></h2>
+    <p>모니터링 데이터(서버, 프로세스, 이력, 알람, 사용자)는 <b>주 DB</b> 하나에 저장합니다. 주 DB 는 실행 패키지 <code>conf/scb_web.env</code> 의 <code>SCB_DB</code> 로 고릅니다.</p>
+    <table>
+        <tr><th>SCB_DB</th><th>동작</th></tr>
+        <tr><td><b>auto</b> (기본)</td><td>MySQL 에 먼저 연결 (3초) → 안 되면 <b>MariaDB 임베디드</b> (웹이 직접 시작) → MariaDB 프로그램이 없으면 (Solaris 10 SPARC) <b>H2 파일 DB</b></td></tr>
+        <tr><td>mysql</td><td>MySQL 만 (연결 안 되면 시작 실패)</td></tr>
+        <tr><td>mariadb</td><td>MariaDB 만 - 기본은 임베디드 (127.0.0.1:13307, 데이터 data/mariadb), 외부 MariaDB 는 <code>SCB_MARIADB_EMBEDDED=false</code> + <code>SCB_MARIADB_URL</code></td></tr>
+        <tr><td>h2</td><td>H2 파일 DB 만 (자바만으로 동작, Windows · Solaris 10 SPARC 모두, 데이터 data/h2)</td></tr>
+    </table>
+    <ul>
+        <li><b>임베디드 MariaDB</b> : Windows 실행 패키지에 MariaDB 10.11 LTS 가 들어 있습니다 (mariadb/windows-x64). 처음 쓸 때 데이터 폴더·스키마·기본 데이터를 자동으로 만들고, 웹을 멈추면 함께 종료됩니다. root 비밀번호는 무작위로 정해 <code>data/mariadb.scb-embedded.properties</code> 에 저장됩니다 (외부에 주지 마세요).</li>
+        <li><b>Solaris 10 SPARC</b> : MariaDB 는 이 플랫폼용 실행 파일을 배포하지 않아 H2 를 씁니다. MySQL 이 연결되면 MySQL 을 그대로 씁니다.</li>
+        <li><b>데이터 옮기기</b> : 웹을 멈춘 뒤 <code>bin\scb_web.bat migrate-db mysql:mariadb</code> (Solaris : <code>bin/scb_web.sh migrate-db mysql:h2</code>). 원본의 모든 테이블을 대상에 덮어쓰고 테이블별 건수를 비교합니다. 반대 방향(mariadb:mysql 등)도 됩니다.</li>
+        <li><b>보조 연결</b> : Sybase (<code>SPRING_PROFILES=default,sybase</code>), Oracle (<code>default,oracle</code> + <code>SCB_ORACLE_URL</code> / <code>SCB_ORACLE_USER</code> / <code>SCB_ORACLE_PASSWORD</code>). 개발 코드에서는 MysqlJdbc / MariaDbJdbc / H2Jdbc / SybaseJdbc / OracleJdbc 를 각각 주입받아 씁니다.</li>
+        <li><b>상태 확인</b> : <code>GET /api/db/status</code> - 지금 주 DB 와 선택 이유, DB 별 연결 상태·버전.</li>
+    </ul>
+    <div class="note warn">데이터를 옮기면 대상 DB 의 내용은 원본으로 바뀝니다. 운영 중인 웹은 먼저 멈추세요 (scb_web.bat 이 실행 중이면 거부합니다).</div>
+</section>
+
 </main>
 </div>
 <footer>&copy; 2026 통합 서버 관리 및 모니터링 시스템 · 사용자 매뉴얼</footer>

@@ -1,62 +1,87 @@
 package com.scb.monitoring.web;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.scb.monitoring.config.SybaseJdbc;
+import com.scb.monitoring.config.db.DbSelection;
+import com.scb.monitoring.config.db.H2Jdbc;
+import com.scb.monitoring.config.db.MariaDbJdbc;
+import com.scb.monitoring.config.db.MysqlJdbc;
+import com.scb.monitoring.config.db.NamedJdbc;
+import com.scb.monitoring.config.db.OracleJdbc;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-import com.scb.monitoring.config.SybaseJdbc;
-
 /**
- * Sybase 연결 상태 확인 API (로그인 필요).
- * sybase 프로필이 아니면 enabled=false 를 돌려줍니다.
+ * DB 연결 상태 (로그인 사용자) : 주 DB 선택 결과(SCB_DB, 이유) + MySQL / MariaDB / H2 / Sybase / Oracle 개별 연결 확인.
+ * 주 DB 가 아닌 임베디드 MariaDB · H2 는 상태 확인만으로 시작·생성하지 않습니다.
  */
 @Tag(name = "7. 기타", description = "웹 콘솔·DB 상태")
 @RestController
 public class DbStatusController {
 
+    private final DbSelection selection;
+    private final MysqlJdbc mysql;
+    private final MariaDbJdbc mariadb;
+    private final H2Jdbc h2;
     private final ObjectProvider<SybaseJdbc> sybase;
+    private final ObjectProvider<OracleJdbc> oracle;
 
-    public DbStatusController(ObjectProvider<SybaseJdbc> sybase) {
+    public DbStatusController(DbSelection selection, MysqlJdbc mysql, MariaDbJdbc mariadb, H2Jdbc h2,
+                              ObjectProvider<SybaseJdbc> sybase, ObjectProvider<OracleJdbc> oracle) {
+        this.selection = selection;
+        this.mysql = mysql;
+        this.mariadb = mariadb;
+        this.h2 = h2;
         this.sybase = sybase;
+        this.oracle = oracle;
     }
 
-    @Operation(summary = "Sybase 연결 상태")
+    @Operation(summary = "DB 연결 상태 (주 DB 선택 결과 + MySQL / MariaDB / H2 / Sybase / Oracle)")
     @GetMapping("/api/db/status")
     public ResponseEntity<Map<String, Object>> status() {
         Map<String, Object> body = new LinkedHashMap<>();
-        SybaseJdbc s = sybase.getIfAvailable();
-        JdbcTemplate t = s == null ? null : s.getJdbcTemplate();
-        if (t == null) {
-            body.put("enabled", false);
-            body.put("message", "Sybase 연결이 설정되지 않았습니다. (sybase 프로필로 실행하세요)");
-        } else {
-            body.put("enabled", true);
-            long start = System.currentTimeMillis();
-            try {
-                body.put("database", t.queryForObject("select db_name()", String.class));
-                body.put("version", t.queryForObject("select @@version", String.class));
-                body.put("connected", true);
-            } catch (Exception e) {
-                body.put("connected", false);
-                body.put("error", rootMessage(e));
-            }
-            body.put("elapsedMs", System.currentTimeMillis() - start);
-        }
+        Map<String, Object> primary = new LinkedHashMap<>();
+        primary.put("db", selection.getDb());
+        primary.put("mode", selection.getMode());
+        primary.put("reason", selection.getReason());
+        body.put("primary", primary);
+
+        List<Map<String, Object>> dbs = new ArrayList<>();
+        dbs.add(entry("mysql", mysql));
+        dbs.add(entry("mariadb", mariadb));
+        dbs.add(entry("h2", h2));
+        dbs.add(optional("sybase", sybase.getIfAvailable(), "sybase 프로필로 실행하면 연결"));
+        dbs.add(optional("oracle", oracle.getIfAvailable(), "oracle 프로필로 실행하면 연결 (SCB_ORACLE_URL / SCB_ORACLE_USER / SCB_ORACLE_PASSWORD)"));
+        body.put("databases", dbs);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body);
     }
 
-    private static String rootMessage(Throwable e) {
-        Throwable c = e;
-        while (c.getCause() != null && c.getCause() != c) c = c.getCause();
-        return c.getClass().getSimpleName() + ": " + c.getMessage();
+    private Map<String, Object> entry(String key, NamedJdbc j) {
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("key", key);
+        m.put("enabled", true);
+        m.put("primary", selection.is(key));
+        m.putAll(j.status());
+        return m;
+    }
+
+    private Map<String, Object> optional(String key, NamedJdbc j, String hint) {
+        if (j != null) return entry(key, j);
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("key", key);
+        m.put("enabled", false);
+        m.put("message", hint);
+        return m;
     }
 }
