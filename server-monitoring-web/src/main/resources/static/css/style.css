@@ -1962,5 +1962,22 @@ html[data-pt="mono"] { --pt-bg: #f4f4f5; --pt-side: linear-gradient(160deg, #181
 html[data-pt="dark"] { --pt-bg: #f4f6f9; --pt-side: linear-gradient(160deg, #385c95 0%, #4f83b9 55%, #3dadeb 100%); --pt-accent: #007bff; --pt-accent2: #0056b3;
     filter: invert(0.9) hue-rotate(180deg); background: #fff; }
 html[data-pt="dark"] img, html[data-pt="dark"] video, html[data-pt="dark"] iframe, html[data-pt="dark"] .mn-stat { filter: invert(1) hue-rotate(180deg); }
+/* 다크 : 좌측 메뉴도 어둡게 - 화면 전체가 반전되므로 밝은 색을 주면 어두운 남색 메뉴 + 밝은 글자로 보임 */
+html[data-pt="dark"] .sidebar-menu { background: linear-gradient(160deg, #f1f5f9 0%, #e8edf4 55%, #dde5ef 100%); color: #1e293b; box-shadow: 4px 0 10px rgba(0,0,0,.08); }
+html[data-pt="dark"] .sidebar-header { background: rgba(15,23,42,.05); border-bottom-color: rgba(15,23,42,.14); }
+html[data-pt="dark"] .sidebar-header h3, html[data-pt="dark"] .snb-title { color: #0f172a; }
+html[data-pt="dark"] .sidebar-header p { color: #334155; }
+html[data-pt="dark"] .tree-category, html[data-pt="dark"] .tree-link { color: #1e293b; }
+html[data-pt="dark"] .bullet { color: rgba(15,23,42,.55); }
+html[data-pt="dark"] .submenu { border-left-color: rgba(15,23,42,.22); }
+html[data-pt="dark"] .tree-link:hover, html[data-pt="dark"] .snb-head:hover { background-color: rgba(15,23,42,.08); color: #0f172a; }
+html[data-pt="dark"] .tree-link.active { background-color: #1e3a5f; color: #f1f5f9; box-shadow: none; }
+html[data-pt="dark"] .tree-link.active .bullet { color: #f1f5f9; }
+html[data-pt="dark"] .snb-collapse { border-color: rgba(15,23,42,.3); background: rgba(15,23,42,.05); color: #1e293b; }
+html[data-pt="dark"] .snb-collapse:hover { background: rgba(15,23,42,.12); }
+html[data-pt="dark"] .snb-collapse:focus-visible, html[data-pt="dark"] .snb-head:focus-visible { outline-color: #1e293b; }
+html[data-pt="dark"] .snb-collapsed .snb-group.has-active > .snb-head { background: rgba(15,23,42,.14); }
+html[data-pt="dark"] .snb-collapsed .snb-group > .submenu { background: #e2e8f0; box-shadow: 6px 6px 20px rgba(0,0,0,.18); }
+html[data-pt="dark"] .snb-collapsed .snb-flyout-title { color: #334155; border-bottom-color: rgba(15,23,42,.18); }
 @media (max-width: 600px) { .pt-field .pt-k { display: none; } .pt-select { max-width: 110px; } }
 @media print { .pt-field { display: none; } html[data-pt="dark"] { filter: none; } }
