@@ -12,7 +12,7 @@
 <body>
     <!--
         서버 로그 (serverlog.controller.ServerLogController, js/server_logs.js)
-        웹 서버가 서버별 요청 주기마다 krcasmrx11_client 에 로그를 요청 → 에이전트가 마지막 N줄 전송 → tb_log_snapshot (로그별 최근 20회)
+        웹 서버가 서버별 요청 주기마다 svr_collect_client 에 로그를 요청 → 에이전트가 마지막 N줄 전송 → tb_log_snapshot (로그별 최근 20회)
         요청 주기 / 지금 요청 / 로그 파일 등록은 ADMIN, 조회는 로그인 사용자
     -->
     <div class="app-layout">
@@ -21,13 +21,13 @@
         <div class="main-content-wrapper">
             <div th:replace="fragments/top :: top"></div>
 
-            <p><span class="icon">🏠</span> 메인 홈 &gt; 서버자원모니터링 &gt; 서버 로그</p>
+            <p th:replace="fragments/left :: crumb(${menu})"></p>
 
             <div class="svc-page lg-page">
                 <!-- 서버 / 요청 주기 -->
                 <div class="spec-container">
                     <div class="spec-header">
-                        <h3>서버 로그 <span class="svc-sub">웹 서버가 정한 주기마다 krcasmrx11_client 에 로그를 요청합니다</span></h3>
+                        <h3>서버 로그 <span class="svc-sub">웹 서버가 정한 주기마다 svr_collect_client 에 로그를 요청합니다</span></h3>
                     </div>
                     <div class="lg-toolbar">
                         <label class="lg-field">
@@ -57,7 +57,7 @@
                     <div class="lg-status" id="lgStatus" role="status">불러오는 중...</div>
                     <p class="svc-hint">
                         · 에이전트 데몬은 10초마다 웹 서버를 확인하므로, 요청이 서버에 전달되기까지 최대 10초 걸립니다. (에이전트 관리에서 수집 중지하면 로그도 요청하지 않음)<br>
-                        · 서버의 krcasmrx11_client 는 <code>etc/client.env</code> 의 <code>SCB_LOG_ALLOW</code> 에 있는 경로만 읽습니다. 목록 밖이면 "허용 안 됨" 으로 표시됩니다.
+                        · 서버의 svr_collect_client 는 <code>etc/client.env</code> 의 <code>SCB_LOG_ALLOW</code> 에 있는 경로만 읽습니다. 목록 밖이면 "허용 안 됨" 으로 표시됩니다.
                     </p>
                 </div>
 
@@ -75,7 +75,7 @@
                             <div class="lg-presets" id="lgPresets">
                                 <span>자주 쓰는 경로 :</span>
                                 <button type="button" data-name="시스템 로그 (messages)" data-path="/var/adm/messages">/var/adm/messages</button>
-                                <button type="button" data-name="에이전트 클라이언트 로그" data-path="/shared/opt/agent/krcasmrx11_client/log/scb_client.log">client 로그</button>
+                                <button type="button" data-name="에이전트 클라이언트 로그" data-path="/shared/opt/agent/svr_collect_client/log/scb_client.log">client 로그</button>
                             </div>
                             <div class="lg-form-row">
                                 <label>가져올 줄 수

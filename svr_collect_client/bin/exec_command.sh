@@ -4,7 +4,7 @@
 #   exec_command.sh <명령> <대상>
 #     명령 : start | stop | restart | status | kill | clean
 #     대상 : all | group:N | level:N | 서비스명
-#   krcasmrx11_agent 의 scb_main.sh 로 실행 (service.list 에 등록된 서비스만 실행됨)
+#   svr_opt_agent 의 scb_main.sh 로 실행 (service.list 에 등록된 서비스만 실행됨)
 #   웹 서버에서 검사한 값이지만 여기서도 다시 검사합니다. (eval / 셸 해석 없음)
 # Solaris 10 /bin/sh 호환
 #=============================================================

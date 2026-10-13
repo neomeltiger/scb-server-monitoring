@@ -1,6 +1,6 @@
 #!/bin/sh
 #=============================================================
-# scb_client.sh - krcasmrx11_client 메인 (서버 → 웹 통합 모니터링 연동)
+# scb_client.sh - svr_collect_client 메인 (서버 → 웹 통합 모니터링 연동)
 # 대상 : Solaris 10 (SPARC) /bin/sh (Bourne shell) 호환
 # 실행 방식 : 데몬 (crontab 사용 안 함)
 #

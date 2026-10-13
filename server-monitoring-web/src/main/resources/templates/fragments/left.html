@@ -2,52 +2,41 @@
 <html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <body>
 <!-- ===== LEFT : 좌측 트리 메뉴 ===== -->
-<!-- 사용: <div th:replace="fragments/left :: left(${menu})"></div>  (menu: main | network | servers | logs | heartbeat | fallback | agents | processes | users | apiguide)
-     시스템관리 > 사용자 관리 는 ADMIN 에게만 보임 (pendingUserCount : web.LayoutModelAdvice)
-     API 가이드 / API 문서(Swagger) 는 운영(prod, API_DOCS_ENABLED=false)에서 숨김 (apiDocsEnabled) -->
-<div class="sidebar-menu" id="sidebarMenu" th:fragment="left(menu)">
+<!-- 사용: <div th:replace="fragments/left :: left(${menu})"></div>  (menu = tb_menu 의 메뉴 ID : main | network | servers | ... | users | menuauth | menuedit)
+     메뉴 이름·순서·그룹·일반 사용자 권한은 DB(tb_menu) - 권한관리 > [메뉴 권한] / [메뉴 이름·순서] (menu.service.MenuService)
+     관리자는 전체, 일반 사용자는 허용된 메뉴만 보임. 승인 대기 건수 : pendingUserCount (web.LayoutModelAdvice) -->
+<div class="sidebar-menu" id="sidebarMenu" th:fragment="left(menu)"
+     th:with="isAdmin=${#authorization.expression('hasRole(''ADMIN'')')}">
     <div class="sidebar-header">
         <h3>통합 서버 모니터링</h3>
         <p>Murex Group System</p>
     </div>
     <ul class="tree-menu">
-        <li class="tree-item">
-            <a th:href="@{/}" class="tree-link" th:classappend="${menu == 'main'} ? 'active'">
-                <span class="icon">🏠</span> 메인 홈
-            </a>
-        </li>
-        <li class="tree-item has-submenu">
-            <div class="tree-category"><span class="icon">💻</span> 서버자원모니터링</div>
-            <ul class="submenu">
-                <li><a th:href="@{/network}" class="tree-link" th:classappend="${menu == 'network'} ? 'active'"><span class="bullet">▪</span> 네트워크구성도</a></li>
-                <li><a th:href="@{/servers}" class="tree-link" th:classappend="${menu == 'servers'} ? 'active'"><span class="bullet">▪</span> 서버전체목록</a></li>
-                <li><a th:href="@{/logs}" class="tree-link" th:classappend="${menu == 'logs'} ? 'active'"><span class="bullet">▪</span> 서버 로그</a></li>
-                <li><a th:href="@{/heartbeat}" class="tree-link" th:classappend="${menu == 'heartbeat'} ? 'active'"><span class="bullet">▪</span> 하트비트 모니터링</a></li>
-                <li><a th:href="@{/fallback}" class="tree-link" th:classappend="${menu == 'fallback'} ? 'active'"><span class="bullet">▪</span> 데몬 중단 프로세스 현황</a></li>
-                <li><a th:href="@{/agents}" class="tree-link" th:classappend="${menu == 'agents'} ? 'active'"><span class="bullet">▪</span> 에이전트 관리</a></li>
-            </ul>
-        </li>
-        <li class="tree-item has-submenu">
-            <div class="tree-category"><span class="icon">⚙️</span> 프로세스운영</div>
-            <ul class="submenu">
-                <li><a th:href="@{/processes}" class="tree-link" th:classappend="${menu == 'processes'} ? 'active'"><span class="bullet">▪</span> 프로세스관리(CRUD)</a></li>
-            </ul>
-        </li>
-        <li class="tree-item has-submenu" sec:authorize="hasRole('ADMIN')">
-            <div class="tree-category"><span class="icon">👤</span> 시스템관리</div>
-            <ul class="submenu">
-                <li><a th:href="@{/admin/users}" class="tree-link" th:classappend="${menu == 'users'} ? 'active'"><span class="bullet">▪</span> 사용자 관리(가입 승인)
-                    <span class="nav-count" id="navPendingCount" th:text="${pendingUserCount}" th:hidden="${pendingUserCount == null or pendingUserCount == 0}">0</span></a></li>
-                <li th:if="${apiDocsEnabled != false}"><a th:href="@{/admin/api-guide}" class="tree-link" th:classappend="${menu == 'apiguide'} ? 'active'"><span class="bullet">▪</span> API 가이드(예제·소스)</a></li>
-                <li th:if="${apiDocsEnabled != false}"><a th:href="@{/swagger-ui.html}" class="tree-link" target="_blank" rel="noopener"><span class="bullet">▪</span> API 문서(Swagger)</a></li>
-            </ul>
-        </li>
-        <li class="tree-item">
-            <a th:href="@{/manual/index.html}" class="tree-link" target="_blank" rel="noopener">
-                <span class="icon">📖</span> 사용자 매뉴얼
-            </a>
-        </li>
+        <th:block th:each="m : ${@menuService.visibleTree(isAdmin)}">
+            <li th:if="${m.group}" class="tree-item has-submenu" th:attr="data-menu-id=${m.id}">
+                <div class="tree-category"><span class="icon" th:text="${m.icon}"></span> <span th:text="${m.name}">그룹</span></div>
+                <ul class="submenu">
+                    <li th:each="c : ${m.children}">
+                        <a th:href="@{${c.url}}" class="tree-link" th:classappend="${menu == c.id} ? 'active'"
+                           th:attr="data-menu-id=${c.id},target=${c.newWindow} ? '_blank' : null,rel=${c.newWindow} ? 'noopener' : null,aria-current=${menu == c.id} ? 'page' : null">
+                            <span class="bullet">▪</span> <span th:text="${c.name}">메뉴</span>
+                            <span th:if="${c.id == 'users'}" class="nav-count" id="navPendingCount" th:text="${pendingUserCount}"
+                                  th:hidden="${pendingUserCount == null or pendingUserCount == 0}">0</span>
+                        </a>
+                    </li>
+                </ul>
+            </li>
+            <li th:unless="${m.group}" class="tree-item">
+                <a th:href="@{${m.url}}" class="tree-link" th:classappend="${menu == m.id} ? 'active'"
+                   th:attr="data-menu-id=${m.id},target=${m.newWindow} ? '_blank' : null,rel=${m.newWindow} ? 'noopener' : null,aria-current=${menu == m.id} ? 'page' : null">
+                    <span class="icon" th:text="${m.icon}"></span> <span th:text="${m.name}">메뉴</span>
+                </a>
+            </li>
+        </th:block>
     </ul>
 </div>
+
+<!-- 화면 위 경로 (메뉴 이름을 바꾸면 함께 바뀜) : <p th:replace="fragments/left :: crumb(${menu})"></p> -->
+<p th:fragment="crumb(menu)" class="page-crumb"><span class="icon">🏠</span> <span th:text="${@menuService.crumb(menu)}">메인 홈</span></p>
 </body>
 </html>

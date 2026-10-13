@@ -231,7 +231,7 @@ public class AlarmService {
         if (sync(s.getServerId(), Alarm.TYPE_AGENT_STALE, stale, active, Alarm.LEVEL_WARNING,
                 (hbLost ? "하트비트 " + Agent.HB_MISS_LIMIT + "회 연속 미수신 : " + name + " - 서버 다운으로 보고 감시 프로세스를 종료로 표시했습니다. 서버 전원·네트워크를 확인하세요."
                         : "에이전트 보고 끊김 : " + name + " - 마지막 보고 " + (agoSec == null ? "-" : (agoSec / 60) + "분 전")
-                        + ", krcasmrx11_client 실행 상태를 확인하세요."))) opened++;
+                        + ", svr_collect_client 실행 상태를 확인하세요."))) opened++;
 
         // 데몬만 문제 (서버 정상) : 재시작 알림 - 일부러 멈춘 경우는 화면 안내만
         boolean daemonDown = !down && av.getDaemonIssue() != null && !agent.isDaemonStopIntended();

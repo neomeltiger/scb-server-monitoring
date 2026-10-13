@@ -1,6 +1,6 @@
 // ================= 서버 로그 (/logs) =================
 // API : /api/logs/{serverId} (serverlog.controller.ServerLogController)
-// 웹 서버가 정한 주기마다 krcasmrx11_client 에 로그를 요청하고, 에이전트가 보낸 마지막 N줄을 보여줌
+// 웹 서버가 정한 주기마다 svr_collect_client 에 로그를 요청하고, 에이전트가 보낸 마지막 N줄을 보여줌
 // apiRequest / escapeHtml / isAdminUser 는 script.js
 (function () {
     const API = 'api/logs/';

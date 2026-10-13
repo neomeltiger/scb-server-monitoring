@@ -9,7 +9,7 @@ import javax.validation.constraints.Size;
 /**
  * 수집 대상 로그 등록 / 수정.
  * 경로는 절대 경로, 영문·숫자·_ . / - 만 허용 (".." 금지는 서비스에서 검사).
- * 서버의 krcasmrx11_client 도 etc/client.env 의 SCB_LOG_ALLOW 목록에 있는 경로만 읽습니다.
+ * 서버의 svr_collect_client 도 etc/client.env 의 SCB_LOG_ALLOW 목록에 있는 경로만 읽습니다.
  */
 public class LogSourceForm {
 

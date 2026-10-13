@@ -105,7 +105,7 @@
 
     function psSection(v) {
         if (!v.psCollected) {
-            return '<div class="fb-ps"><h4>서버 실행 중 프로세스</h4><div class="fb-none">클라이언트 1.8 이상에서 표시됩니다. (서버의 krcasmrx11_client 를 업그레이드하세요)</div></div>';
+            return '<div class="fb-ps"><h4>서버 실행 중 프로세스</h4><div class="fb-none">클라이언트 1.8 이상에서 표시됩니다. (서버의 svr_collect_client 를 업그레이드하세요)</div></div>';
         }
         const st = psState[v.serverId] || (psState[v.serverId] = { q: '', sort: 'cpu', all: false });
         const tagged = v.psList.filter(p => p.tag).length;

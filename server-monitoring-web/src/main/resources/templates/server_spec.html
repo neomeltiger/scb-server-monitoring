@@ -20,7 +20,7 @@
                 <div th:replace="fragments/top :: top"></div>
 
                 <!-- ===== MAIN : 서버전체목록 ===== -->
-                <p><span class="icon">🏠</span> 메인 홈 &gt; 서버자원모니터링 &gt; 서버전체목록</p>
+                <p th:replace="fragments/left :: crumb(${menu})"></p>
 
                 <div style="width: 100%;">
                     <div id="tab-spec" class="tab-content active" style="display: flex; flex-direction: column; gap: 20px;">

@@ -29,7 +29,7 @@ import com.scb.monitoring.serverlog.service.ServerLogService;
 import com.scb.monitoring.topology.service.TopologyException;
 
 /**
- * 서버 에이전트(krcasmrx11_client) 전용 API. 로그인 세션 대신 토큰 헤더로 인증합니다.
+ * 서버 에이전트(svr_collect_client) 전용 API. 로그인 세션 대신 토큰 헤더로 인증합니다.
  * <pre>
  * 헤더  : X-SCB-Agent-Token: (토큰 64자리)
  * GET  /agent-api/v1/ping                     연결 확인
@@ -46,7 +46,7 @@ import com.scb.monitoring.topology.service.TopologyException;
  * </pre>
  * 응답은 모두 text/plain (Bourne shell 에서 처리하기 쉽도록).
  */
-@Tag(name = "9. 에이전트 연동", description = "서버 에이전트(krcasmrx11_client) 전용 - X-SCB-Agent-Token 헤더 인증, 응답 text/plain")
+@Tag(name = "9. 에이전트 연동", description = "서버 에이전트(svr_collect_client) 전용 - X-SCB-Agent-Token 헤더 인증, 응답 text/plain")
 @RestController
 @RequestMapping(value = "/agent-api/v1", produces = "text/plain;charset=UTF-8")
 public class AgentApiController {

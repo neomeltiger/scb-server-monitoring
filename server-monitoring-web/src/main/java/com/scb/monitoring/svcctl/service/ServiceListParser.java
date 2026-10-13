@@ -10,7 +10,7 @@ import com.scb.monitoring.svcctl.domain.ServiceItem;
 import com.scb.monitoring.svcctl.dto.ImportResult;
 
 /**
- * krcasmrx11_agent/etc/service.list 파서.
+ * svr_opt_agent/etc/service.list 파서.
  * <pre>
  * # GROUP|LEVEL|SERVICE_NAME|ACCOUNT|SCRIPT(SCRIPT_HOME 기준 상대경로)|ARG|CMDS
  * 2|2|SCB_fs_app1|murex|SCB_fs_app1/mxg_fs.sh||start|stop|test|kill|clean

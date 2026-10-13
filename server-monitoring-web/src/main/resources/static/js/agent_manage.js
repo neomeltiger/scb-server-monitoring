@@ -128,7 +128,7 @@
         }
         if (action === 'revoke') {
             if (!confirm('[' + name + '] 클라이언트에 발급한 에이전트 토큰을 제거하시겠습니까?\n\n'
-                + '제거하면 그 서버의 krcasmrx11_client 는 더 이상 보고할 수 없습니다 (수집 이력은 남음).\n다시 연결하려면 토큰을 새로 발급하세요.')) return;
+                + '제거하면 그 서버의 svr_collect_client 는 더 이상 보고할 수 없습니다 (수집 이력은 남음).\n다시 연결하려면 토큰을 새로 발급하세요.')) return;
             try {
                 const r = await apiRequest('DELETE', API + '/' + id + '/token');
                 alert(r.message);

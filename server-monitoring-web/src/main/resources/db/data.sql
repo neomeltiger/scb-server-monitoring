@@ -91,7 +91,7 @@ INSERT INTO tb_server_process (proc_id, server_id, proc_nm, exec_path, pid, cpu_
 INSERT INTO tb_server_process (proc_id, server_id, proc_nm, exec_path, pid, cpu_pct, mem_pct, running_yn, sort_ord, reg_dt, upd_dt) VALUES (26, 25, 'oracle_ora_pmon', '/u01/app/oracle/bin/ora_pmon', 9102, 0.5, 14.2, 'Y', 10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 INSERT INTO tb_server_process (proc_id, server_id, proc_nm, exec_path, pid, cpu_pct, mem_pct, running_yn, sort_ord, reg_dt, upd_dt) VALUES (27, 25, 'oracle_standby_MRP', '/u01/app/oracle/bin/mrp', 9215, 1.8, 7.1, 'Y', 20, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
--- 서비스 목록 : krcasmrx11 (server 11) /shared/opt/agent/krcasmrx11_agent/etc/service.list (27건)
+-- 서비스 목록 : krcasmrx11 (server 11) /shared/opt/agent/svr_opt_agent/etc/service.list (27건)
 INSERT INTO tb_service (server_id, list_no, group_no, level_no, svc_nm, account_nm, script_path, script_arg, cmds, state_cd, pid, state_dt, reg_dt, upd_dt) VALUES (11, 1, 2, 2, 'SCB_fs_app1', 'murex', '/shared/opt/pos/SCB_fs_app1/mxg_fs.sh', NULL, 'start|stop|test|kill|clean', 'UNKNOWN', NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 INSERT INTO tb_service (server_id, list_no, group_no, level_no, svc_nm, account_nm, script_path, script_arg, cmds, state_cd, pid, state_dt, reg_dt, upd_dt) VALUES (11, 2, 3, 3, 'SCB_xml_app1', 'murex', '/shared/opt/pos/SCB_xml_app1/mxg_xml.sh', NULL, 'start|stop|test|kill|clean', 'UNKNOWN', NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 INSERT INTO tb_service (server_id, list_no, group_no, level_no, svc_nm, account_nm, script_path, script_arg, cmds, state_cd, pid, state_dt, reg_dt, upd_dt) VALUES (11, 3, 4, 4, 'SCB_hub_app1', 'murex', '/shared/opt/pos/SCB_hub_app1/mxg_hub.sh', NULL, 'start|stop|test|kill|clean', 'UNKNOWN', NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
@@ -1272,4 +1272,4 @@ INSERT INTO tb_process_metric_hist (proc_id, server_id, collect_dt, cpu_pct, mem
 -- 서버 로그 : krcasmrx11 (server 11) 기본 수집 대상, 요청 주기 5분 (log_id 는 자동 번호)
 INSERT INTO tb_log_policy (server_id, interval_min, req_now_yn, upd_user, upd_dt) VALUES (11, 5, 'N', 'admin', CURRENT_TIMESTAMP);
 INSERT INTO tb_log_source (server_id, log_nm, log_path, tail_lines, use_yn, sort_ord, reg_dt, upd_dt) VALUES (11, '시스템 로그 (messages)', '/var/adm/messages', 200, 'Y', 10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
-INSERT INTO tb_log_source (server_id, log_nm, log_path, tail_lines, use_yn, sort_ord, reg_dt, upd_dt) VALUES (11, '에이전트 클라이언트 로그', '/shared/opt/agent/krcasmrx11_client/log/scb_client.log', 200, 'Y', 20, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT INTO tb_log_source (server_id, log_nm, log_path, tail_lines, use_yn, sort_ord, reg_dt, upd_dt) VALUES (11, '에이전트 클라이언트 로그', '/shared/opt/agent/svr_collect_client/log/scb_client.log', 200, 'Y', 20, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);

@@ -50,7 +50,7 @@ java -Dfile.encoding=UTF-8 -jar target/server-monitoring-web.war
 | `tb_user` / `tb_login_hist` | 로그인 사용자 (BCrypt, 잠금, 가입 승인 상태) / 로그인·비밀번호 변경 이력 |
 | `tb_alarm` | 서버 장애 알람 (서버 다운 / 에이전트 보고 끊김, 확인·조치 내용) |
 | `tb_log_policy` / `tb_log_source` / `tb_log_snapshot` | 서버 로그 : 요청 주기 / 수집 대상 / 수집 결과 (최근 20회) |
-| `tb_agent` | 서버 에이전트(krcasmrx11_client) 토큰 해시, 마지막 보고, 데몬 제어(수집 시작/중지·주기·종료)와 상태(heartbeat) |
+| `tb_agent` | 서버 에이전트(svr_collect_client) 토큰 해시, 마지막 보고, 데몬 제어(수집 시작/중지·주기·종료)와 상태(heartbeat) |
 | `tb_server_metric_hist` / `tb_process_metric_hist` | 메인 홈 서버별 그래프 (수집 이력, 출처 AGENT / SAMPLE) |
 | `tb_service` / `tb_service_cmd` | 프로세스 관리 화면 : service.list 서비스 목록 / 제어 명령 |
 
@@ -97,12 +97,12 @@ java -Dfile.encoding=UTF-8 -jar target/server-monitoring-web.war
 - 비밀번호 변경 `/password` (로그인 화면·상단 바) : 현재 비밀번호 확인, 틀리면 실패 횟수 증가, 변경 후 로그아웃. 이력 `PW_CHANGE`
 - 비밀번호 규칙 (가입·변경) : 8자 이상, 영문·숫자·특수문자 포함, 아이디 포함 불가
 
-## 서버 에이전트 연동 (krcasmrx11_client)
+## 서버 에이전트 연동 (svr_collect_client)
 
-서버(`/shared/opt/agent/krcasmrx11_client`)의 셸 스크립트가 수집 결과를 보내고 제어 명령을 가져갑니다. (설치: `C:\scb\workspace\krcasmrx11_client.tar`, `README.txt`)
+서버(`/shared/opt/agent/svr_collect_client`)의 셸 스크립트가 수집 결과를 보내고 제어 명령을 가져갑니다. (설치: `C:\scb\workspace\svr_collect_client.tar`, `README.txt`)
 
 ```
-서버 krcasmrx11_client ──(HTTPS/HTTP, 토큰)──▶ /agent-api/v1  ──▶ MySQL scb_mon_agent ◀── 화면
+서버 svr_collect_client ──(HTTPS/HTTP, 토큰)──▶ /agent-api/v1  ──▶ MySQL scb_mon_agent ◀── 화면
    collect_*.sh 수집 → report                       tb_server_metric(_hist), tb_server_process, tb_service, tb_agent
    commands → exec_command.sh → scb_main.sh   ◀──   tb_service_cmd (화면 요청 → 에이전트 실행 → 결과)
 ```
@@ -132,7 +132,7 @@ java -Dfile.encoding=UTF-8 -jar target/server-monitoring-web.war
 
 ## 에이전트 미등록 서버 (메인 홈)
 
-- `GET /api/agents` : 전체 서버의 krcasmrx11_client 등록 현황 (`registered`, `reason`, 상태 NONE / WAITING / STALE / OK)
+- `GET /api/agents` : 전체 서버의 svr_collect_client 등록 현황 (`registered`, `reason`, 상태 NONE / WAITING / STALE / OK)
 - 화면은 정상(OK)이 아닌 서버만 표시, [등록 확인] = `GET /api/agents/{id}` 재조회
 
 ## 데몬 중단 프로세스 현황 (스키마 v9, 클라이언트 1.7)
@@ -210,7 +210,7 @@ java -Dfile.encoding=UTF-8 -jar target/server-monitoring-web.war
 
 ## 프로세스 관리 화면 (service.list 기준)
 
-- 서버의 `krcasmrx11_agent/etc/service.list` 를 `tb_service` 에 등록 (초기 데이터 : krcasmrx11 27건, 화면의 [service.list 가져오기] 로 갱신)
+- 서버의 `svr_opt_agent/etc/service.list` 를 `tb_service` 에 등록 (초기 데이터 : krcasmrx11 27건, 화면의 [service.list 가져오기] 로 갱신)
 - 상태/PID 는 에이전트가 `scb_main.sh status all` 로 수집해 보고
 - 개별 서비스 / 전체 / 그룹 N / Level N 에 start, stop, restart, status, kill, clean 요청 → 에이전트가 `scb_main.sh <명령> <대상>` 실행 → 결과(출력, 종료코드)를 "제어 명령 이력" 에서 확인
 - 대상·명령은 화면, 웹 서버, 에이전트 세 곳에서 형식을 검사합니다. (CMDS 에 없는 명령은 요청 불가)

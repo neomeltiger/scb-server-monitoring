@@ -33,7 +33,7 @@ import com.scb.monitoring.topology.service.TopologyException;
 
 /**
  * 프로세스 관리 화면 : service.list 기반 서비스 목록과 제어 명령.
- * 화면에서 요청한 명령은 tb_service_cmd 에 쌓이고, 서버 에이전트(krcasmrx11_client)가
+ * 화면에서 요청한 명령은 tb_service_cmd 에 쌓이고, 서버 에이전트(svr_collect_client)가
  * 가져가서 scb_main.sh 로 실행한 뒤 결과를 보고합니다. (웹 서버가 직접 서버에 접속하지 않음)
  */
 @Service
@@ -224,7 +224,7 @@ public class ServiceCtlService {
         sb.append("# service.list - ").append(server.getSystemNm()).append(" (").append(server.getIpAddr()).append(")\n");
         sb.append("# 생성 : 통합 서버 모니터링 웹 (프로세스 관리) ")
           .append(new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date())).append('\n');
-        sb.append("# 위치 : /shared/opt/agent/krcasmrx11_agent/etc/service.list   SCRIPT 기준 : ").append(home).append('\n');
+        sb.append("# 위치 : /shared/opt/agent/svr_opt_agent/etc/service.list   SCRIPT 기준 : ").append(home).append('\n');
         sb.append("# 줄 순서 = scb_main.sh 번호(idx), 기동은 GROUP 오름차순 / 종료는 역순\n");
         sb.append("#=============================================================\n");
         sb.append("# GROUP|LEVEL|SERVICE_NAME|ACCOUNT|SCRIPT|ARG|CMDS\n");

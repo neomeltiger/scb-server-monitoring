@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>메뉴 이름·순서 - 통합 서버 관리 및 모니터링 시스템</title>
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <!--
+        메뉴 이름·순서 (ADMIN, menu.web.MenuController, js/menu_admin.js)
+        좌측 메뉴의 한글 이름 변경, 끌어서 놓기(drag and drop)로 순서·그룹 이동 (키보드 : ▲▼ 버튼, 그룹 선택)
+        API : GET /api/admin/menus , PUT /api/admin/menus/layout [{id, parentId, sortOrd, name}] , POST /api/admin/menus/reset
+    -->
+    <div class="app-layout">
+        <div th:replace="fragments/left :: left(${menu})"></div>
+
+        <div class="main-content-wrapper">
+            <div th:replace="fragments/top :: top"></div>
+            <p th:replace="fragments/left :: crumb(${menu})"></p>
+
+            <div class="svc-page">
+                <div class="spec-container">
+                    <div class="spec-header">
+                        <h3>메뉴 이름·순서 <span class="svc-sub">이름을 고치고 ⠿ 를 끌어서 순서·그룹을 바꾼 뒤 [저장]</span></h3>
+                        <div class="svc-toolbar">
+                            <button type="button" class="btn svc-btn-light" id="meReset">처음 상태로 되돌리기</button>
+                            <button type="button" class="btn svc-btn-light" id="meReload">다시 읽기</button>
+                            <button type="button" class="btn btn-primary" id="meSave">저장</button>
+                        </div>
+                    </div>
+                    <div class="data-error" id="meError" hidden></div>
+                    <p class="mn-status" id="meStatus" role="status" aria-live="polite"></p>
+                    <div class="mn-edit-layout">
+                        <ul class="mn-tree" id="meTree" aria-label="좌측 메뉴 (끌어서 순서 변경)">
+                            <li class="svc-empty">불러오는 중...</li>
+                        </ul>
+                        <aside class="mn-preview">
+                            <div class="mn-preview-title">미리 보기</div>
+                            <ul class="mn-preview-list" id="mePreview"></ul>
+                            <p class="svc-hint">저장하면 모든 사용자의 좌측 메뉴와 화면 위 경로에 바로 반영됩니다.</p>
+                        </aside>
+                    </div>
+                    <ul class="svc-hint mn-help">
+                        <li>⠿ 를 끌어 다른 메뉴 위·아래에 놓으면 순서가 바뀌고, 그룹(📁) 안에 놓으면 그 그룹으로 옮겨집니다. 그룹은 맨 위 단계에서만 움직입니다.</li>
+                        <li>마우스 없이 : ▲ ▼ 로 순서, 오른쪽 선택 상자로 그룹을 바꿉니다.</li>
+                        <li>이름 칸을 비우면 저장할 수 없습니다. ↺ 는 처음 이름으로 되돌립니다.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script th:src="@{/js/script.js}"></script>
+    <script th:src="@{/js/menu_admin.js}"></script>
+</body>
+</html>

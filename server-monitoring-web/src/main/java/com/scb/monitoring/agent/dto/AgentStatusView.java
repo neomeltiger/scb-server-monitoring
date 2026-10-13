@@ -4,7 +4,7 @@ import com.scb.monitoring.agent.domain.Agent;
 import com.scb.monitoring.topology.domain.Server;
 
 /**
- * 서버별 krcasmrx11_client 등록 현황 (메인 홈 "에이전트 미등록 서버" 패널).
+ * 서버별 svr_collect_client 등록 현황 (메인 홈 "에이전트 미등록 서버" 패널).
  * registered : 토큰 발급 후 정상 보고(OK) 중인 서버만 true
  */
 public class AgentStatusView {

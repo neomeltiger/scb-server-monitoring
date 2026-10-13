@@ -22,7 +22,7 @@
                 <div th:replace="fragments/top :: top"></div>
 
                 <!-- ===== MAIN : 네트워크구성도 ===== -->
-                <p><span class="icon">🏠</span> 메인 홈 &gt; 서버자원모니터링 &gt; 네트워크구성도</p>
+                <p th:replace="fragments/left :: crumb(${menu})"></p>
 
                 <!-- Main Content Area: Topology View -->
                 <div style="width: 100%;">
@@ -155,15 +155,15 @@
                 <button class="close-btn" type="button" onclick="closeAgentToken()" aria-label="닫기">&times;</button>
             </div>
             <p class="svc-modal-help">
-                아래 두 줄을 서버의 <code>/shared/opt/agent/krcasmrx11_client/etc/client.env</code> 에 넣으세요.
+                아래 두 줄을 서버의 <code>/shared/opt/agent/svr_collect_client/etc/client.env</code> 에 넣으세요.
                 <b>토큰은 지금만 표시되며 다시 볼 수 없습니다.</b> (분실 시 재발급)
             </p>
             <textarea id="agentTokenEnv" class="svc-import-text" rows="3" readonly spellcheck="false"></textarea>
             <div id="agentUrlWarn" class="agent-url-warn" role="alert" hidden></div>
             <p class="svc-modal-help"><code>SCB_WEB_URL</code> 은 <b>서버에서 접속할 수 있는 이 웹 서버 주소</b>여야 합니다. (서버에서 <code>localhost</code> 는 서버 자신)</p>
             <ol class="agent-steps">
-                <li><code>cd /shared/opt/agent &amp;&amp; tar xf krcasmrx11_client.tar</code></li>
-                <li><code>cd krcasmrx11_client &amp;&amp; cp etc/client.env.sample etc/client.env</code> (처음 한 번) 후 <code>vi etc/client.env</code> 에 위 두 줄 입력, <code>chmod 600 etc/client.env</code></li>
+                <li><code>cd /shared/opt/agent &amp;&amp; tar xf svr_collect_client.tar</code></li>
+                <li><code>cd svr_collect_client &amp;&amp; cp etc/client.env.sample etc/client.env</code> (처음 한 번) 후 <code>vi etc/client.env</code> 에 위 두 줄 입력, <code>chmod 600 etc/client.env</code></li>
                 <li>확인: <code>bin/scb_client.sh ping</code> → <code>ok server_id=...</code> (연결 실패면 서버에서 <code>ping 웹서버IP</code>, 웹 서버 PC 방화벽의 포트 허용 확인)</li>
                 <li>데몬 시작: <code>bin/scb_client.sh start</code> (상태 <code>status</code> / 정지 <code>stop</code>) - crontab 사용 안 함</li>
                 <li>재부팅 시 자동 시작: <code>cp etc/scb_client.init /etc/init.d/scb_client</code> 후 <code>ln -s /etc/init.d/scb_client /etc/rc3.d/S99scb_client</code></li>

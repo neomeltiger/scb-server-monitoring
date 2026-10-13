@@ -31,7 +31,7 @@ import com.scb.monitoring.topology.service.TopologyException;
  *     log|로그ID|줄수|경로   를 함께 내려줌 → 에이전트가 마지막 N줄을 POST /agent-api/v1/logs/{로그ID}
  *  수집 결과는 로그별 최근 KEEP_SNAPSHOTS 회 보관
  * </pre>
- * 에이전트(krcasmrx11_client)는 서버 쪽 허용 목록(SCB_LOG_ALLOW)에 있는 경로만 읽습니다.
+ * 에이전트(svr_collect_client)는 서버 쪽 허용 목록(SCB_LOG_ALLOW)에 있는 경로만 읽습니다.
  */
 @Service
 @Transactional(readOnly = true)

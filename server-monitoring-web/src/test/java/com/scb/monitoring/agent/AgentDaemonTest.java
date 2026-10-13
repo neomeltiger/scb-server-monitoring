@@ -25,7 +25,7 @@ import com.scb.monitoring.svcctl.service.ServiceCtlService;
 import com.scb.monitoring.topology.service.TopologyException;
 import com.scb.monitoring.topology.service.TopologyService;
 
-/** krcasmrx11_client 데몬 : heartbeat, 웹 제어(시작/중지/종료), 수집 주기 (seed: server 11 = 로그 2건) */
+/** svr_collect_client 데몬 : heartbeat, 웹 제어(시작/중지/종료), 수집 주기 (seed: server 11 = 로그 2건) */
 @MybatisTest(properties = {
         "spring.sql.init.mode=always",
         "spring.sql.init.schema-locations=classpath:db/schema-ansi.sql",

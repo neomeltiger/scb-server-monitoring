@@ -2,7 +2,7 @@
 // 데이터 : GET  /api/services/{serverId}            서비스 목록 + 에이전트 상태 + 최근 제어 명령
 // 제어   : POST /api/services/{serverId}/commands   {target, cmd}  (ADMIN)
 // 가져오기: POST /api/services/{serverId}/import    {text, scriptHome} (ADMIN)
-// 명령은 서버 에이전트(krcasmrx11_client)가 가져가 scb_main.sh 로 실행하고 결과를 보고합니다.
+// 명령은 서버 에이전트(svr_collect_client)가 가져가 scb_main.sh 로 실행하고 결과를 보고합니다.
 // apiRequest / escapeHtml 은 script.js 에 있습니다.
 const SVC_API = 'api/services';
 const SVC_POLL_ACTIVE_MS = 5000;     // 처리 중인 명령이 있을 때
@@ -10,7 +10,7 @@ const SVC_POLL_IDLE_MS = 30000;      // 평상시
 const SVC_FOLLOWUP_MS = 30000;       // 명령 완료 후 상태 보고를 기다리는 시간
 const CMD_LABEL = { start: '기동', stop: '종료', restart: '재기동', status: '상태', kill: '강제종료', clean: '정리' };
 const AGENT_STATE_LABEL = {
-    NONE: ['미설치', '에이전트 토큰이 발급되지 않았습니다. 네트워크 구성도 → 서버 선택 → [에이전트 토큰 발급] 후 서버에 krcasmrx11_client 를 설치하세요.'],
+    NONE: ['미설치', '에이전트 토큰이 발급되지 않았습니다. 네트워크 구성도 → 서버 선택 → [에이전트 토큰 발급] 후 서버에 svr_collect_client 를 설치하세요.'],
     WAITING: ['보고 대기', '토큰은 발급되었지만 아직 에이전트 보고가 없습니다. 서버의 client.env 확인 후 bin/scb_client.sh start 로 데몬을 시작하세요.'],
     OK: ['정상', ''],
     STALE: ['보고 끊김', '에이전트 보고가 오래되었습니다. 서버의 데몬(bin/scb_client.sh status) / 네트워크를 확인하세요. 제어 명령이 실행되지 않을 수 있습니다.'],

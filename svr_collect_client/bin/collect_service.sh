@@ -1,7 +1,7 @@
 #!/bin/sh
 #=============================================================
 # collect_service.sh - [service] service.list 서비스 상태 + CPU / MEM
-#   krcasmrx11_agent 의 scb_main.sh status all 결과에 서비스 PID 의 CPU / MEM 을 붙임
+#   svr_opt_agent 의 scb_main.sh status all 결과에 서비스 PID 의 CPU / MEM 을 붙임
 #   출력 : 서비스명|RUNNING|PID|CPU|MEM   또는  서비스명|STOPPED|PID|0|0
 #          (실행 중인데 ps 에 PID 가 없으면 CPU / MEM 칸은 비움)
 #   프로세스 관리 화면의 상태/PID, 메인 홈의 서비스 CPU 그래프에 사용

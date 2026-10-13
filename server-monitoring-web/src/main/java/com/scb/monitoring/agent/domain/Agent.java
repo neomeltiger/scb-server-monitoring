@@ -2,7 +2,7 @@ package com.scb.monitoring.agent.domain;
 
 import java.sql.Timestamp;
 
-/** tb_agent : 서버 에이전트(krcasmrx11_client) 토큰, 마지막 보고, 데몬 제어/상태 */
+/** tb_agent : 서버 에이전트(svr_collect_client) 토큰, 마지막 보고, 데몬 제어/상태 */
 public class Agent {
 
     /** 웹에서 고를 수 있는 수집 주기 (초) */

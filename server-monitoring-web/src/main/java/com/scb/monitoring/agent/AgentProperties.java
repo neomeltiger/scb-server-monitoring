@@ -2,7 +2,7 @@ package com.scb.monitoring.agent;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-/** application.yml 의 app.agent.* (서버 에이전트 krcasmrx11_client 연동) */
+/** application.yml 의 app.agent.* (서버 에이전트 svr_collect_client 연동) */
 @ConfigurationProperties(prefix = "app.agent")
 public class AgentProperties {
 

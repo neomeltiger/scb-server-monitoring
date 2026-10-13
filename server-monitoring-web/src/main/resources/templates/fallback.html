@@ -23,7 +23,7 @@
         <div class="main-content-wrapper">
             <div th:replace="fragments/top :: top"></div>
 
-            <p><span class="icon">🏠</span> 메인 홈 &gt; 서버자원모니터링 &gt; 데몬 중단 프로세스 현황</p>
+            <p th:replace="fragments/left :: crumb(${menu})"></p>
 
             <div class="svc-page">
                 <div class="spec-container">

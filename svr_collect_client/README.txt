@@ -1,12 +1,12 @@
-krcasmrx11_client - 서버 → 통합 모니터링 웹 연동 에이전트 (Solaris 10 /bin/sh 호환)
+svr_collect_client - 서버 → 통합 모니터링 웹 연동 에이전트 (Solaris 10 /bin/sh 호환)
 
 웹 화면에 필요한 서버 정보를 종류별 스크립트로 수집해 웹 서버로 보내고,
-웹 화면(프로세스 관리)에서 요청한 서비스 제어 명령을 받아 krcasmrx11_agent 의 scb_main.sh 로 실행합니다.
+웹 화면(프로세스 관리)에서 요청한 서비스 제어 명령을 받아 svr_opt_agent 의 scb_main.sh 로 실행합니다.
 
 설치 (root)
-  1) 디렉터리 : /shared/opt/agent/krcasmrx11_client   (root 로 생성, 권한 부여)
-  2) 압축 해제 : cd /shared/opt/agent && tar xf krcasmrx11_client.tar
-  3) 설정     : cd krcasmrx11_client
+  1) 디렉터리 : /shared/opt/agent/svr_collect_client   (root 로 생성, 권한 부여)
+  2) 압축 해제 : cd /shared/opt/agent && tar xf svr_collect_client.tar
+  3) 설정     : cd svr_collect_client
                 cp etc/client.env.sample etc/client.env     (처음 한 번)
                 vi etc/client.env       ← 웹 화면에서 발급한 SCB_WEB_URL, SCB_AGENT_TOKEN 입력
                 chmod 600 etc/client.env
@@ -126,3 +126,16 @@ krcasmrx11_client - 서버 → 통합 모니터링 웹 연동 에이전트 (Sola
     하트비트 감시자는 다음 주기에 자동으로 다시 읽고, 데몬은 bin/scb_client.sh restart 로 적용합니다.
   - 1.9 이하에서 웹 로그에 AGENT AUTH FAIL ... /agent-api/v1/heartbeat 가 반복되면 감시자가 옛 토큰을 쓰는 상태입니다:
       bin/scb_client.sh stopall ; bin/scb_client.sh start
+
+[이름 변경 1.11] krcasmrx11_client → svr_collect_client , krcasmrx11_agent → svr_opt_agent
+  - 모든 경로는 상대경로 : 이 클라이언트는 bin/ 기준으로 자기 위치를 찾고, 서버 제어 에이전트는 옆 폴더 svr_opt_agent 를 씀
+    (예: /shared/opt/agent/svr_collect_client 와 /shared/opt/agent/svr_opt_agent). 다른 곳이면 etc/client.env 의 SCB_AGENT_HOME
+  - 이전 이름으로 설치된 서버 옮기기 (root 또는 설치 계정) :
+      cd /shared/opt/agent
+      krcasmrx11_client/bin/scb_client.sh stopall
+      tar xf svr_collect_client.tar
+      cp krcasmrx11_client/etc/client.env svr_collect_client/etc/client.env
+      svr_collect_client/bin/scb_client.sh start
+      svr_collect_client/bin/scb_client.sh install-boot      (root : 부팅 자동 시작을 새 위치로)
+    확인 후 이전 폴더(krcasmrx11_client)는 지워도 됩니다. 토큰은 그대로 씁니다.
+  - svr_opt_agent 가 아직 이전 이름(krcasmrx11_agent)이면 그것을 자동으로 사용합니다.

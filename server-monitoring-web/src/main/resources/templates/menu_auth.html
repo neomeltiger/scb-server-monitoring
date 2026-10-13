@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>메뉴 권한 - 통합 서버 관리 및 모니터링 시스템</title>
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <!--
+        메뉴 권한 (ADMIN, menu.web.MenuController, js/menu_admin.js)
+        관리자 = 전체 메뉴 접근 (고정), 일반 사용자 = 여기서 고른 메뉴만 (메인 홈은 항상, 권한관리·시스템관리는 관리자 전용)
+        API : GET /api/admin/menus , PUT /api/admin/menus/access {allowed:[메뉴 ID]}
+    -->
+    <div class="app-layout">
+        <div th:replace="fragments/left :: left(${menu})"></div>
+
+        <div class="main-content-wrapper">
+            <div th:replace="fragments/top :: top"></div>
+            <p th:replace="fragments/left :: crumb(${menu})"></p>
+
+            <div class="svc-page">
+                <div class="spec-container">
+                    <div class="spec-header">
+                        <h3>메뉴 권한 <span class="svc-sub">관리자는 전체 페이지, 일반 사용자는 선택한 메뉴만</span></h3>
+                        <div class="svc-toolbar">
+                            <button type="button" class="btn svc-btn-light" id="maAll">일반 사용자 전체 허용</button>
+                            <button type="button" class="btn svc-btn-light" id="maNone">전체 해제</button>
+                            <button type="button" class="btn svc-btn-light" id="maReload">다시 읽기</button>
+                            <button type="button" class="btn btn-primary" id="maSave">저장</button>
+                        </div>
+                    </div>
+                    <div class="mn-roles">
+                        <div class="mn-role admin"><b>관리자 (ADMIN)</b><span>모든 메뉴·페이지 접근 - 바꿀 수 없음</span></div>
+                        <div class="mn-role user"><b>일반 사용자 (USER)</b><span>아래에서 체크한 메뉴만 좌측 메뉴에 보이고 열 수 있음 · 사용자별 권한은
+                            <a th:href="@{/admin/users}">사용자 관리</a>에서 관리자 / 일반으로 지정</span></div>
+                    </div>
+                    <div class="data-error" id="maError" hidden></div>
+                    <p class="mn-status" id="maStatus" role="status" aria-live="polite"></p>
+                    <div class="svc-table-wrap">
+                        <table class="full-spec-table mn-table m-cards">
+                            <thead>
+                                <tr>
+                                    <th data-m="key">메뉴</th>
+                                    <th data-m="hide">주소</th>
+                                    <th>관리자</th>
+                                    <th>일반 사용자</th>
+                                    <th data-m="hide">변경</th>
+                                </tr>
+                            </thead>
+                            <tbody id="maBody">
+                                <tr><td colspan="5" class="svc-empty">불러오는 중...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="svc-hint">일반 사용자가 허용되지 않은 화면 주소를 직접 열면 메인 홈으로 돌아가 "접근 권한 없음" 안내가 나옵니다.
+                        조회·제어 API 의 관리자 전용 기능(등록·수정·삭제·제어)은 메뉴 권한과 관계없이 관리자만 쓸 수 있습니다.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script th:src="@{/js/script.js}"></script>
+    <script th:src="@{/js/menu_admin.js}"></script>
+</body>
+</html>

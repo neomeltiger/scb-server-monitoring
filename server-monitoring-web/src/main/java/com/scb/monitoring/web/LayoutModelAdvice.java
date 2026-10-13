@@ -15,7 +15,8 @@ import com.scb.monitoring.topology.controller.TopologyPageController;
 @ControllerAdvice(assignableTypes = {PageController.class, TopologyPageController.class,
         ServiceCtlPageController.class, UserAdminController.class,
         com.scb.monitoring.serverlog.controller.ServerLogController.class,
-        com.scb.monitoring.agent.controller.AgentPageController.class, ApiGuidePageController.class})
+        com.scb.monitoring.agent.controller.AgentPageController.class, ApiGuidePageController.class,
+        com.scb.monitoring.menu.web.MenuController.class})
 public class LayoutModelAdvice {
 
     private final UserAdminService userAdminService;

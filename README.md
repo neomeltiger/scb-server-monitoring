@@ -5,7 +5,7 @@
 | 폴더 | 내용 |
 |---|---|
 | `server-monitoring-web/` | 웹 애플리케이션 - JDK 1.8, Spring Boot 2.7 (war), MyBatis(ANSI SQL), Thymeleaf, MySQL 8 |
-| `krcasmrx11_client/` | 서버 에이전트 클라이언트 1.3 - Solaris 10 `/bin/sh` 데몬 (crontab 미사용) |
+| `svr_collect_client/` | 서버 수집 클라이언트 1.11 - Solaris 10 `/bin/sh` 데몬 (crontab 미사용) |
 
 ## 주요 기능
 
@@ -27,7 +27,7 @@ java -jar target/server-monitoring-web.war
 - DB 비밀번호는 저장소에 없습니다. 실행 전 환경변수 `MYSQL_PASSWORD` (필요하면 `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`)
 - 관리자 계정 : 초기 데이터의 admin 은 비밀번호 없이(로그인 불가) 만들어집니다. 웹 [사용자 가입 신청] 후
   `UPDATE tb_user SET role_cd = 'ADMIN', appr_status = 'APPROVED' WHERE user_id = '가입한ID';`
-- 에이전트 설치 : `krcasmrx11_client/README.txt` (tar 생성 : `python server-monitoring-web/tools/make_client_tar.py krcasmrx11_client krcasmrx11_client.tar`)
+- 에이전트 설치 : `svr_collect_client/README.txt` (tar 생성 : `python server-monitoring-web/tools/make_client_tar.py svr_collect_client svr_collect_client.tar`)
 - 화면 스크립트 점검 : `node server-monitoring-web/tools/js_smoke.js server-monitoring-web/src/main/resources/static/js`
 
 자세한 내용 : `server-monitoring-web/README.md`

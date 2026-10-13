@@ -4,9 +4,9 @@ import sys
 import tarfile
 import time
 
-src = sys.argv[1]          # C:\scb\workspace\krcasmrx11_client
-out = sys.argv[2]          # C:\scb\workspace\krcasmrx11_client.tar
-top = 'krcasmrx11_client'
+src = sys.argv[1]          # C:\scb\workspace\svr_collect_client
+out = sys.argv[2]          # C:\scb\workspace\svr_collect_client.tar
+top = 'svr_collect_client'
 now = int(time.time())
 
 

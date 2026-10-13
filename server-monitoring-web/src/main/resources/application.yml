@@ -72,7 +72,7 @@ app:
   security:
     max-login-failures: 5                       # 연속 실패 시 계정 잠금 (tb_user.lock_yn = 'Y')
 
-  # 서버 에이전트 (krcasmrx11_client) 연동 : /agent-api/v1 (토큰 인증)
+  # 서버 에이전트 (svr_collect_client) 연동 : /agent-api/v1 (토큰 인증)
   agent:
     report-interval-sec: 60                     # 에이전트 보고 주기 (에이전트 설정으로 전달)
     history-keep-days: 7                        # 수집 이력 보관 일수

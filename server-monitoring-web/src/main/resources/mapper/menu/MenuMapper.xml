@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 좌측 메뉴 · 메뉴 권한 (ANSI SQL) -->
+<mapper namespace="com.scb.monitoring.menu.mapper.MenuMapper">
+
+    <select id="selectMenuList" resultType="com.scb.monitoring.menu.domain.Menu">
+        SELECT menu_id, parent_id, menu_type, menu_nm, default_nm, url, icon, sort_ord,
+               user_yn, admin_only, new_window, upd_user, upd_dt
+          FROM tb_menu
+         ORDER BY CASE WHEN parent_id IS NULL THEN 0 ELSE 1 END, sort_ord, menu_id
+    </select>
+
+    <insert id="insertMenu" parameterType="com.scb.monitoring.menu.domain.Menu">
+        INSERT INTO tb_menu (menu_id, parent_id, menu_type, menu_nm, default_nm, url, icon, sort_ord,
+                             user_yn, admin_only, new_window, upd_user, upd_dt)
+        VALUES (#{menuId}, #{parentId}, #{menuType}, #{menuNm}, #{defaultNm}, #{url}, #{icon}, #{sortOrd},
+                #{userYn}, #{adminOnly}, #{newWindow}, 'system', CURRENT_TIMESTAMP)
+    </insert>
+
+    <update id="updateUserYn">
+        UPDATE tb_menu
+           SET user_yn  = #{userYn},
+               upd_user = #{updUser},
+               upd_dt   = CURRENT_TIMESTAMP
+         WHERE menu_id = #{menuId}
+    </update>
+
+    <update id="updateLayout">
+        UPDATE tb_menu
+           SET parent_id = #{parentId},
+               sort_ord  = #{sortOrd},
+               menu_nm   = #{menuNm},
+               upd_user  = #{updUser},
+               upd_dt    = CURRENT_TIMESTAMP
+         WHERE menu_id = #{menuId}
+    </update>
+
+    <update id="resetMenu" parameterType="com.scb.monitoring.menu.domain.Menu">
+        UPDATE tb_menu
+           SET parent_id  = #{parentId},
+               sort_ord   = #{sortOrd},
+               menu_nm    = #{defaultNm},
+               default_nm = #{defaultNm},
+               menu_type  = #{menuType},
+               url        = #{url},
+               icon       = #{icon},
+               user_yn    = #{userYn},
+               admin_only = #{adminOnly},
+               new_window = #{newWindow},
+               upd_user   = #{updUser},
+               upd_dt     = CURRENT_TIMESTAMP
+         WHERE menu_id = #{menuId}
+    </update>
+</mapper>

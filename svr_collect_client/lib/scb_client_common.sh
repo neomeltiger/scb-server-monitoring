@@ -1,6 +1,6 @@
 #!/bin/sh
 #=============================================================
-# scb_client_common.sh - krcasmrx11_client 공통 함수
+# scb_client_common.sh - svr_collect_client 공통 함수
 # Solaris 10 /bin/sh (Bourne shell) 호환: $() / local / $(( )) / grep -q 미사용
 #
 # 사용: CLIENT_HOME 을 정한 뒤 . $CLIENT_HOME/lib/scb_client_common.sh
@@ -14,12 +14,17 @@ ENV_FILE=$CLIENT_HOME/etc/client.env
 env_sig() {
     cksum < $ENV_FILE 2>/dev/null | ${NAWK:-awk} '{print $1 "-" $2}'
 }
-SCB_AGENT_HOME=${SCB_AGENT_HOME:-/shared/opt/agent/krcasmrx11_agent}
+# 서버 제어 에이전트 위치 : 상대경로 = 이 클라이언트 옆의 svr_opt_agent (함께 /shared/opt/agent 등에 설치)
+#   이전 이름(krcasmrx11_agent) 으로 설치된 서버는 그것을 사용 (이름 변경 과도기)
+if [ -z "$SCB_AGENT_HOME" ]; then
+    SCB_AGENT_HOME=`cd $CLIENT_HOME/.. && pwd`/svr_opt_agent
+    [ -d $SCB_AGENT_HOME ] || [ ! -d `cd $CLIENT_HOME/.. && pwd`/krcasmrx11_agent ] || SCB_AGENT_HOME=`cd $CLIENT_HOME/.. && pwd`/krcasmrx11_agent
+fi
 SCB_HTTP_TIMEOUT=${SCB_HTTP_TIMEOUT:-20}
 SCB_HTTP_INSECURE=${SCB_HTTP_INSECURE:-0}
 # 웹 서버가 요청할 수 있는 로그 경로 (공백 구분 셸 패턴, client.env 에서 바꿀 수 있음)
-SCB_LOG_ALLOW=${SCB_LOG_ALLOW:-"/var/adm/messages /var/adm/messages.[0-9]* /var/log/*.log /var/log/syslog /shared/opt/agent/krcasmrx11_agent/log/* /shared/opt/agent/krcasmrx11_client/log/*"}
-CLIENT_VER=1.10
+SCB_LOG_ALLOW=${SCB_LOG_ALLOW:-"/var/adm/messages /var/adm/messages.[0-9]* /var/log/*.log /var/log/syslog $SCB_AGENT_HOME/log/* $SCB_AGENT_HOME/../../pos/log/* $CLIENT_HOME/log/*"}
+CLIENT_VER=1.11
 RUN_DIR=$CLIENT_HOME/run
 LOG_DIR=$CLIENT_HOME/log
 LOG_FILE=$LOG_DIR/scb_client.log

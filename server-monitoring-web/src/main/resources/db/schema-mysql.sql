@@ -9,7 +9,7 @@
 --    상세 패널의 주요 프로세스                       → tb_server_process
 --  추가 (페이지 개발)
 --    로그인 / 로그인 이력                            → tb_user, tb_login_hist
---    서버 에이전트(krcasmrx11_client) 토큰·상태      → tb_agent
+--    서버 에이전트(svr_collect_client) 토큰·상태      → tb_agent
 --    메인 홈 서버별 그래프 (수집 이력)               → tb_server_metric_hist, tb_process_metric_hist
 --    프로세스 관리 화면 (service.list, 제어 명령)    → tb_service, tb_service_cmd
 --    메인 홈 서버 장애 알람 / 조치 기록              → tb_alarm
@@ -24,6 +24,7 @@ CREATE DATABASE IF NOT EXISTS scb_mon_agent
 
 USE scb_mon_agent;
 
+DROP TABLE IF EXISTS tb_menu;
 DROP TABLE IF EXISTS tb_proc_fallback;
 DROP TABLE IF EXISTS tb_heartbeat_hist;
 DROP TABLE IF EXISTS tb_log_snapshot;
@@ -168,7 +169,7 @@ CREATE TABLE tb_login_hist (
 CREATE INDEX ix_login_hist_user ON tb_login_hist (user_id, login_dt);
 
 -- -------------------------------------------------------------
--- 서버 에이전트 (krcasmrx11_client) : 토큰, 마지막 보고 상태
+-- 서버 에이전트 (svr_collect_client) : 토큰, 마지막 보고 상태
 -- -------------------------------------------------------------
 CREATE TABLE tb_agent (
     server_id       BIGINT       NOT NULL                COMMENT '서버 ID',
@@ -252,7 +253,7 @@ CREATE INDEX ix_proc_hist_proc ON tb_process_metric_hist (proc_id, collect_dt);
 CREATE INDEX ix_proc_hist_server ON tb_process_metric_hist (server_id, collect_dt);
 
 -- -------------------------------------------------------------
--- 서비스 목록 (서버의 krcasmrx11_agent/etc/service.list)
+-- 서비스 목록 (서버의 svr_opt_agent/etc/service.list)
 -- -------------------------------------------------------------
 CREATE TABLE tb_service (
     svc_id          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '서비스 ID',
@@ -436,3 +437,23 @@ CREATE TABLE tb_proc_fallback (
     PRIMARY KEY (server_id),
     CONSTRAINT fk_procfb_server FOREIGN KEY (server_id) REFERENCES tb_server (server_id)
 ) ENGINE = InnoDB COMMENT = '데몬 중단 중 프로세스 현황 (하트비트 감시자 수집, 데몬이 다시 뜨면 삭제)';
+
+-- -------------------------------------------------------------
+-- 좌측 메뉴 · 메뉴 권한 (v10) - 기본 메뉴는 웹이 시작할 때 넣음 (menu.service.MenuService)
+-- -------------------------------------------------------------
+CREATE TABLE tb_menu (
+    menu_id         VARCHAR(30)  NOT NULL COMMENT '메뉴 ID (main, network ...)',
+    parent_id       VARCHAR(30)           COMMENT '그룹 메뉴 ID (NULL = 맨 위)',
+    menu_type       VARCHAR(10)  NOT NULL COMMENT 'GROUP / PAGE / LINK',
+    menu_nm         VARCHAR(50)  NOT NULL COMMENT '화면 표시 이름 (변경 가능)',
+    default_nm      VARCHAR(50)  NOT NULL COMMENT '처음 이름',
+    url             VARCHAR(200)          COMMENT '화면 주소',
+    icon            VARCHAR(10)           COMMENT '아이콘',
+    sort_ord        INT          NOT NULL DEFAULT 0 COMMENT '순서',
+    user_yn         CHAR(1)      NOT NULL DEFAULT 'Y' COMMENT '일반 사용자 접근 허용',
+    admin_only      CHAR(1)      NOT NULL DEFAULT 'N' COMMENT '관리자 전용 고정',
+    new_window      CHAR(1)      NOT NULL DEFAULT 'N' COMMENT '새 창',
+    upd_user        VARCHAR(30)           COMMENT '변경자',
+    upd_dt          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '변경 일시',
+    PRIMARY KEY (menu_id)
+) ENGINE = InnoDB COMMENT = '좌측 메뉴 · 메뉴 권한';

@@ -619,7 +619,7 @@ function topoDetailHtml(server) {
         (isDown && !topoNoHeartbeat(server) ? '<div class="topo-down-warn">경고: 하트비트를 3회 연속 받지 못해 서버 다운(Down)으로 표시합니다'
                 + (lastHb ? ' (마지막 수신 ' + escapeHtml(lastHb) + ')' : '') + '. 서버 전원·네트워크를 확인하세요.</div>'
         : isDown ? '<div class="topo-down-warn">경고: 하트비트·자원 보고를 받지 못해 서버 다운(Down)으로 표시합니다. '
-                + '에이전트(krcasmrx11_client 1.9)를 설치하고 bin/scb_client.sh start 로 실행하세요.</div>'
+                + '에이전트(svr_collect_client 1.9)를 설치하고 bin/scb_client.sh start 로 실행하세요.</div>'
         : serverBaseDown(server) ? '<div class="topo-nohb-note">등록 상태는 Down 이지만 하트비트를 받고 있어 서버는 살아 있습니다.</div>' : '') +
         topoDaemonNoticeHtml(server, isDown) +
         '<div class="topo-actions admin-only"><button class="btn btn-primary" onclick="openServerEdit(' + server.id + ')">서버 정보 수정</button>' +
@@ -650,7 +650,7 @@ function topoNodeInfoHtml(id) {
         (cnt('Unknown') ? ' / 하트비트 없음 ' + cnt('Unknown') : '') + '</p>' + topoManualConsoleBtn();
 }
 
-// ---------- 서버 에이전트 (krcasmrx11_client) : 상태 / 토큰 발급 ----------
+// ---------- 서버 에이전트 (svr_collect_client) : 상태 / 토큰 발급 ----------
 const AGENT_LABEL = { NONE: '미설치 (토큰 미발급)', WAITING: '보고 대기', OK: '정상', STALE: '보고 끊김', LOST: '하트비트 끊김', PAUSED: '수집 중지 (웹)', STOPPED: '데몬 종료' };
 
 function isAdminUser() {
@@ -1433,18 +1433,18 @@ function renderServiceSummary(server) {
         '<div class="proc-legend"><span class="proc-legend-item"><i style="background:#28a745"></i>실행 중 <b>' + n.RUNNING + '</b></span>' +
         '<span class="proc-legend-item"><i style="background:#dc3545"></i>종료 <b>' + n.STOPPED + '</b></span>' +
         '<span class="proc-legend-item"><i style="background:#94a3b8"></i>미확인 <b>' + n.UNKNOWN + '</b></span></div>' +
-        '<div class="proc-chart-note svc-sum-note">서버의 krcasmrx11_client 를 1.3 이상으로 올리면 서비스별 CPU 그래프가 표시됩니다.</div>';
+        '<div class="proc-chart-note svc-sum-note">서버의 svr_collect_client 를 1.3 이상으로 올리면 서비스별 CPU 그래프가 표시됩니다.</div>';
 }
 
 function renderProcessBlock(server) {
     if (!Array.isArray(server.processes)) server.processes = [];
     const addBtn = '<button type="button" class="proc-btn add admin-only" onclick="openProcSearch(' + server.id + ')">+ 프로세스 찾아서 추가</button>';
-    // krcasmrx11_client 가 연결(정상 보고)되기 전에는 실행 상태가 실제 값이 아니므로 목록을 보여주지 않음
+    // svr_collect_client 가 연결(정상 보고)되기 전에는 실행 상태가 실제 값이 아니므로 목록을 보여주지 않음
     if (!isServerConnected(server)) {
         const cnt = server.processes.length;
         return '<div class="proc-title">주요 프로세스 <span>등록 ' + cnt + '건</span></div>' +
             '<div class="proc-hidden">' + (agentStatesLoaded
-                ? '서버(krcasmrx11_client)가 연결되면 프로세스 실행 상태가 표시됩니다.'
+                ? '서버(svr_collect_client)가 연결되면 프로세스 실행 상태가 표시됩니다.'
                 : '서버 연결 상태를 확인하고 있습니다.') + '</div>' + addBtn;
     }
     if (!server.processes.length && serviceListOf(server).length) return renderServiceBlock(server);
@@ -1484,7 +1484,7 @@ function renderProcessCard(server) {
 // --- 서버별 그래프 (선 / 막대 / 원 / 자원, 팝업 확대) ---
 // 데이터 : DB 수집 이력 (GET /api/topology/history)
 //   tb_process_metric_hist → 프로세스 CPU, tb_server_metric_hist → 서버 CPU/MEM ("자원")
-//   서버 에이전트(krcasmrx11_client)가 보고하면 AGENT 이력이 쌓이고, 그 전에는 초기 샘플(SAMPLE)을 표시합니다.
+//   서버 에이전트(svr_collect_client)가 보고하면 AGENT 이력이 쌓이고, 그 전에는 초기 샘플(SAMPLE)을 표시합니다.
 const PROC_COLORS = ['#007bff', '#0e7c8c', '#d9480f', '#7048e8', '#2f9e44', '#c2255c'];
 const CHART_TYPES = [['line', '선'], ['bar', '막대'], ['pie', '원'], ['res', '자원']];
 const HISTORY_POINTS = 30;
@@ -1618,7 +1618,7 @@ function chartPie(procs, series, large) {
 }
 
 // --- 그래프 표시 조건 ---
-// 1) 주요 프로세스가 등록되어 있고  2) 서버 에이전트(krcasmrx11_client)가 연결(정상 보고)된 서버만 그래프를 그림
+// 1) 주요 프로세스가 등록되어 있고  2) 서버 에이전트(svr_collect_client)가 연결(정상 보고)된 서버만 그래프를 그림
 // 연결 상태 : GET /api/agents (NONE 미등록 / WAITING 보고 대기 / STALE 보고 끊김 / OK 연결)
 let agentStates = {};
 let agentStatesLoaded = false;
@@ -1656,7 +1656,7 @@ function renderChartArea(server) {
         NO_PROC: ['주요 프로세스 미등록', '이 서버에 등록된 주요 프로세스도, 프로세스 관리(service.list)에 등록된 서비스도 없습니다.' +
             (admin ? ' 아래 [+ 프로세스 찾아서 추가] 로 등록하세요.' : ' 관리자에게 등록을 요청하세요.')],
         LOADING: ['연결 확인 중', '서버 연결 상태를 확인하고 있습니다.'],
-        NONE: ['서버 미연결', '에이전트(krcasmrx11_client)가 등록되지 않았습니다. 연결되면 그래프가 표시됩니다.'],
+        NONE: ['서버 미연결', '에이전트(svr_collect_client)가 등록되지 않았습니다. 연결되면 그래프가 표시됩니다.'],
         WAITING: ['연결 대기', '에이전트 토큰은 발급되었지만 아직 보고가 없습니다. 서버에서 클라이언트를 기동하세요.'],
         STALE: ['연결 끊김', '에이전트 보고가 끊겼습니다' + (a.lastReportDt ? ' (마지막 보고 ' + escapeHtml(a.lastReportDt) + ')' : '') + '. 다시 연결되면 그래프가 표시됩니다.'],
         LOST: ['하트비트 끊김', '서버 다운 또는 데몬 비정상 종료로 하트비트가 끊겼습니다. 모니터링 대상 프로세스는 종료로 표시됩니다.'],
@@ -1741,7 +1741,7 @@ function renderProcessChart(server, large) {
     if (series.every(a => !a.length)) {
         if (gi.mode === 'svc') {
             // 이전 클라이언트(1.2 이하)는 서비스 CPU 를 보내지 않음 → 상태 요약
-            return head + '<div class="proc-empty">선택한 서비스의 CPU 수집 이력이 없습니다. (krcasmrx11_client 1.3 이상에서 수집)</div>' +
+            return head + '<div class="proc-empty">선택한 서비스의 CPU 수집 이력이 없습니다. (svr_collect_client 1.3 이상에서 수집)</div>' +
                 renderServiceSummary(server).replace(/<div class="proc-chart-head">[\s\S]*?<\/div><\/div>/, '');
         }
         return head + '<div class="proc-empty">수집된 프로세스 이력이 없습니다. (에이전트 보고 후 표시)</div>';
@@ -1811,7 +1811,7 @@ function renderProcessSection() {
             if (typeof orderServers === 'function') conn = orderServers(g.key, conn);
             const all = conn.reduce((n, s) => n + procCounts(s)[1], 0);
             const on = conn.reduce((n, s) => n + procCounts(s)[0], 0);
-            // 서버 그래프 카드는 에이전트(krcasmrx11_client)가 연결된 서버만 표시
+            // 서버 그래프 카드는 에이전트(svr_collect_client)가 연결된 서버만 표시
             //  (연결되지 않은 서버는 위쪽 "에이전트 미등록 서버" 목록에서 확인)
             const body = conn.length
                 ? '<div class="proc-grid">' + conn.map(renderProcessCard).join('') + '</div>'

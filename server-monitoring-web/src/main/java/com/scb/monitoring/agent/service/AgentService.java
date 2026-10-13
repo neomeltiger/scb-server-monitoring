@@ -36,7 +36,7 @@ import com.scb.monitoring.topology.mapper.TopologyMapper;
 import com.scb.monitoring.topology.service.TopologyException;
 
 /**
- * 서버 에이전트(krcasmrx11_client) 연동.
+ * 서버 에이전트(svr_collect_client) 연동.
  * <ul>
  *   <li>토큰 발급 : 서버별 1개, 원문은 발급 시 한 번만 보여주고 DB 에는 SHA-256 만 저장</li>
  *   <li>보고 처리 : 자원 현황/이력, 프로세스 상태/이력, 서비스 상태, 동기화 대상 통신 상태</li>

@@ -162,7 +162,7 @@ public class AgentAdminController {
         body.put("webUrl", webUrl);
         body.put("urlWarning", url.getWarning());
         body.put("urlCandidates", url.getCandidates());
-        // 서버의 /shared/opt/agent/krcasmrx11_client/etc/client.env 에 넣을 값
+        // 서버의 /shared/opt/agent/svr_collect_client/etc/client.env 에 넣을 값
         body.put("clientEnv", "SCB_WEB_URL=" + webUrl + "\nSCB_AGENT_TOKEN=" + token + "\n");
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body);
     }

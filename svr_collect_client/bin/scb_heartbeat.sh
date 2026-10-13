@@ -1,6 +1,6 @@
 #!/bin/sh
 #=============================================================
-# scb_heartbeat.sh - 하트비트 감시자 (krcasmrx11_client 1.5~, 서버 복구 감지 1.6~)
+# scb_heartbeat.sh - 하트비트 감시자 (svr_collect_client 1.5~, 서버 복구 감지 1.6~)
 # 대상 : Solaris 10 (SPARC) /bin/sh (Bourne shell) 호환
 #
 # scb_client.sh start 가 함께 실행합니다. (직접 실행할 일은 없음, 하나만 실행됨)

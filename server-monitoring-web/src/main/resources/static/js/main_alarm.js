@@ -1,7 +1,7 @@
 // ================= 메인 홈 : 서버 장애 알람 / 에이전트 미등록 서버 =================
 // 알람   : GET /api/alarms (서버 다운 = CRITICAL, 에이전트 보고 끊김 = WARNING)
 //          서버가 1분마다 점검해 알람을 열고/해소함 (alarm.service.AlarmService). 화면은 30초마다 다시 읽음.
-// 미등록 : GET /api/agents (krcasmrx11_client 토큰 미발급 / 보고 없음 / 보고 끊김)
+// 미등록 : GET /api/agents (svr_collect_client 토큰 미발급 / 보고 없음 / 보고 끊김)
 // apiRequest, escapeHtml, isAdminUser, jumpToProcessTab, openWebConsole 은 script.js
 const ALARM_API = 'api/alarms';
 const AGENT_API = 'api/agents';
@@ -106,7 +106,7 @@ function renderAlarmBanner(data) {
 async function revokeAgentToken(serverId) {
     const name = serverNameForAlarm(serverId);
     if (!confirm('[' + name + '] 클라이언트에 발급한 에이전트 토큰을 제거하시겠습니까?\n\n'
-        + '제거하면 그 서버의 krcasmrx11_client 는 더 이상 보고할 수 없습니다 (수집 이력은 남음).\n다시 연결하려면 토큰을 새로 발급하세요.')) return false;
+        + '제거하면 그 서버의 svr_collect_client 는 더 이상 보고할 수 없습니다 (수집 이력은 남음).\n다시 연결하려면 토큰을 새로 발급하세요.')) return false;
     try {
         const r = await apiRequest('DELETE', AGENT_API + '/' + serverId + '/token');
         alert(r.message);

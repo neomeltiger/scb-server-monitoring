@@ -1421,3 +1421,59 @@ img, svg, canvas { max-width: 100%; }
 /* 메인 홈 알람 : 토큰 제거 / 데이터 초기화 (ADMIN) */
 .alarm-act.danger { border-color: #f5c2c7; color: #b02a37; }
 .alarm-act.danger:hover { background: #fff5f5; }
+
+/* ================= 권한관리 : 메뉴 권한 / 메뉴 이름·순서 ================= */
+.page-crumb { margin: 0; }
+.mn-roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 10px; }
+.mn-role { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 8px; font-size: 13px; color: #334155; }
+.mn-role.admin { background: #eef4fb; border: 1px solid #c7d7ee; }
+.mn-role.user { background: #f0fbf3; border: 1px solid #b7e4c7; }
+.mn-status { margin: 4px 0; font-size: 13px; color: #475569; min-height: 18px; }
+.mn-status.bad { color: #b02a37; }
+.mn-group-row td { background: #f1f5f9; text-align: left; padding: 8px 12px !important; color: #203a43; }
+.mn-child td:first-child { padding-left: 26px !important; }
+.mn-indent { color: #94a3b8; }
+.mn-ok { color: #155724; font-weight: bold; font-size: 12px; }
+.mn-lock { color: #9a3412; font-size: 12px; font-weight: bold; }
+.mn-fixed { color: #1d4ed8; font-size: 12px; font-weight: bold; }
+.mn-check { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; }
+.mn-check input { width: 18px; height: 18px; }
+.mn-locked td { color: #64748b; }
+.mn-edit-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; align-items: start; }
+.mn-tree, .mn-children { list-style: none; margin: 0; padding: 0; }
+.mn-tree { display: flex; flex-direction: column; gap: 6px; }
+.mn-children { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 4px 28px; padding-left: 10px; border-left: 2px dashed #cbd5e1; }
+.mn-item { border-radius: 8px; }
+.mn-item.dragging { opacity: .45; }
+.mn-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
+.mn-item.group > .mn-row { background: #f8fafc; border-color: #cbd5e1; }
+.mn-handle { cursor: grab; color: #64748b; font-size: 18px; padding: 0 4px; user-select: none; touch-action: none; }
+.mn-icon { width: 22px; text-align: center; }
+.mn-name { flex: 1 1 200px; min-width: 0; padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+.mn-name.renamed { border-color: #0d6efd; background: #f5f9ff; }
+.mn-meta { flex: 1 1 160px; min-width: 0; font-size: 12px; color: #64748b; overflow-wrap: anywhere; }
+.mn-moves { display: inline-flex; align-items: center; gap: 4px; }
+.mn-btn { min-width: 30px; height: 30px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #334155; cursor: pointer; }
+.mn-btn:hover:not(:disabled) { background: #f1f5f9; }
+.mn-btn:disabled { opacity: .35; cursor: default; }
+.mn-parent { height: 30px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; max-width: 160px; }
+.mn-empty { padding: 10px; border: 1px dashed #94a3b8; border-radius: 6px; color: #64748b; font-size: 12px; text-align: center; }
+.drop-before { box-shadow: 0 -3px 0 0 #0d6efd; }
+.drop-after { box-shadow: 0 3px 0 0 #0d6efd; }
+.drop-into { outline: 2px dashed #0d6efd; outline-offset: 2px; background: #eef4ff !important; }
+.mn-preview { position: sticky; top: 8px; padding: 12px; border-radius: 8px; background: #203a43; color: #e2e8f0; font-size: 13px; }
+.mn-preview-title { font-weight: bold; margin-bottom: 8px; color: #fff; }
+.mn-preview-list, .mn-preview-list ul { list-style: none; margin: 0; padding: 0; }
+.mn-preview-list > li { padding: 4px 0; }
+.mn-preview-list ul { padding-left: 16px; color: #cbd5e1; }
+.mn-preview .svc-hint { color: #cbd5e1; }
+.mn-help { padding-left: 18px; }
+.mn-denied { margin: 0 0 12px; padding: 12px 14px; border: 1px solid #f5c2c7; border-radius: 8px; background: #fff5f5; color: #842029; font-size: 14px; }
+@media (max-width: 900px) {
+    .mn-edit-layout { grid-template-columns: minmax(0, 1fr); }
+    .mn-preview { position: static; }
+}
+@media (max-width: 560px) {
+    .mn-children { margin-left: 10px; }
+    .mn-meta { flex-basis: 100%; }
+}

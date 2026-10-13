@@ -1,6 +1,6 @@
 #!/bin/sh
 #=============================================================
-# collect_ps.sh - [ps] 서버에서 실행 중인 전체 프로세스 (krcasmrx11_client 1.8~)
+# collect_ps.sh - [ps] 서버에서 실행 중인 전체 프로세스 (svr_collect_client 1.8~)
 #   데몬이 멈춘 동안 하트비트 감시자가 대신 수집할 때만 사용 (scb_heartbeat.sh → 웹 "데몬 중단 프로세스 현황")
 #   출력 : PID|PPID|사용자|CPU%|MEM%|경과시간|명령행   (CPU 높은 순, 최대 SCB_PS_MAX 건 - 기본 300)
 #   제외 : 하트비트 감시자(scb_heartbeat.sh)와 그 수집 작업 (collect_*.sh, ps, sleep 등 감시자·이 스크립트의 자식)
