@@ -283,7 +283,7 @@ public class TopologyService {
 
     /** 서버별 최근 points 건의 자원/프로세스 이력 */
     public Map<Long, HistoryView> getHistory(int points) {
-        int n = Math.max(2, Math.min(points, 360));
+        int n = Math.max(2, Math.min(points, 1440));   // 메인 홈 대시보드 24시간 (1분 수집 기준)
         Map<Long, HistoryView> map = new LinkedHashMap<>();
         for (MetricHist h : lastN(mapper.selectMetricHistory(n), MetricHist::getServerId, n)) {
             map.computeIfAbsent(h.getServerId(), k -> new HistoryView()).addServerPoint(h);

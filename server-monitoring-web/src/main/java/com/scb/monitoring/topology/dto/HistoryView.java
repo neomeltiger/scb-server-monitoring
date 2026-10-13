@@ -18,6 +18,8 @@ public class HistoryView {
     private String source;
     private String lastTime;
     private final List<String> times = new ArrayList<>();
+    /** 수집 시각 (epoch ms) - 대시보드 시간축 (서버마다 수집 주기가 달라도 시각으로 맞춤) */
+    private final List<Long> ts = new ArrayList<>();
     private final List<Double> cpu = new ArrayList<>();
     private final List<Double> mem = new ArrayList<>();
     private final List<Double> disk = new ArrayList<>();
@@ -40,6 +42,7 @@ public class HistoryView {
     public void addServerPoint(MetricHist h) {
         String t = new SimpleDateFormat("HH:mm").format(h.getCollectDt());
         times.add(t);
+        ts.add(h.getCollectDt().getTime());
         cpu.add(d(h.getCpuPct()));
         mem.add(d(h.getMemPct()));
         disk.add(h.getDiskPct() == null ? null : d(h.getDiskPct()));
@@ -69,6 +72,7 @@ public class HistoryView {
     public String getSource() { return source; }
     public String getLastTime() { return lastTime; }
     public List<String> getTimes() { return times; }
+    public List<Long> getTs() { return ts; }
     public List<Double> getCpu() { return cpu; }
     public List<Double> getMem() { return mem; }
     public List<Double> getDisk() { return disk; }

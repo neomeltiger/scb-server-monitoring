@@ -11,6 +11,9 @@
     </button>
     <img th:src="@{/images/logo.png}" alt="SC제일은행 (Standard Chartered)" class="app-logo" width="144" height="56">
     <div class="user-bar" id="userBar" th:attr="data-role=${#authentication.principal.roleCd}">
+        <!-- 화면별 매뉴얼 : 지금 화면(menu)에 맞는 사용자 매뉴얼 절을 오른쪽 창에 표시 (manual/index.html?section=…) -->
+        <button type="button" class="help-btn" id="pageHelpBtn" th:attr="data-menu=${menu},data-manual=@{/manual/index.html}"
+                aria-controls="pageHelpPanel" aria-expanded="false" title="이 화면의 사용 방법 (F1)">📖 <span class="help-label">이 화면 매뉴얼</span></button>
         <span class="user-name"><b sec:authentication="principal.userNm">관리자</b>
             (<span sec:authentication="name">admin</span>) 님 · <span sec:authentication="principal.roleLabel">관리자</span></span>
         <span class="user-time" th:if="${session.loginTime != null}" th:text="'접속 ' + ${session.loginTime}"></span>
@@ -19,6 +22,54 @@
             <button type="submit" class="btn-logout">로그아웃</button>
         </form>
     </div>
+    <div class="help-backdrop" id="pageHelpBackdrop"></div>
+    <aside class="help-panel" id="pageHelpPanel" aria-label="이 화면 매뉴얼" aria-hidden="true">
+        <div class="help-head">
+            <div><b>📖 이 화면 매뉴얼</b><small id="pageHelpName"></small></div>
+            <div class="help-head-tools">
+                <a id="pageHelpFull" target="_blank" rel="noopener">전체 매뉴얼 ↗</a>
+                <button type="button" id="pageHelpClose">닫기</button>
+            </div>
+        </div>
+        <iframe class="help-frame" id="pageHelpFrame" title="이 화면 매뉴얼"></iframe>
+    </aside>
+    <script>
+        // 화면(menu 값) → 매뉴얼 절 (static/manual/index.html 의 section id, 여러 개면 쉼표)
+        (function () {
+            var MAP = {
+                main: ['main,mndash,alarm,agentreg', '메인 홈'], network: ['network,agent', '네트워크 구성도'], servers: ['servers', '서버 전체 목록'],
+                logs: ['serverlog', '서버 로그'], heartbeat: ['heartbeat', '하트비트 모니터링'], fallback: ['fallback', '데몬 중단 프로세스 현황'],
+                agents: ['agentmgr,srvreset', '에이전트 관리'], processes: ['process', '프로세스 관리'], users: ['users', '사용자 관리'],
+                menuauth: ['menuauth', '권한관리 · 메뉴 권한'], menuedit: ['menuauth', '권한관리 · 메뉴 이름·순서'], apiguide: ['apiguide,swagger', 'API 가이드'],
+                dbconn: ['dbconf', 'DB 연결 관리'], srvreport: ['srvreport', '서버 점검 리포트']
+            };
+            var btn = document.getElementById('pageHelpBtn');
+            var panel = document.getElementById('pageHelpPanel');
+            if (!btn || !panel) return;
+            var frame = document.getElementById('pageHelpFrame');
+            var back = document.getElementById('pageHelpBackdrop');
+            var base = btn.getAttribute('data-manual');
+            var m = MAP[btn.getAttribute('data-menu')] || ['overview,roles', '시스템 개요'];
+            var first = m[0].split(',')[0];
+            document.getElementById('pageHelpName').textContent = m[1];
+            document.getElementById('pageHelpFull').href = base + '#' + first;
+            function set(open) {
+                if (open && !frame.getAttribute('src')) frame.setAttribute('src', base + '?section=' + encodeURIComponent(m[0]));
+                panel.classList.toggle('open', open);
+                back.classList.toggle('open', open);
+                panel.setAttribute('aria-hidden', String(!open));
+                btn.setAttribute('aria-expanded', String(open));
+                if (open) document.getElementById('pageHelpClose').focus(); else btn.focus();
+            }
+            btn.addEventListener('click', function () { set(!panel.classList.contains('open')); });
+            document.getElementById('pageHelpClose').addEventListener('click', function () { set(false); });
+            back.addEventListener('click', function () { set(false); });
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'F1') { e.preventDefault(); set(!panel.classList.contains('open')); }
+                else if (e.key === 'Escape' && panel.classList.contains('open')) set(false);
+            });
+        })();
+    </script>
     <!-- 좁은 화면(1024px 이하) : 좌측 메뉴를 왼쪽에서 밀어 여는 메뉴로 사용 -->
     <script>
         (function () {

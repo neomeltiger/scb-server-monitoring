@@ -33,6 +33,8 @@ async function renderDashboard() {
         await Promise.all([loadHistory(), loadAgentStates(), loadServiceLists()]);
         renderProcessSection();
         startHistoryRefresh();
+        // 모니터링 대시보드 (main_dash.js)
+        if (typeof mnDashInit === 'function') mnDashInit();
         onHeartbeatChange(async () => {
             await loadServers();
             await Promise.all([loadAgentStates(), loadServiceLists()]);
