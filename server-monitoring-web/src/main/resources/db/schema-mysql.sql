@@ -24,6 +24,7 @@ CREATE DATABASE IF NOT EXISTS scb_mon_agent
 
 USE scb_mon_agent;
 
+DROP TABLE IF EXISTS tb_user_menu;
 DROP TABLE IF EXISTS tb_menu;
 DROP TABLE IF EXISTS tb_proc_fallback;
 DROP TABLE IF EXISTS tb_heartbeat_hist;
@@ -476,6 +477,17 @@ CREATE TABLE tb_menu (
     admin_only      CHAR(1)      NOT NULL DEFAULT 'N' COMMENT '관리자 전용 고정',
     new_window      CHAR(1)      NOT NULL DEFAULT 'N' COMMENT '새 창',
     upd_user        VARCHAR(30)           COMMENT '변경자',
-    upd_dt          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '변경 일시',
+    upd_dt          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '변경 일시',
     PRIMARY KEY (menu_id)
 ) ENGINE = InnoDB COMMENT = '좌측 메뉴 · 메뉴 권한';
+
+-- -------------------------------------------------------------
+-- 사용자별 메뉴 권한 (v11) : tb_user.menu_custom_yn = 'Y' 인 일반 사용자는 여기 있는 메뉴만
+-- -------------------------------------------------------------
+CREATE TABLE tb_user_menu (
+    user_id         VARCHAR(30)  NOT NULL COMMENT '사용자 ID',
+    menu_id         VARCHAR(30)  NOT NULL COMMENT '허용 메뉴 ID (tb_menu)',
+    reg_user        VARCHAR(30)           COMMENT '지정한 관리자',
+    reg_dt          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '지정 일시',
+    PRIMARY KEY (user_id, menu_id)
+) ENGINE = InnoDB COMMENT = '사용자별 메뉴 권한';

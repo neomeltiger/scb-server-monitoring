@@ -11,6 +11,6 @@ CREATE TABLE IF NOT EXISTS tb_user_menu (
     user_id         VARCHAR(30)  NOT NULL COMMENT '사용자 ID',
     menu_id         VARCHAR(30)  NOT NULL COMMENT '허용 메뉴 ID (tb_menu)',
     reg_user        VARCHAR(30)           COMMENT '지정한 관리자',
-    reg_dt          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '지정 일시',
+    reg_dt          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '지정 일시',
     PRIMARY KEY (user_id, menu_id)
 ) ENGINE = InnoDB COMMENT = '사용자별 메뉴 권한';

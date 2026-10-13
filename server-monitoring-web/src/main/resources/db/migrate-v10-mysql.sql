@@ -21,6 +21,6 @@ CREATE TABLE IF NOT EXISTS tb_menu (
     admin_only      CHAR(1)      NOT NULL DEFAULT 'N' COMMENT '관리자 전용 고정',
     new_window      CHAR(1)      NOT NULL DEFAULT 'N' COMMENT '새 창',
     upd_user        VARCHAR(30)           COMMENT '변경자',
-    upd_dt          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '변경 일시',
+    upd_dt          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '변경 일시',
     PRIMARY KEY (menu_id)
 ) ENGINE = InnoDB COMMENT = '좌측 메뉴 · 메뉴 권한';
