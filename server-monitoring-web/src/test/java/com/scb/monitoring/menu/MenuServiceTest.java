@@ -96,6 +96,34 @@ class MenuServiceTest {
         assertEquals("서버 로그", service.all().stream().filter(m -> "logs".equals(m.getMenuId())).findFirst().get().getMenuNm());
     }
 
+    /** 하위 메뉴(아이콘 없음)를 맨 위 단계로 옮기면 기본 아이콘, 다시 그룹 안으로 넣으면 아이콘 없음 */
+    @Test
+    void movedToTopGetsDefaultIcon() {
+        List<MenuService.LayoutItem> items = new ArrayList<>();
+        for (Menu m : service.all()) {
+            MenuService.LayoutItem it = new MenuService.LayoutItem();
+            it.id = m.getMenuId();
+            it.parentId = m.getParentId();
+            it.sortOrd = m.getSortOrd();
+            it.name = m.getMenuNm();
+            if ("logs".equals(it.id) || "swagger".equals(it.id)) {     // 화면 / 새 창 링크를 맨 위로
+                it.parentId = null;
+                it.sortOrd = "logs".equals(it.id) ? 15 : 55;
+            }
+            items.add(it);
+        }
+        service.saveLayout(items, "admin");
+        List<MenuService.Node> top = service.visibleTree(true);
+        assertEquals("📄", top.stream().filter(n -> "logs".equals(n.id)).findFirst().get().icon);
+        assertEquals("🔗", top.stream().filter(n -> "swagger".equals(n.id)).findFirst().get().icon);
+        assertEquals("🏠", top.stream().filter(n -> "main".equals(n.id)).findFirst().get().icon, "지정한 아이콘은 그대로");
+        assertEquals(null, service.all().stream().filter(m -> "logs".equals(m.getMenuId())).findFirst().get().getIcon(), "DB 에는 저장하지 않음");
+
+        service.resetDefaults("admin");
+        MenuService.Node res = service.visibleTree(true).stream().filter(n -> "g_resource".equals(n.id)).findFirst().get();
+        assertEquals(null, res.children.stream().filter(n -> "logs".equals(n.id)).findFirst().get().icon, "그룹 안에서는 아이콘 없음");
+    }
+
     @Autowired javax.sql.DataSource dataSource;
 
     /** 사용자별 메뉴 권한 : 지정하면 그 메뉴만, 해제하면 기본 권한, 관리자 전용 메뉴는 줄 수 없음 */

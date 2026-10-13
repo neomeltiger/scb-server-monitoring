@@ -67,6 +67,21 @@ public class Menu {
     public String getUrl() { return url; }
     public void setUrl(String url) { this.url = url; }
     public String getIcon() { return icon; }
+
+    /**
+     * 좌측 메뉴에 보일 아이콘 : 지정한 아이콘, 없으면 기본 아이콘 (그룹 📁 / 화면 📄 / 새 창 링크 🔗).
+     * 하위 메뉴(아이콘 없음)를 [메뉴 이름·순서] 에서 맨 위 단계로 옮겼을 때 빈칸이 되지 않도록.
+     */
+    public String getDisplayIcon() {
+        if (icon != null && !icon.trim().isEmpty()) return icon;
+        return defaultIcon(menuType);
+    }
+
+    public static String defaultIcon(String menuType) {
+        if (GROUP.equals(menuType)) return "📁";
+        if (LINK.equals(menuType)) return "🔗";
+        return "📄";
+    }
     public void setIcon(String icon) { this.icon = icon; }
     public int getSortOrd() { return sortOrd; }
     public void setSortOrd(int sortOrd) { this.sortOrd = sortOrd; }

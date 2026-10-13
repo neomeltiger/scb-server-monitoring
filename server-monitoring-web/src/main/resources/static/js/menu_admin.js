@@ -7,6 +7,8 @@
     const API = '../api/admin/menus';
     const $ = id => document.getElementById(id);
     const esc = v => escapeHtml(v == null ? '' : String(v));
+    /** 맨 위 단계 메뉴 아이콘 : 지정 아이콘, 없으면 기본 (그룹 📁 / 화면 📄 / 새 창 링크 🔗) - 서버 Menu.getDisplayIcon 과 같음 */
+    const iconOf = m => m.icon || (m.type === 'GROUP' ? '📁' : m.type === 'LINK' ? '🔗' : '📄');
 
     function status(id, msg, bad) {
         const el = $(id);
@@ -86,7 +88,7 @@
                 : '<label class="mn-check"><input type="checkbox" data-id="' + esc(m.id) + '"' + (userAllowed(m) ? ' checked' : '') + (editable() ? '' : ' disabled') +
                   ' aria-label="' + esc(m.name) + ' 일반 사용자 허용"> 허용</label>';
             return '<tr class="' + (child ? 'mn-child' : 'mn-top') + (locked ? ' mn-locked' : '') + '">' +
-                '<td class="ua-left">' + (child ? '<span class="mn-indent">└</span> ' : (m.icon ? esc(m.icon) + ' ' : '')) + '<b>' + esc(m.name) + '</b>' +
+                '<td class="ua-left">' + (child ? '<span class="mn-indent">└</span> ' : esc(iconOf(m)) + ' ') + '<b>' + esc(m.name) + '</b>' +
                 (m.type === 'LINK' ? ' <span class="am-chip gray">새 창</span>' : '') + '</td>' +
                 '<td class="svc-time"><code>' + esc(m.url || '') + '</code></td>' +
                 '<td><span class="mn-ok">✔ 접근</span></td>' +
@@ -98,7 +100,7 @@
             let html = '';
             toTree(list).forEach(m => {
                 if (m.type === 'GROUP') {
-                    html += '<tr class="mn-group-row"><td colspan="5">' + esc(m.icon || '📁') + ' <b>' + esc(m.name) + '</b>' +
+                    html += '<tr class="mn-group-row"><td colspan="5">' + esc(iconOf(m)) + ' <b>' + esc(m.name) + '</b>' +
                         (m.adminOnly ? ' <span class="mn-lock">🔒 관리자 전용 그룹</span>' : '') + '</td></tr>';
                     (m.children || []).forEach(c => { html += row(c, true); });
                 } else {
@@ -211,7 +213,7 @@
             let html = '<li class="mn-item' + (isGroup ? ' group' : '') + '" draggable="true" data-id="' + esc(m.id) + '">' +
                 '<div class="mn-row">' +
                 '<span class="mn-handle" title="끌어서 이동" aria-hidden="true">⠿</span>' +
-                '<span class="mn-icon" aria-hidden="true">' + esc(isGroup ? (m.icon || '📁') : (parentId ? '▪' : (m.icon || '▪'))) + '</span>' +
+                '<span class="mn-icon" aria-hidden="true">' + esc(isGroup || !parentId ? iconOf(m) : '▪') + '</span>' +
                 '<input type="text" class="mn-name' + (renamed ? ' renamed' : '') + '" maxlength="50" value="' + esc(m.name) + '" data-id="' + esc(m.id) + '" aria-label="' + esc(m.defaultName) + ' 메뉴 이름">' +
                 '<button type="button" class="mn-btn" data-act="default" data-id="' + esc(m.id) + '" title="처음 이름 : ' + esc(m.defaultName) + '"' + (renamed ? '' : ' disabled') + '>↺</button>' +
                 '<span class="mn-meta">' + (isGroup ? '그룹' : esc(m.url || '')) + (m.adminOnly ? ' · 🔒 관리자 전용' : '') + (renamed ? ' · 처음 : ' + esc(m.defaultName) : '') + '</span>' +
@@ -235,8 +237,8 @@
 
         function renderPreview() {
             $('mePreview').innerHTML = tree.map(m => m.type === 'GROUP'
-                ? '<li class="pv-group">' + esc(m.icon || '📁') + ' ' + esc(m.name) + '<ul>' + (m.children || []).map(c => '<li>▪ ' + esc(c.name) + '</li>').join('') + '</ul></li>'
-                : '<li class="pv-top">' + esc(m.icon || '▪') + ' ' + esc(m.name) + '</li>').join('');
+                ? '<li class="pv-group">' + esc(iconOf(m)) + ' ' + esc(m.name) + '<ul>' + (m.children || []).map(c => '<li>▪ ' + esc(c.name) + '</li>').join('') + '</ul></li>'
+                : '<li class="pv-top">' + esc(iconOf(m)) + ' ' + esc(m.name) + '</li>').join('');
         }
 
         // ---- 이름

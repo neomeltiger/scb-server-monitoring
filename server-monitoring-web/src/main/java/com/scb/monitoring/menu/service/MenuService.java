@@ -342,7 +342,7 @@ public class MenuService {
         Node(Menu m) {
             this.id = m.getMenuId();
             this.name = m.getMenuNm();
-            this.icon = m.getIcon();
+            this.icon = m.getParentId() == null ? m.getDisplayIcon() : m.getIcon();     // 맨 위 단계는 기본 아이콘이라도
             this.url = m.getUrl();
             this.group = m.isGroup();
             this.newWindow = m.isNewWindowLink();
