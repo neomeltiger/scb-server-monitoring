@@ -339,6 +339,18 @@ public class MenuService {
         return cache;
     }
 
+    /** 메뉴 하나의 아이콘만 바꾸기 (메뉴 권한 화면) - icon 이 비면 기본 아이콘 */
+    @Transactional
+    public List<Menu> saveIcon(String menuId, String icon, String user) {
+        Menu m = find(menuId);
+        if (m == null) throw TopologyException.notFound("알 수 없는 메뉴입니다 : " + menuId);
+        String v = cleanIcon(icon, m.getMenuNm());
+        mapper.updateIcon(menuId, v, user);
+        reload();
+        log.info("MENU 아이콘 {} = {} by {}", menuId, v, user);
+        return cache;
+    }
+
     /** 처음 이름·순서·그룹·권한으로 되돌리기 */
     @Transactional
     public List<Menu> resetDefaults(String user) {

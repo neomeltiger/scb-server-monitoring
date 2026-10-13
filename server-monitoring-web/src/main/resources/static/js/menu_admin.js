@@ -39,6 +39,108 @@
         el.hidden = !msg;
     }
 
+    // =========================================================== 아이콘 선택 창 (메뉴 이름·순서 · 메뉴 권한 공통)
+    let picker = null;
+
+    /** open(버튼, {title, current, defaultIcon, onPick(값)}) - 값 : 이모지·기호 / i:<이미지 id> / '' (기본) */
+    function iconPicker() {
+        if (picker) return picker;
+        let cur = null;
+        const el = document.createElement('div');
+        el.className = 'mn-picker';
+        el.id = 'mnIconPicker';
+        el.setAttribute('role', 'dialog');
+        el.setAttribute('aria-label', '메뉴 아이콘 선택');
+        el.hidden = true;
+        const cell = (v, label) => '<button type="button" class="mn-pick" data-icon="' + esc(v) + '" title="' + esc(label || v) + '" aria-label="' + esc(label || v) + '">' + iconHtml(v) + '</button>';
+        el.innerHTML =
+            '<div class="mn-picker-head"><b class="mn-pick-title">아이콘 선택</b><button type="button" class="mn-btn" data-pick="close" aria-label="닫기">✕</button></div>' +
+            '<div class="mn-picker-body">' +
+            '<div class="mn-picker-sec">메뉴 모양</div><div class="mn-picker-grid">' + IMG_MENU.map(id => cell('i:' + id, '이미지 ' + id)).join('') + '</div>' +
+            '<div class="mn-picker-sec">기본 UI</div><div class="mn-picker-grid">' + IMG_UI.map(id => cell('i:' + id, '이미지 ' + id)).join('') + '</div>' +
+            '<div class="mn-picker-sec">이모지</div><div class="mn-picker-grid">' + EMOJI.map(v => cell(v)).join('') + '</div></div>' +
+            '<div class="mn-picker-foot">' +
+            '<input type="text" class="ua-input mn-pick-input" maxlength="8" placeholder="직접 입력 (이모지·기호 1~4자)" aria-label="아이콘 직접 입력">' +
+            '<button type="button" class="btn svc-btn-light" data-pick="input">적용</button>' +
+            '<button type="button" class="btn svc-btn-light" data-pick="default" title="처음 아이콘으로">처음 아이콘</button>' +
+            '<button type="button" class="btn svc-btn-light" data-pick="none" title="아이콘을 지우면 맨 위 단계는 📄 / 🔗 / 📁, 그룹 안은 ▪">기본</button>' +
+            '<p class="mn-pick-err" role="alert"></p></div>';
+        document.body.appendChild(el);
+        const input = el.querySelector('.mn-pick-input');
+        const err = el.querySelector('.mn-pick-err');
+
+        function open(btn, o) {
+            cur = { btn: btn, o: o };
+            el.querySelector('.mn-pick-title').textContent = '\'' + o.title + '\' 아이콘';
+            input.value = o.current && o.current.indexOf('i:') !== 0 ? o.current : '';
+            err.textContent = '';
+            el.querySelectorAll('.mn-pick').forEach(b => b.classList.toggle('on', b.getAttribute('data-icon') === (o.current || '')));
+            el.hidden = false;
+            if (window.matchMedia('(max-width: 600px)').matches) {
+                el.style.left = el.style.top = '';
+            } else {
+                const r = btn.getBoundingClientRect();
+                const w = el.offsetWidth, h = el.offsetHeight;
+                el.style.left = Math.max(8, Math.min(r.left, document.documentElement.clientWidth - w - 8)) + window.scrollX + 'px';
+                const below = r.bottom + 6 + h < window.innerHeight;
+                el.style.top = (below ? r.bottom + 6 : Math.max(8, r.top - h - 6)) + window.scrollY + 'px';
+            }
+            (el.querySelector('.mn-pick.on') || el.querySelector('.mn-pick')).focus();
+        }
+
+        function close(back) {
+            if (el.hidden) return;
+            el.hidden = true;
+            const c = cur;
+            cur = null;
+            if (back && c && document.body.contains(c.btn)) c.btn.focus();
+        }
+
+        function pick(v) {
+            const c = cur;
+            close(false);
+            if (c) c.o.onPick(v || '');
+        }
+
+        el.addEventListener('click', e => {
+            const b = e.target.closest('.mn-pick');
+            if (b) { pick(b.getAttribute('data-icon')); return; }
+            const a = e.target.closest('[data-pick]');
+            if (!a || !cur) return;
+            const act = a.getAttribute('data-pick');
+            if (act === 'close') close(true);
+            else if (act === 'none') pick('');
+            else if (act === 'default') pick(cur.o.defaultIcon || '');
+            else if (act === 'input') {
+                const v = input.value.trim();
+                if (!v) { input.focus(); return; }
+                if (/[<>&"'`\\\s]/.test(v) || Array.from(v).length > 4) { err.textContent = '아이콘은 이모지·기호 1~4 글자로 입력하세요'; input.focus(); return; }
+                pick(v);
+            }
+        });
+        input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); el.querySelector('[data-pick="input"]').click(); } });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && !el.hidden) { e.preventDefault(); close(true); } });
+        document.addEventListener('mousedown', e => { if (!el.hidden && !el.contains(e.target) && !e.target.closest('.mn-icon-btn')) close(false); });
+        // 화살표로 칸 이동
+        el.addEventListener('keydown', e => {
+            if (!e.target.matches('.mn-pick') || !/^Arrow/.test(e.key)) return;
+            const grid = e.target.parentElement;
+            const all = Array.from(grid.querySelectorAll('.mn-pick'));
+            const i = all.indexOf(e.target);
+            const cols = Math.max(1, Math.floor(grid.clientWidth / e.target.offsetWidth));
+            const n = all[i + { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols }[e.key]];
+            if (n) { e.preventDefault(); n.focus(); }
+        });
+        picker = { open: open, close: close };
+        return picker;
+    }
+
+    /** 아이콘 버튼 (보이는 아이콘 = shown) */
+    function iconBtn(m, shown) {
+        return '<button type="button" class="mn-icon-btn" data-act="icon" data-id="' + esc(m.id) + '" aria-haspopup="dialog" ' +
+            'title="아이콘 선택" aria-label="' + esc(m.name) + ' 아이콘 선택 (지금 : ' + esc(m.icon ? m.icon : '기본') + ')">' + iconHtml(shown) + '</button>';
+    }
+
     /** 평면 목록 → 트리 [{...group, children:[]}, page, ...] (정렬 순서대로) */
     function toTree(list) {
         const top = list.filter(m => !m.parentId).sort((a, b) => a.sortOrd - b.sortOrd);
@@ -104,7 +206,7 @@
                 : '<label class="mn-check"><input type="checkbox" data-id="' + esc(m.id) + '"' + (userAllowed(m) ? ' checked' : '') + (editable() ? '' : ' disabled') +
                   ' aria-label="' + esc(m.name) + ' 일반 사용자 허용"> 허용</label>';
             return '<tr class="' + (child ? 'mn-child' : 'mn-top') + (locked ? ' mn-locked' : '') + '">' +
-                '<td class="ua-left">' + (child ? '<span class="mn-indent">└</span> ' + (m.icon ? iconHtml(m.icon) + ' ' : '') : iconHtml(iconOf(m)) + ' ') + '<b>' + esc(m.name) + '</b>' +
+                '<td class="ua-left">' + (child ? '<span class="mn-indent">└</span> ' : '') + iconBtn(m, child ? (m.icon || '▪') : iconOf(m)) + ' <b>' + esc(m.name) + '</b>' +
                 (m.type === 'LINK' ? ' <span class="am-chip gray">새 창</span>' : '') + '</td>' +
                 '<td class="svc-time"><code>' + esc(m.url || '') + '</code></td>' +
                 '<td><span class="mn-ok">✔ 접근</span></td>' +
@@ -116,7 +218,7 @@
             let html = '';
             toTree(list).forEach(m => {
                 if (m.type === 'GROUP') {
-                    html += '<tr class="mn-group-row"><td colspan="5">' + iconHtml(iconOf(m)) + ' <b>' + esc(m.name) + '</b>' +
+                    html += '<tr class="mn-group-row"><td colspan="5">' + iconBtn(m, iconOf(m)) + ' <b>' + esc(m.name) + '</b>' +
                         (m.adminOnly ? ' <span class="mn-lock">🔒 관리자 전용 그룹</span>' : '') + '</td></tr>';
                     (m.children || []).forEach(c => { html += row(c, true); });
                 } else {
@@ -126,6 +228,29 @@
             $('maBody').innerHTML = html || '<tr><td colspan="5" class="svc-empty">메뉴가 없습니다.</td></tr>';
             count();
         }
+
+        // 아이콘 : 고르면 바로 저장 (권한 [저장] 과 별개, 저장하지 않은 권한 체크는 그대로)
+        $('maBody').addEventListener('click', e => {
+            const btn = e.target.closest('.mn-icon-btn');
+            if (!btn) return;
+            const id = btn.getAttribute('data-id');
+            const m = list.find(x => x.id === id);
+            if (!m) return;
+            iconPicker().open(btn, {
+                title: m.name, current: m.icon, defaultIcon: m.defaultIcon,
+                onPick: async v => {
+                    try {
+                        const saved = await apiRequest('PUT', API + '/' + encodeURIComponent(id) + '/icon', { icon: v });
+                        const s = saved.find(x => x.id === id);
+                        m.icon = s ? s.icon : (v || null);
+                        render();
+                        status('maStatus', '\'' + m.name + '\' 아이콘을 ' + (v ? '저장' : '기본으로') + '했습니다 - 좌측 메뉴는 다음 화면부터 반영' + (dirty ? ' · 저장하지 않은 권한 변경 있음' : ''));
+                        const nb = document.querySelector('#maBody .mn-icon-btn[data-id="' + CSS.escape(id) + '"]');
+                        if (nb) nb.focus();
+                    } catch (ex) { showError('maError', '아이콘 저장 실패 : ' + ex.message); }
+                }
+            });
+        });
 
         function count() {
             const boxes = Array.from(document.querySelectorAll('#maBody input[type=checkbox]'));
@@ -229,9 +354,7 @@
             let html = '<li class="mn-item' + (isGroup ? ' group' : '') + '" draggable="true" data-id="' + esc(m.id) + '">' +
                 '<div class="mn-row">' +
                 '<span class="mn-handle" title="끌어서 이동" aria-hidden="true">⠿</span>' +
-                '<button type="button" class="mn-icon-btn" data-act="icon" data-id="' + esc(m.id) + '" aria-haspopup="dialog" ' +
-                'title="아이콘 선택" aria-label="' + esc(m.name) + ' 아이콘 선택 (지금 : ' + esc(m.icon ? m.icon : '기본') + ')">' +
-                iconHtml(isGroup || !parentId ? iconOf(m) : (m.icon || '▪')) + '</button>' +
+                iconBtn(m, isGroup || !parentId ? iconOf(m) : (m.icon || '▪')) +
                 '<input type="text" class="mn-name' + (renamed ? ' renamed' : '') + '" maxlength="50" value="' + esc(m.name) + '" data-id="' + esc(m.id) + '" aria-label="' + esc(m.defaultName) + ' 메뉴 이름">' +
                 '<button type="button" class="mn-btn" data-act="default" data-id="' + esc(m.id) + '" title="처음 이름 : ' + esc(m.defaultName) + '"' + (renamed ? '' : ' disabled') + '>↺</button>' +
                 '<span class="mn-meta">' + (isGroup ? '그룹' : esc(m.url || '')) + (m.adminOnly ? ' · 🔒 관리자 전용' : '') + (renamed ? ' · 처음 : ' + esc(m.defaultName) : '') + '</span>' +
@@ -248,100 +371,21 @@
             return html + '</li>';
         }
 
-        // ---- 아이콘 선택 (이미지 양식 · 이모지 · 직접 입력 · 기본)
-        let pickFor = null;
-        const picker = document.createElement('div');
-        picker.className = 'mn-picker';
-        picker.id = 'meIconPicker';
-        picker.setAttribute('role', 'dialog');
-        picker.setAttribute('aria-label', '메뉴 아이콘 선택');
-        picker.hidden = true;
-        const cell = (v, label) => '<button type="button" class="mn-pick" data-icon="' + esc(v) + '" title="' + esc(label || v) + '" aria-label="' + esc(label || v) + '">' + iconHtml(v) + '</button>';
-        picker.innerHTML =
-            '<div class="mn-picker-head"><b id="mePickTitle">아이콘 선택</b><button type="button" class="mn-btn" data-pick="close" aria-label="닫기">✕</button></div>' +
-            '<div class="mn-picker-body">' +
-            '<div class="mn-picker-sec">메뉴 모양</div><div class="mn-picker-grid">' + IMG_MENU.map(id => cell('i:' + id, '이미지 ' + id)).join('') + '</div>' +
-            '<div class="mn-picker-sec">기본 UI</div><div class="mn-picker-grid">' + IMG_UI.map(id => cell('i:' + id, '이미지 ' + id)).join('') + '</div>' +
-            '<div class="mn-picker-sec">이모지</div><div class="mn-picker-grid">' + EMOJI.map(v => cell(v)).join('') + '</div></div>' +
-            '<div class="mn-picker-foot">' +
-            '<input type="text" class="ua-input mn-pick-input" id="mePickInput" maxlength="8" placeholder="직접 입력 (이모지·기호 1~4자)" aria-label="아이콘 직접 입력">' +
-            '<button type="button" class="btn svc-btn-light" data-pick="input">적용</button>' +
-            '<button type="button" class="btn svc-btn-light" data-pick="default" title="처음 아이콘으로">처음 아이콘</button>' +
-            '<button type="button" class="btn svc-btn-light" data-pick="none" title="아이콘을 지우면 맨 위 단계는 📄 / 🔗 / 📁, 그룹 안은 ▪">기본</button></div>';
-        document.body.appendChild(picker);
-
+        // ---- 아이콘 선택 (공통 선택 창 iconPicker)
         function openPicker(btn) {
-            const l = locate(btn.getAttribute('data-id'));
-            if (!l) return;
-            pickFor = { id: btn.getAttribute('data-id') };
-            const m = l.arr[l.idx];
-            $('mePickTitle').textContent = '\'' + m.name + '\' 아이콘';
-            $('mePickInput').value = m.icon && m.icon.indexOf('i:') !== 0 ? m.icon : '';
-            picker.querySelectorAll('.mn-pick').forEach(b => b.classList.toggle('on', b.getAttribute('data-icon') === (m.icon || '')));
-            picker.hidden = false;
-            if (window.matchMedia('(max-width: 600px)').matches) {
-                picker.style.left = picker.style.top = '';
-            } else {
-                const r = btn.getBoundingClientRect();
-                const w = picker.offsetWidth, h = picker.offsetHeight;
-                picker.style.left = Math.max(8, Math.min(r.left, document.documentElement.clientWidth - w - 8)) + window.scrollX + 'px';
-                const below = r.bottom + 6 + h < window.innerHeight;
-                picker.style.top = (below ? r.bottom + 6 : Math.max(8, r.top - h - 6)) + window.scrollY + 'px';
-            }
-            (picker.querySelector('.mn-pick.on') || picker.querySelector('.mn-pick')).focus();
-        }
-
-        function closePicker(back) {
-            if (picker.hidden) return;
-            picker.hidden = true;
-            const id = pickFor && pickFor.id;
-            pickFor = null;
-            if (back && id) focusItem(id, '.mn-icon-btn');
-        }
-
-        function setIcon(v) {
-            const l = pickFor && locate(pickFor.id);
+            const id = btn.getAttribute('data-id');
+            const l = locate(id);
             if (!l) return;
             const m = l.arr[l.idx];
-            m.icon = v || null;
-            const id = pickFor.id;
-            closePicker(false);
-            changed('\'' + m.name + '\' 아이콘 ' + (v ? '변경' : '기본'));
-            focusItem(id, '.mn-icon-btn');
+            iconPicker().open(btn, {
+                title: m.name, current: m.icon, defaultIcon: m.defaultIcon,
+                onPick: v => {
+                    m.icon = v || null;
+                    changed('\'' + m.name + '\' 아이콘 ' + (v ? '변경' : '기본'));
+                    focusItem(id, '.mn-icon-btn');
+                }
+            });
         }
-
-        picker.addEventListener('click', e => {
-            const p = e.target.closest('.mn-pick');
-            if (p) { setIcon(p.getAttribute('data-icon')); return; }
-            const a = e.target.closest('[data-pick]');
-            if (!a) return;
-            const act = a.getAttribute('data-pick');
-            if (act === 'close') closePicker(true);
-            else if (act === 'none') setIcon('');
-            else if (act === 'default') {
-                const l = locate(pickFor.id);
-                setIcon(l ? l.arr[l.idx].defaultIcon || '' : '');
-            } else if (act === 'input') {
-                const v = $('mePickInput').value.trim();
-                if (!v) { $('mePickInput').focus(); return; }
-                if (/[<>&"'`\\\s]/.test(v) || Array.from(v).length > 4) { status('meStatus', '아이콘은 이모지·기호 1~4 글자로 입력하세요', true); return; }
-                setIcon(v);
-            }
-        });
-        $('mePickInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); picker.querySelector('[data-pick="input"]').click(); } });
-        document.addEventListener('keydown', e => { if (e.key === 'Escape' && !picker.hidden) { e.preventDefault(); closePicker(true); } });
-        document.addEventListener('mousedown', e => { if (!picker.hidden && !picker.contains(e.target) && !e.target.closest('.mn-icon-btn')) closePicker(false); });
-        // 화살표로 칸 이동
-        picker.addEventListener('keydown', e => {
-            if (!e.target.matches('.mn-pick') || !/^Arrow/.test(e.key)) return;
-            const grid = e.target.parentElement;
-            const all = Array.from(grid.querySelectorAll('.mn-pick'));
-            const i = all.indexOf(e.target);
-            const cols = Math.max(1, Math.floor(grid.clientWidth / e.target.offsetWidth));
-            const d = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols }[e.key];
-            const n = all[i + d];
-            if (n) { e.preventDefault(); n.focus(); }
-        });
 
         function render() {
             $('meTree').innerHTML = tree.map((m, i) => itemHtml(m, null, i, tree.length)).join('');

@@ -36,6 +36,14 @@
          WHERE menu_id = #{menuId}
     </update>
 
+    <update id="updateIcon">
+        UPDATE tb_menu
+           SET icon     = #{icon, jdbcType=VARCHAR},
+               upd_user = #{updUser},
+               upd_dt   = CURRENT_TIMESTAMP
+         WHERE menu_id = #{menuId}
+    </update>
+
     <update id="resetMenu" parameterType="com.scb.monitoring.menu.domain.Menu">
         UPDATE tb_menu
            SET parent_id  = #{parentId},

@@ -100,6 +100,18 @@ public class MenuController {
         return view(service.saveLayout(items, auth.getName()));
     }
 
+    /** 아이콘 변경 요청 : icon = 이모지·기호 1~4 글자 / i:<이미지 id> / "" (기본) */
+    public static class IconForm {
+        public String icon;
+    }
+
+    @Operation(summary = "메뉴 아이콘 바꾸기 - ADMIN : {icon} (이모지·기호 1~4 글자, i:<id> 이미지, 빈 값 = 기본)")
+    @PutMapping("/api/admin/menus/{menuId}/icon")
+    @ResponseBody
+    public List<Map<String, Object>> saveIcon(@org.springframework.web.bind.annotation.PathVariable String menuId, @RequestBody IconForm f, Authentication auth) {
+        return view(service.saveIcon(menuId, f == null ? null : f.icon, auth.getName()));
+    }
+
     @Operation(summary = "메뉴를 처음 이름·순서·권한으로 되돌리기 - ADMIN")
     @PostMapping("/api/admin/menus/reset")
     @ResponseBody

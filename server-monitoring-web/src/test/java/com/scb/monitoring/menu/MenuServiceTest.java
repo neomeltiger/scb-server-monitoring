@@ -164,6 +164,14 @@ class MenuServiceTest {
         assertEquals("🏠", MenuService.defaultIconOf("main"));
         service.resetDefaults("admin");
         assertEquals("🏠", iconOf("main"), "처음 상태로 되돌리면 처음 아이콘");
+
+        // 메뉴 권한 화면 : 아이콘만 바로 저장
+        service.saveIcon("network", "i:globe", "admin");
+        assertEquals("i:globe", iconOf("network"));
+        service.saveIcon("network", "", "admin");
+        assertEquals(null, iconOf("network"));
+        assertThrows(TopologyException.class, () -> service.saveIcon("network", "i:nope", "admin"));
+        assertThrows(TopologyException.class, () -> service.saveIcon("nope", "🔍", "admin"));
     }
 
     @Autowired javax.sql.DataSource dataSource;
