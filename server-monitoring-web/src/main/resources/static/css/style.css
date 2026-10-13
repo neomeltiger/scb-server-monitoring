@@ -1896,3 +1896,71 @@ body.scb-dlg-open { overflow: hidden; }
 #dashboard-container[data-mnbg="dark"] .app-header, #dashboard-container[data-mnbg="midnight"] .app-header,
 #dashboard-container[data-mnbg="graphite"] .app-header, #dashboard-container[data-mnbg="aurora"] .app-header {
     background: #fff; border-radius: 10px; padding: 8px 14px; border-bottom: 0; box-sizing: border-box; }
+
+/* ===================== 대시보드 서버 선택 (main_dash.js) ===================== */
+.mn-srv-wrap { position: relative; }
+.mn-srv-btn.on { border-color: var(--mn-accent); box-shadow: 0 0 0 2px rgba(31,120,193,.18); }
+.mn-srv-btn b { font-weight: bold; }
+.mn-srv-pop { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; width: 360px; max-width: 90vw; background: var(--mn-panel); color: var(--mn-text);
+    border: 1px solid var(--mn-panel-bd); border-radius: 8px; box-shadow: 0 12px 28px rgba(0,0,0,.22); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.mn-srv-pop[hidden] { display: none; }
+#dashboard-container[data-mnbg="aurora"] .mn-srv-pop { background: #1b3540; }
+.mn-srv-search { width: 100%; box-sizing: border-box; padding: 7px 10px; border: 1px solid var(--mn-ctl-bd); border-radius: 6px; background: var(--mn-ctl); color: var(--mn-text); font-size: 13px; }
+.mn-srv-quick { display: flex; gap: 6px; flex-wrap: wrap; }
+.mn-srv-quick .mn-btn { padding: 4px 10px; font-size: 12px; }
+.mn-srv-quick .primary { margin-left: auto; }
+.mn-srv-list { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; }
+.mn-srv-list li { display: flex; align-items: center; gap: 6px; padding: 3px 4px; border-radius: 4px; font-size: 13px; }
+.mn-srv-list li:hover { background: var(--mn-head); }
+.mn-srv-list label { flex: 1; display: flex; align-items: center; gap: 6px; cursor: pointer; min-width: 0; flex-wrap: wrap; }
+.mn-srv-list small { color: var(--mn-sub); }
+.mn-srv-group { font-size: 11px !important; color: var(--mn-sub); font-weight: bold; padding-top: 8px !important; }
+.mn-srv-group:hover { background: none !important; }
+.mn-only { flex: none; border: 1px solid var(--mn-ctl-bd); background: var(--mn-ctl); color: var(--mn-text); border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer; }
+.mn-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #94a3b8; flex: none; }
+.mn-dot.Active { background: #37b24d; }
+.mn-dot.Standby { background: #f59f00; }
+.mn-dot.Down { background: #e03131; }
+.mn-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mn-chips[hidden] { display: none; }
+.mn-chips-k { font-size: 12px; color: var(--mn-sub); margin-right: 2px; }
+.mn-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--mn-head); border: 1px solid var(--mn-panel-bd); color: var(--mn-text);
+    border-radius: 14px; padding: 2px 4px 2px 10px; font-size: 12px; }
+.mn-chip button { border: 0; background: transparent; color: var(--mn-sub); cursor: pointer; font-size: 12px; width: 20px; height: 20px; border-radius: 50%; }
+.mn-chip button:hover { background: var(--mn-grid); color: var(--mn-text); }
+.mn-chip-all { border: 0; background: transparent; color: var(--mn-accent); cursor: pointer; font-size: 12px; text-decoration: underline; }
+/* 서버별 나눠 보기 패널 머리 */
+.mn-srv-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; padding: 6px 10px 0; font-size: 12px; color: var(--mn-sub); }
+.mn-srv-meta b { color: var(--mn-text); }
+.mn-srv-v.warn b { color: #e8590c; }
+.mn-srv-v.crit b { color: #e03131; }
+.mn-srv-st { border-radius: 10px; padding: 0 8px; font-weight: bold; color: #fff; background: #94a3b8; }
+.mn-srv-st.Active { background: #2f9e44; }
+.mn-srv-st.Standby { background: #f08c00; }
+.mn-srv-st.Down { background: #e03131; }
+@media (max-width: 760px) { .mn-srv-pop { position: fixed; left: 8px; right: 8px; top: 80px; width: auto; } }
+
+/* ===================== 전체 화면 색 (상단 [화면 색] 드롭다운, fragments/top.html) ===================== */
+.pt-field { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #475569; }
+.pt-select { border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 6px; font-size: 13px; background: #fff; color: #1f2937; max-width: 150px; }
+html[data-pt] body { background-color: var(--pt-bg); }
+html[data-pt] .sidebar-menu { background: var(--pt-side); }
+html[data-pt] .tree-link.active, html[data-pt] .tree-link.active .bullet { color: var(--pt-accent); }
+html[data-pt] .btn-primary, html[data-pt] .proc-scope button.active, html[data-pt] .ua-tab.active, html[data-pt] .proc-type-btn.active {
+    background-color: var(--pt-accent); border-color: var(--pt-accent); color: #fff; }
+html[data-pt] .btn-primary:hover { background-color: var(--pt-accent2); }
+html[data-pt] .proc-group, html[data-pt] .agent-reg { border-top-color: var(--pt-accent); }
+html[data-pt] .help-head { background: var(--pt-accent); }
+html[data-pt="navy"] { --pt-bg: #eef2f7; --pt-side: linear-gradient(160deg, #0f172a 0%, #1e293b 55%, #334155 100%); --pt-accent: #1d4ed8; --pt-accent2: #1e40af; }
+html[data-pt="scb"] { --pt-bg: #f2f7fd; --pt-side: linear-gradient(160deg, #0a3d8f 0%, #0473ea 60%, #20a35a 100%); --pt-accent: #0473ea; --pt-accent2: #0a3d8f; }
+html[data-pt="forest"] { --pt-bg: #f1f7f3; --pt-side: linear-gradient(160deg, #1b4332 0%, #2d6a4f 55%, #52b788 100%); --pt-accent: #2d6a4f; --pt-accent2: #1b4332; }
+html[data-pt="purple"] { --pt-bg: #f6f3fd; --pt-side: linear-gradient(160deg, #3b0764 0%, #6d28d9 55%, #a78bfa 100%); --pt-accent: #6d28d9; --pt-accent2: #4c1d95; }
+html[data-pt="sunset"] { --pt-bg: #fff7ed; --pt-side: linear-gradient(160deg, #7c2d12 0%, #c2410c 55%, #f59e0b 100%); --pt-accent: #c2410c; --pt-accent2: #9a3412; }
+html[data-pt="teal"] { --pt-bg: #effafa; --pt-side: linear-gradient(160deg, #134e4a 0%, #0f766e 55%, #2dd4bf 100%); --pt-accent: #0f766e; --pt-accent2: #134e4a; }
+html[data-pt="mono"] { --pt-bg: #f4f4f5; --pt-side: linear-gradient(160deg, #18181b 0%, #3f3f46 60%, #71717a 100%); --pt-accent: #3f3f46; --pt-accent2: #18181b; }
+/* 다크 : 모든 화면을 한 번에 어둡게 (색 반전 후 색상만 되돌림, 사진·로고는 원래 색) */
+html[data-pt="dark"] { --pt-bg: #f4f6f9; --pt-side: linear-gradient(160deg, #385c95 0%, #4f83b9 55%, #3dadeb 100%); --pt-accent: #007bff; --pt-accent2: #0056b3;
+    filter: invert(0.9) hue-rotate(180deg); background: #fff; }
+html[data-pt="dark"] img, html[data-pt="dark"] video, html[data-pt="dark"] iframe, html[data-pt="dark"] .mn-stat { filter: invert(1) hue-rotate(180deg); }
+@media (max-width: 600px) { .pt-field .pt-k { display: none; } .pt-select { max-width: 110px; } }
+@media print { .pt-field { display: none; } html[data-pt="dark"] { filter: none; } }

@@ -3,6 +3,7 @@
 // 데이터 : GET api/topology/history?points=N (서버 CPU / MEM / 디스크 / 세션, 프로세스·서비스 CPU 이력, ts = 수집 시각 ms)
 //          serversData (script.js loadServers) - 서버 이름·상태·위치
 // 구성 : 요약 지표(stat) 한 줄 + 패널 여러 개 (선 / 영역 / 막대 / 게이지), 패널 추가·편집·삭제·확대
+//        서버 선택(전체 / 여러 대 / 이 서버만) - 모든 패널·요약 지표에 적용, 보기 : 패널(서버 겹쳐 보기) / 서버별 나눠 보기
 // 화면 설정(배경, 열 수, 조회 범위, 자동 갱신, 패널 목록)은 브라우저(localStorage)에 사용자별로 저장
 // script.js 의 renderDashboard 가 서버 목록을 읽은 뒤 mnDashInit() 을 부름
 (function () {
@@ -13,8 +14,11 @@
         mem: { name: '메모리 사용률', unit: '%', max: 100, q: 'scb_server_memory_usage_percent' },
         disk: { name: '디스크 사용률 (최고 파일시스템)', unit: '%', max: 100, q: 'scb_server_disk_usage_percent' },
         sessions: { name: 'TCP 세션 수', unit: '', max: null, q: 'scb_server_tcp_sessions' },
-        proc: { name: '프로세스·서비스 CPU', unit: '%', max: null, q: 'scb_process_cpu_usage_percent' }
+        proc: { name: '프로세스·서비스 CPU', unit: '%', max: null, q: 'scb_process_cpu_usage_percent' },
+        // 서버별 나눠 보기 전용 : 서버 하나의 CPU · 메모리 · 디스크를 한 그래프에
+        res: { name: '서버 자원 (CPU · 메모리 · 디스크)', unit: '%', max: 100, q: 'scb_server_resource_usage_percent' }
     };
+    const VIEWS = [['all', '패널 (서버 겹쳐 보기)'], ['split', '서버별 나눠 보기']];
     const TYPES = [['line', '선'], ['area', '영역'], ['bar', '막대 (현재값)'], ['gauge', '게이지 (현재값)']];
     const BGS = [
         ['light', '기본 (밝게)'], ['dark', '다크 (Grafana)'], ['midnight', '미드나잇 블루'], ['graphite', '그라파이트'],
@@ -53,7 +57,10 @@
             range: RANGES.some(r => r[0] === s.range) ? s.range : 60,
             refresh: REFRESH.some(r => r[0] === s.refresh) ? s.refresh : 60,
             folded: !!s.folded,
-            panels: Array.isArray(s.panels) && s.panels.length ? s.panels.filter(p => p && METRICS[p.metric]) : DEFAULT_PANELS.map(p => Object.assign({}, p))
+            // 대시보드 전체 서버 선택 (빈 배열 = 전체) - Grafana 의 서버 변수처럼 모든 패널·요약 지표에 적용
+            sel: Array.isArray(s.sel) ? s.sel.map(String) : [],
+            view: VIEWS.some(v => v[0] === s.view) ? s.view : 'all',
+            panels: Array.isArray(s.panels) && s.panels.length ? s.panels.filter(p => p && METRICS[p.metric] && p.metric !== 'res') : DEFAULT_PANELS.map(p => Object.assign({}, p))
         };
     }
 
@@ -81,13 +88,30 @@
         return sc === 'all' || (sc === 'drc' ? s.location === 'DRC' : s.location !== 'DRC');
     }
 
+    function allServers() {
+        return typeof serversData !== 'undefined' ? serversData : [];
+    }
+
+    /** 위치(전체/ITC/DRC)와 대시보드 서버 선택을 모두 적용한 서버 */
     function servers() {
-        return (typeof serversData !== 'undefined' ? serversData : []).filter(scopeOk);
+        const sel = st.sel.filter(id => allServers().some(s => String(s.id) === id));
+        return allServers().filter(scopeOk).filter(s => !sel.length || sel.includes(String(s.id)));
     }
 
     /** 패널 하나의 계열 : [{name, values[], ts[] (수집 시각 ms)}] */
     function seriesOf(p) {
         const out = [];
+        if (p.metric === 'res') {
+            const s = allServers().find(x => String(x.id) === String(p.serverId));
+            const h = s ? hist[s.id] : null;
+            if (!h || !h.ts || !h.ts.length) return out;
+            [['cpu', 'CPU'], ['mem', '메모리'], ['disk', '디스크']].forEach(k => {
+                const v = (h[k[0]] || []).map(x => (x === null || x === undefined ? null : Number(x)));
+                const w = windowed({ name: k[1], values: v, ts: h.ts.slice() });
+                if (w) out.push(w);
+            });
+            return out;
+        }
         if (p.metric === 'proc') {
             const s = (typeof serversData !== 'undefined' ? serversData : []).find(x => String(x.id) === String(p.serverId));
             const h = s ? hist[s.id] : null;
@@ -133,12 +157,14 @@
 
     function query(p) {
         const m = METRICS[p.metric];
-        if (p.metric === 'proc') {
-            const s = (typeof serversData !== 'undefined' ? serversData : []).find(x => String(x.id) === String(p.serverId));
+        if (p.metric === 'proc' || p.metric === 'res') {
+            const s = allServers().find(x => String(x.id) === String(p.serverId));
             return m.q + '{server="' + (s ? s.systemName : '?') + '"}';
         }
         const sc = typeof processScope === 'string' && processScope !== 'all' ? 'location="' + processScope.toUpperCase() + '"' : '';
-        const sv = p.servers && p.servers.length ? 'server=~"' + p.servers.length + '대 선택"' : '';
+        const names = servers().filter(s => !(p.servers && p.servers.length) || p.servers.map(String).includes(String(s.id))).map(s => s.systemName);
+        const sv = st.sel.length || (p.servers && p.servers.length)
+            ? 'server=~"' + (names.length <= 2 ? names.join('|') : names.length + '대 선택') + '"' : '';
         const lab = [sc, sv].filter(Boolean).join(',');
         return m.q + (lab ? '{' + lab + '}' : '');
     }
@@ -294,8 +320,9 @@
         const disks = conn.map(s => { const h = hist[s.id]; return h ? { s, v: last((h.disk || []).map(Number)) } : null; }).filter(Boolean);
         const topDisk = disks.sort((a, b) => b.v - a.v)[0];
         const avgCpu = cpus.length ? cpus.reduce((a, b) => a + b, 0) / cpus.length : null;
+        const scope = typeof processScope === 'string' && processScope !== 'all' ? processScope.toUpperCase() : '전체';
         const items = [
-            ['서버', list.length + '대', 'info', '전체 (' + (typeof processScope === 'string' && processScope !== 'all' ? processScope.toUpperCase() : '전체') + ')'],
+            ['서버', list.length + '대', 'info', st.sel.length ? '선택한 서버 (' + scope + ')' : '전체 (' + scope + ')'],
             ['Active', cnt('Active'), cnt('Active') ? 'ok' : 'info', '정상 운영'],
             ['Standby', cnt('Standby'), cnt('Standby') ? 'warn' : 'info', '대기'],
             ['Down', cnt('Down'), cnt('Down') ? 'crit' : 'ok', cnt('Down') ? '즉시 조치 필요' : '없음'],
@@ -307,7 +334,46 @@
             '<b class="mn-stat-v">' + esc(i[1]) + '</b><span class="mn-stat-s">' + esc(i[3]) + '</span></div>').join('');
     }
 
+    /** 지금 보기의 패널 : 패널 보기 = 저장된 패널, 서버별 나눠 보기 = 선택 서버마다 자원 패널 1개 (Grafana 의 패널 반복) */
+    function curPanels() {
+        if (st.view !== 'split') return st.panels;
+        return servers().map(s => ({
+            id: 'srv-' + s.id, title: s.systemName, metric: 'res', type: st.splitType || 'line', serverId: String(s.id), split: true
+        }));
+    }
+
+    function findPanel(id) {
+        return curPanels().find(x => x.id === id) || st.panels.find(x => x.id === id);
+    }
+
+    /** 서버별 패널 머리 : 상태 · IP · 현재 자원 · 세션 */
+    function splitHeadHtml(p) {
+        const s = allServers().find(x => String(x.id) === p.serverId);
+        if (!s) return '';
+        const h = hist[s.id];
+        const cur = k => (h && h.ts && h.ts.length && h.ts[h.ts.length - 1] >= Date.now() - st.range * 60000 ? last((h[k] || []).map(Number)) : null);
+        const lv = (k, v) => (v === null ? '' : ' ' + threshold({ metric: k }, v));
+        const cpu = cur('cpu'), mem = cur('mem'), disk = cur('disk'), ses = cur('sessions');
+        return '<div class="mn-srv-meta"><span class="mn-srv-st ' + esc(s.status) + '">' + esc(s.status) + '</span>' +
+            '<span>' + esc(s.ip) + (s.location === 'DRC' ? ' · DRC' : ' · ITC') + '</span>' +
+            '<span class="mn-srv-v' + lv('cpu', cpu) + '">CPU <b>' + fmt(cpu, '%') + '</b></span>' +
+            '<span class="mn-srv-v' + lv('mem', mem) + '">MEM <b>' + fmt(mem, '%') + '</b></span>' +
+            '<span class="mn-srv-v' + lv('disk', disk) + '">DISK <b>' + fmt(disk, '%') + '</b></span>' +
+            '<span class="mn-srv-v">세션 <b>' + fmt(ses, '') + '</b></span></div>';
+    }
+
     function panelHtml(p) {
+        if (p.split) {
+            return '<article class="mn-panel mn-split" data-id="' + esc(p.id) + '">' +
+                '<header class="mn-panel-head"><div class="mn-panel-title">' + esc(p.title) +
+                '<code class="mn-q" title="지표 (Prometheus 표기)">' + esc(query(p)) + '</code></div>' +
+                '<div class="mn-panel-tools">' +
+                '<select class="mn-type" aria-label="' + esc(p.title) + ' 표시 방식">' + TYPES.map(t => '<option value="' + t[0] + '"' + (t[0] === p.type ? ' selected' : '') + '>' + t[1] + '</option>').join('') + '</select>' +
+                '<button type="button" data-act="zoom" title="크게 보기" aria-label="크게 보기">⤢</button>' +
+                '<button type="button" data-act="only" title="이 서버만 보기" aria-label="' + esc(p.title) + '만 보기">◎</button>' +
+                '<button type="button" data-act="proc" title="이 서버의 프로세스·서비스 CPU 패널 추가" aria-label="프로세스 CPU 패널 추가">⚙</button></div></header>' +
+                splitHeadHtml(p) + '<div class="mn-panel-body"></div></article>';
+        }
         return '<article class="mn-panel" data-id="' + esc(p.id) + '">' +
             '<header class="mn-panel-head"><div class="mn-panel-title">' + esc(p.title) +
             '<code class="mn-q" title="지표 (Prometheus 표기)">' + esc(query(p)) + '</code></div>' +
@@ -338,13 +404,16 @@
         $('mnFold').textContent = st.folded ? '펼치기' : '접기';
         $('mnFold').setAttribute('aria-expanded', String(!st.folded));
         $('mnStats').innerHTML = statHtml();
+        renderSel();
         const grid = $('mnGrid');
         grid.style.setProperty('--mn-cols', st.cols);
-        grid.innerHTML = st.panels.map(panelHtml).join('') ||
-            '<div class="mn-empty">패널이 없습니다. [+ 패널 추가] 를 누르세요.</div>';
+        const panels = curPanels();
+        grid.innerHTML = panels.map(panelHtml).join('') || (st.view === 'split'
+            ? '<div class="mn-empty">선택한 서버가 없습니다. [서버] 에서 서버를 고르세요.</div>'
+            : '<div class="mn-empty">패널이 없습니다. [+ 패널 추가] 를 누르세요.</div>');
         if (!st.folded) {
             grid.querySelectorAll('.mn-panel').forEach(el => {
-                const p = st.panels.find(x => x.id === el.dataset.id);
+                const p = panels.find(x => x.id === el.dataset.id);
                 if (p) drawPanel(el, p, false);
             });
         }
@@ -389,7 +458,7 @@
 
     // ------------------------------------------------------------ 확대
     function drawZoom() {
-        const p = st.panels.find(x => x.id === zoomId);
+        const p = findPanel(zoomId);
         if (!p) { closeZoom(); return; }
         $('mnZoomTitle').textContent = p.title;
         $('mnZoomQuery').textContent = query(p);
@@ -446,6 +515,87 @@
         render();
     }
 
+    // ------------------------------------------------------------ 서버 선택 (대시보드 전체)
+    function serverState(s) {
+        const h = hist[s.id];
+        const recent = h && h.ts && h.ts.length && h.ts[h.ts.length - 1] >= Date.now() - st.range * 60000;
+        return recent ? '' : ' <small>(범위 안 수집값 없음)</small>';
+    }
+
+    function renderSel() {
+        const all = allServers();
+        const sel = st.sel.filter(id => all.some(s => String(s.id) === id));
+        const names = sel.map(id => all.find(s => String(s.id) === id).systemName);
+        $('mnSrvBtn').innerHTML = '서버 : <b>' + (sel.length ? (sel.length === 1 ? esc(names[0]) : sel.length + '대 선택') : '전체') + '</b> ▾';
+        $('mnSrvBtn').classList.toggle('on', sel.length > 0);
+        // 고른 서버 칩 (✕ 로 빼기)
+        $('mnChips').hidden = !sel.length;
+        $('mnChips').innerHTML = sel.length ? '<span class="mn-chips-k">선택한 서버</span>' + sel.map((id, i) =>
+            '<span class="mn-chip">' + esc(names[i]) + '<button type="button" data-unsel="' + esc(id) + '" aria-label="' + esc(names[i]) + ' 빼기">✕</button></span>').join('') +
+            '<button type="button" class="mn-chip-all" data-unsel="*">전체 보기</button>' : '';
+        if (!$('mnSrvPop').hidden) renderSelList();
+    }
+
+    function renderSelList() {
+        const q = ($('mnSrvSearch').value || '').trim().toLowerCase();
+        const groups = [['ITC · GASAN MTR-A', s => s.location !== 'DRC'], ['DRC', s => s.location === 'DRC']];
+        $('mnSrvList').innerHTML = groups.map(g => {
+            const list = allServers().filter(g[1]).filter(s => !q || (s.systemName + ' ' + s.ip).toLowerCase().includes(q));
+            if (!list.length) return '';
+            return '<li class="mn-srv-group">' + g[0] + '</li>' + list.map(s =>
+                '<li><label><input type="checkbox" value="' + s.id + '"' + (st.sel.includes(String(s.id)) ? ' checked' : '') + '>' +
+                '<i class="mn-dot ' + esc(s.status) + '" title="' + esc(s.status) + '"></i>' + esc(s.systemName) +
+                ' <small>' + esc(s.ip) + '</small>' + serverState(s) + '</label>' +
+                '<button type="button" class="mn-only" data-only="' + s.id + '">이 서버만</button></li>').join('');
+        }).join('') || '<li class="mn-srv-group">찾는 서버가 없습니다.</li>';
+    }
+
+    function openSel(open) {
+        $('mnSrvPop').hidden = !open;
+        $('mnSrvBtn').setAttribute('aria-expanded', String(open));
+        if (open) { $('mnSrvSearch').value = ''; renderSelList(); $('mnSrvSearch').focus(); }
+    }
+
+    function setSel(ids) {
+        st.sel = ids.map(String);
+        save();
+        render();
+    }
+
+    function bindSel() {
+        $('mnSrvBtn').addEventListener('click', e => { e.stopPropagation(); openSel($('mnSrvPop').hidden); });
+        $('mnSrvSearch').addEventListener('input', renderSelList);
+        $('mnSrvList').addEventListener('change', e => {
+            const cb = e.target.closest('input[type=checkbox]');
+            if (!cb) return;
+            const set = new Set(st.sel);
+            if (cb.checked) set.add(cb.value); else set.delete(cb.value);
+            setSel(Array.from(set));
+        });
+        $('mnSrvList').addEventListener('click', e => {
+            const b = e.target.closest('[data-only]');
+            if (b) { setSel([b.dataset.only]); openSel(false); }
+        });
+        $('mnSrvAll').addEventListener('click', () => setSel([]));
+        $('mnSrvConn').addEventListener('click', () => setSel(allServers().filter(s => {
+            const h = hist[s.id];
+            return h && h.ts && h.ts.length && h.ts[h.ts.length - 1] >= Date.now() - st.range * 60000;
+        }).map(s => s.id)));
+        $('mnSrvDone').addEventListener('click', () => openSel(false));
+        $('mnChips').addEventListener('click', e => {
+            const b = e.target.closest('[data-unsel]');
+            if (!b) return;
+            setSel(b.dataset.unsel === '*' ? [] : st.sel.filter(id => id !== b.dataset.unsel));
+        });
+        document.addEventListener('click', e => {
+            if (!$('mnSrvPop').hidden && !e.target.closest('.mn-srv-wrap')) openSel(false);
+        });
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && !$('mnSrvPop').hidden) { openSel(false); $('mnSrvBtn').focus(); e.stopImmediatePropagation(); }
+        });
+        $('mnView').addEventListener('change', e => { st.view = e.target.value; save(); render(); });
+    }
+
     // ------------------------------------------------------------ 자동 갱신
     function schedule() {
         if (timer) { clearInterval(timer); timer = null; }
@@ -477,7 +627,8 @@
         fillSelect('mnRange', RANGES, st.range);
         fillSelect('mnRefresh', REFRESH, st.refresh);
         fillSelect('mnCols', [[1, '1열'], [2, '2열'], [3, '3열']], st.cols);
-        fillSelect('mnEdMetric', Object.keys(METRICS).map(k => [k, METRICS[k].name]), 'cpu');
+        fillSelect('mnEdMetric', Object.keys(METRICS).filter(k => k !== 'res').map(k => [k, METRICS[k].name]), 'cpu');
+        fillSelect('mnView', VIEWS, st.view);
         fillSelect('mnEdType', TYPES, 'line');
 
         $('mnBg').addEventListener('change', e => { st.bg = e.target.value; save(); render(); });
@@ -493,12 +644,13 @@
             save();
             render();
         });
+        bindSel();
         $('mnEdMetric').addEventListener('change', syncEdit);
         $('mnEdCancel').addEventListener('click', closeEdit);
         $('mnEdSave').addEventListener('click', saveEdit);
         $('mnZoomClose').addEventListener('click', closeZoom);
         document.addEventListener('keydown', e => {
-            if (e.key !== 'Escape') return;
+            if (e.key !== 'Escape' || !$('mnSrvPop').hidden) return;
             if ($('mnEdit').classList.contains('show')) closeEdit();
             else if (zoomId) closeZoom();
         });
@@ -506,7 +658,8 @@
         $('mnGrid').addEventListener('change', e => {
             const sel = e.target.closest('.mn-type');
             if (!sel) return;
-            const p = st.panels.find(x => x.id === sel.closest('.mn-panel').dataset.id);
+            const p = findPanel(sel.closest('.mn-panel').dataset.id);
+            if (p.split) { st.splitType = sel.value; save(); render(); return; }   // 서버별 패널은 모두 같은 방식
             p.type = sel.value;
             save();
             drawPanel(sel.closest('.mn-panel'), p, false);
@@ -516,11 +669,19 @@
             const row = e.target.closest('tr[data-series]');
             const el = e.target.closest('.mn-panel');
             if (!el) return;
-            const p = st.panels.find(x => x.id === el.dataset.id);
+            const p = findPanel(el.dataset.id);
             if (row) { toggleSeries(p, row.dataset.series, el); return; }
             if (!btn) return;
             const act = btn.dataset.act;
             if (act === 'zoom') openZoom(p.id);
+            else if (act === 'only') { st.sel = [p.serverId]; save(); render(); }
+            else if (act === 'proc') {
+                st.panels.push({ id: 'p' + Date.now().toString(36), title: p.title + ' 프로세스 CPU', metric: 'proc', type: 'line', servers: [], serverId: p.serverId });
+                st.view = 'all';
+                $('mnView').value = 'all';
+                save(); render();
+                scbAlert('"' + p.title + '" 의 프로세스·서비스 CPU 패널을 추가했습니다. (패널 보기 맨 아래)', 'success');
+            }
             else if (act === 'edit') openEdit(p.id);
             else if (act === 'dup') {
                 st.panels.splice(st.panels.indexOf(p) + 1, 0, Object.assign({}, p, { id: 'p' + Date.now().toString(36), title: p.title + ' (복제)' }));
@@ -536,12 +697,12 @@
             if (!row || (e.key !== 'Enter' && e.key !== ' ')) return;
             e.preventDefault();
             const el = row.closest('.mn-panel');
-            toggleSeries(st.panels.find(x => x.id === el.dataset.id), row.dataset.series, el);
+            toggleSeries(findPanel(el.dataset.id), row.dataset.series, el);
         });
         $('mnZoomBody').addEventListener('click', e => {
             const row = e.target.closest('tr[data-series]');
             if (!row || !zoomId) return;
-            const p = st.panels.find(x => x.id === zoomId);
+            const p = findPanel(zoomId);
             hidden[p.id] = hidden[p.id] || {};
             hidden[p.id][row.dataset.series] = !hidden[p.id][row.dataset.series];
             render();

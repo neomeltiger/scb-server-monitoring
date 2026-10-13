@@ -11,6 +11,38 @@
     </button>
     <img th:src="@{/images/logo.png}" alt="SC제일은행 (Standard Chartered)" class="app-logo" width="144" height="56">
     <div class="user-bar" id="userBar" th:attr="data-role=${#authentication.principal.roleCd}">
+        <!-- 전체 화면 색 : 모든 화면(좌측 메뉴·배경·주요 버튼)에 적용, 브라우저에 저장 (localStorage scbPageTheme) -->
+        <label class="pt-field" title="전체 화면 색"><span class="pt-k">🎨 화면 색</span>
+            <select id="pageTheme" class="pt-select" aria-label="전체 화면 색">
+                <option value="">기본 (블루)</option>
+                <option value="scb">SC 블루 · 그린</option>
+                <option value="navy">네이비</option>
+                <option value="teal">틸 (청록)</option>
+                <option value="forest">포레스트 그린</option>
+                <option value="purple">퍼플</option>
+                <option value="sunset">선셋 오렌지</option>
+                <option value="mono">모노 그레이</option>
+                <option value="dark">다크 (전체 어둡게)</option>
+            </select>
+        </label>
+        <script>
+            (function () {
+                var sel = document.getElementById('pageTheme');
+                var cur = '';
+                try { cur = localStorage.getItem('scbPageTheme') || ''; } catch (e) { cur = ''; }
+                function apply(v) {
+                    if (v) document.documentElement.setAttribute('data-pt', v);
+                    else document.documentElement.removeAttribute('data-pt');
+                }
+                if (!Array.prototype.some.call(sel.options, function (o) { return o.value === cur; })) cur = '';
+                sel.value = cur;
+                apply(cur);
+                sel.addEventListener('change', function () {
+                    apply(sel.value);
+                    try { localStorage.setItem('scbPageTheme', sel.value); } catch (e) { /* 저장 못 해도 이번 화면에는 적용 */ }
+                });
+            })();
+        </script>
         <!-- 화면별 매뉴얼 : 지금 화면(menu)에 맞는 사용자 매뉴얼 절을 오른쪽 창에 표시 (manual/index.html?section=…) -->
         <button type="button" class="help-btn" id="pageHelpBtn" th:attr="data-menu=${menu},data-manual=@{/manual/index.html}"
                 aria-controls="pageHelpPanel" aria-expanded="false" title="이 화면의 사용 방법 (F1)">📖 <span class="help-label">이 화면 매뉴얼</span></button>
@@ -37,7 +69,7 @@
         // 화면(menu 값) → 매뉴얼 절 (static/manual/index.html 의 section id, 여러 개면 쉼표)
         (function () {
             var MAP = {
-                main: ['main,mndash,alarm,agentreg', '메인 홈'], network: ['network,agent', '네트워크 구성도'], servers: ['servers', '서버 전체 목록'],
+                main: ['main,mndash,pagehelp,pagetheme,alarm,agentreg', '메인 홈'], network: ['network,agent', '네트워크 구성도'], servers: ['servers', '서버 전체 목록'],
                 logs: ['serverlog', '서버 로그'], heartbeat: ['heartbeat', '하트비트 모니터링'], fallback: ['fallback', '데몬 중단 프로세스 현황'],
                 agents: ['agentmgr,srvreset', '에이전트 관리'], processes: ['process', '프로세스 관리'], users: ['users', '사용자 관리'],
                 menuauth: ['menuauth', '권한관리 · 메뉴 권한'], menuedit: ['menuauth', '권한관리 · 메뉴 이름·순서'], apiguide: ['apiguide,swagger', 'API 가이드'],
