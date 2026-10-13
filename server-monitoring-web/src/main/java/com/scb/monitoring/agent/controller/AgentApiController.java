@@ -172,7 +172,8 @@ public class AgentApiController {
                                                @RequestBody(required = false) byte[] body, HttpServletRequest req) {
         Long serverId = auth(token, req);
         boolean ok = reportService.ingest(serverId, reportId, status, bodyText(body));
-        return ok ? text("ok\n") : ResponseEntity.status(HttpStatus.NOT_FOUND).body("ignored: unknown report id\n");
+        // 관리자가 요청한(진행 중인) 리포트만 받음 - 요청 없이 보낸 것 · 이미 받은 것은 무시
+        return ok ? text("ok\n") : ResponseEntity.status(HttpStatus.NOT_FOUND).body("ignored: no pending admin request for this report id\n");
     }
 
     // ---- 내부 ----

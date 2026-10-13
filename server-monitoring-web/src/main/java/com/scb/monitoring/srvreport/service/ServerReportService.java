@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -147,6 +148,79 @@ public class ServerReportService {
         return getView(serverId);
     }
 
+    // ===================== 자동 요청 주기 (관리자 설정) =====================
+
+    /** 고를 수 있는 주기 (시간) : 0 = 사용 안 함, 1 · 6 · 12 시간, 매일, 매주 */
+    public static final List<Integer> INTERVALS = Arrays.asList(0, 1, 6, 12, 24, 168);
+
+    /** 서버의 자동 요청 주기 (없으면 사용 안 함 · 전체 분야) */
+    public Map<String, Object> getSchedule(Long serverId) {
+        findServer(serverId);
+        com.scb.monitoring.srvreport.domain.ReportPolicy p = mapper.selectPolicy(serverId);
+        Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("serverId", serverId);
+        m.put("intervalHr", p == null ? 0 : p.getIntervalHr());
+        m.put("sections", p == null ? String.join(",", SECTIONS) : p.getSections());
+        m.put("nextDt", p == null || p.getIntervalHr() == 0 ? null : p.getNextDt());
+        m.put("lastReqDt", p == null ? null : p.getLastReqDt());
+        m.put("updUser", p == null ? null : p.getUpdUser());
+        m.put("updDt", p == null ? null : p.getUpdDt());
+        m.put("intervals", INTERVALS);
+        return m;
+    }
+
+    /**
+     * 자동 요청 주기 저장 (ADMIN). 켜면 다음 요청은 지금부터 한 주기 뒤 (바로 받으려면 [리포트 요청]).
+     * 자동 요청도 관리자가 정한 것이므로 요청자는 "자동(설정한 관리자)" 로 남음.
+     */
+    @Transactional
+    public Map<String, Object> saveSchedule(Long serverId, int intervalHr, List<String> sections, String user) {
+        findServer(serverId);
+        if (!INTERVALS.contains(intervalHr)) throw TopologyException.badRequest("주기는 " + INTERVALS + " 시간 중에서 고르세요.");
+        String sec = normalizeSections(sections);
+        com.scb.monitoring.srvreport.domain.ReportPolicy p = mapper.selectPolicy(serverId);
+        boolean add = p == null;
+        if (add) {
+            p = new com.scb.monitoring.srvreport.domain.ReportPolicy();
+            p.setServerId(serverId);
+        }
+        boolean changed = add || p.getIntervalHr() != intervalHr || p.getNextDt() == null;
+        p.setIntervalHr(intervalHr);
+        p.setSections(sec);
+        p.setUpdUser(user);
+        if (intervalHr == 0) p.setNextDt(null);
+        else if (changed) p.setNextDt(new Timestamp(System.currentTimeMillis() + intervalHr * 3_600_000L));
+        if (add) mapper.insertPolicy(p);
+        else mapper.updatePolicy(p);
+        log.info("SERVER REPORT SCHEDULE server={} every={}h sections={} next={} by {}", serverId, intervalHr, sec, p.getNextDt(), user);
+        return getSchedule(serverId);
+    }
+
+    /**
+     * 때가 된 자동 요청 만들기 (1분마다). 진행 중인 요청이 있거나 에이전트가 없으면 이번은 건너뛰고 다음 주기로.
+     * 반환 : 만든 요청 수
+     */
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelayString = "${app.report.schedule-check-ms:60000}", initialDelay = 30000)
+    @Transactional
+    public int runSchedules() {
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        int made = 0;
+        for (com.scb.monitoring.srvreport.domain.ReportPolicy p : mapper.selectDuePolicies(now)) {
+            Timestamp next = new Timestamp(now.getTime() + p.getIntervalHr() * 3_600_000L);
+            boolean ok = false;
+            try {
+                String by = "자동(" + (p.getUpdUser() == null ? "admin" : p.getUpdUser()) + ")";
+                request(p.getServerId(), Arrays.asList(p.getSections().split(",")), by.length() > 30 ? by.substring(0, 30) : by);
+                ok = true;
+                made++;
+            } catch (RuntimeException e) {
+                log.info("SERVER REPORT SCHEDULE server={} 이번 자동 요청 건너뜀 : {}", p.getServerId(), e.getMessage());
+            }
+            mapper.advancePolicy(p.getServerId(), p.getNextDt(), next, ok ? now : p.getLastReqDt());
+        }
+        return made;
+    }
+
     // ===================== 에이전트 =====================
 
     /**
@@ -164,14 +238,21 @@ public class ServerReportService {
         return sb.toString();
     }
 
-    /** 에이전트가 보낸 리포트. 다른 서버의 리포트이거나 없으면 false */
+    /**
+     * 에이전트가 보낸 리포트 - 관리자가 [리포트 요청] 해서 아직 진행 중(REQUESTED / SENT)인 것만 받음.
+     * 요청이 없거나, 다른 서버의 것이거나, 이미 끝난(DONE / ERROR) 리포트면 저장하지 않고 false.
+     */
     @Transactional
     public boolean ingest(Long serverId, Long reportId, String status, String content) {
         ServerReport r = mapper.selectReport(reportId);
         if (r == null || !serverId.equals(r.getServerId())) return false;
+        if (!r.isActive()) {
+            log.warn("SERVER REPORT ← agent server={} id={} 무시 : 관리자 요청이 진행 중이 아님 (상태 {})", serverId, reportId, r.getStatusCd());
+            return false;
+        }
         String text = clip(content == null ? "" : content);
         String st = "OK".equalsIgnoreCase(status) ? ServerReport.DONE : ServerReport.ERROR;
-        mapper.updateResult(reportId, st, countWarn(text), text.getBytes(StandardCharsets.UTF_8).length, text);
+        if (mapper.updateAgentResult(reportId, serverId, st, countWarn(text), text.getBytes(StandardCharsets.UTF_8).length, text) == 0) return false;
         log.info("SERVER REPORT ← agent server={} id={} status={} warn={}", serverId, reportId, st, countWarn(text));
         return true;
     }
@@ -180,6 +261,7 @@ public class ServerReportService {
 
     @Transactional
     public void deleteByServer(Long serverId) {
+        mapper.deletePolicy(serverId);
         mapper.deleteReportsByServer(serverId);
     }
 

@@ -50,6 +50,63 @@
          WHERE report_id = #{reportId}
     </update>
 
+    <!-- ===== 자동 요청 주기 (tb_report_policy) ===== -->
+    <select id="selectPolicy" resultType="com.scb.monitoring.srvreport.domain.ReportPolicy">
+        SELECT p.server_id, p.interval_hr, p.sections, p.next_dt, p.last_req_dt, p.upd_user, p.upd_dt
+          FROM tb_report_policy p
+         WHERE p.server_id = #{serverId}
+    </select>
+
+    <!-- 1분마다 새로 읽음 (캐시 안 씀) -->
+    <select id="selectDuePolicies" resultType="com.scb.monitoring.srvreport.domain.ReportPolicy" flushCache="true" useCache="false">
+        SELECT p.server_id, p.interval_hr, p.sections, p.next_dt, p.last_req_dt, p.upd_user, p.upd_dt
+          FROM tb_report_policy p
+         WHERE p.interval_hr &gt; 0
+           AND p.next_dt &lt;= #{now}
+         ORDER BY p.next_dt, p.server_id
+    </select>
+
+    <insert id="insertPolicy" parameterType="com.scb.monitoring.srvreport.domain.ReportPolicy">
+        INSERT INTO tb_report_policy (server_id, interval_hr, sections, next_dt, upd_user, upd_dt)
+        VALUES (#{serverId}, #{intervalHr}, #{sections}, #{nextDt, jdbcType=TIMESTAMP}, #{updUser, jdbcType=VARCHAR}, CURRENT_TIMESTAMP)
+    </insert>
+
+    <update id="updatePolicy" parameterType="com.scb.monitoring.srvreport.domain.ReportPolicy">
+        UPDATE tb_report_policy
+           SET interval_hr = #{intervalHr},
+               sections    = #{sections},
+               next_dt     = #{nextDt, jdbcType=TIMESTAMP},
+               upd_user    = #{updUser, jdbcType=VARCHAR},
+               upd_dt      = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+    </update>
+
+    <!-- 자동 요청을 만든 뒤 다음 시각으로 (같은 next_dt 일 때만 - 여러 웹이 동시에 돌아도 한 번만) -->
+    <update id="advancePolicy">
+        UPDATE tb_report_policy
+           SET next_dt     = #{nextDt},
+               last_req_dt = #{lastReqDt, jdbcType=TIMESTAMP}
+         WHERE server_id = #{serverId}
+           AND next_dt   = #{prevDt}
+    </update>
+
+    <delete id="deletePolicy">
+        DELETE FROM tb_report_policy WHERE server_id = #{serverId}
+    </delete>
+
+    <!-- 에이전트 결과 : 관리자가 요청해 아직 진행 중(REQUESTED / SENT)인 리포트에만, 한 번만 -->
+    <update id="updateAgentResult">
+        UPDATE tb_server_report
+           SET status_cd = #{statusCd},
+               done_dt   = CURRENT_TIMESTAMP,
+               warn_cnt  = #{warnCnt},
+               byte_cnt  = #{byteCnt},
+               content   = #{content, jdbcType=VARCHAR}
+         WHERE report_id = #{reportId}
+           AND server_id = #{serverId}
+           AND status_cd IN ('REQUESTED', 'SENT')
+    </update>
+
     <!-- LIMIT/OFFSET 대신 ROW_NUMBER() (ANSI) -->
     <select id="selectOldReportIds" resultType="long">
         <choose>

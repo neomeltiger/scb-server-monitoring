@@ -46,6 +46,9 @@
         <!-- 화면별 매뉴얼 : 지금 화면(menu)에 맞는 사용자 매뉴얼 절을 오른쪽 창에 표시 (manual/index.html?section=…) -->
         <button type="button" class="help-btn" id="pageHelpBtn" th:attr="data-menu=${menu},data-manual=@{/manual/index.html}"
                 aria-controls="pageHelpPanel" aria-expanded="false" title="이 화면의 사용 방법 (F1)">📖 <span class="help-label">이 화면 매뉴얼</span></button>
+        <!-- 매뉴얼 PDF : 지금 화면 절(manual/pdf/<menu>.pdf), 없으면 전체(manual.pdf) - PDF 는 tools/make_manual_pdf.py 로 만듦 -->
+        <a class="help-btn pdf-btn" id="pagePdfBtn" th:href="@{/manual/pdf/manual.pdf}" download="사용자매뉴얼.pdf"
+           title="이 화면의 매뉴얼을 PDF 로 내려받기">📄 <span class="help-label">매뉴얼 PDF</span></a>
         <span class="user-name"><b sec:authentication="principal.userNm">관리자</b>
             (<span sec:authentication="name">admin</span>) 님 · <span sec:authentication="principal.roleLabel">관리자</span></span>
         <span class="user-time" th:if="${session.loginTime != null}" th:text="'접속 ' + ${session.loginTime}"></span>
@@ -88,6 +91,8 @@
         <div class="help-head">
             <div><b>📖 이 화면 매뉴얼</b><small id="pageHelpName"></small></div>
             <div class="help-head-tools">
+                <a id="pageHelpPdf" download title="이 화면 매뉴얼 PDF 내려받기">📄 PDF</a>
+                <a id="pageHelpPdfAll" download="사용자매뉴얼_전체.pdf" title="전체 매뉴얼 PDF 내려받기">📚 전체 PDF</a>
                 <a id="pageHelpFull" target="_blank" rel="noopener">전체 매뉴얼 ↗</a>
                 <button type="button" id="pageHelpClose">닫기</button>
             </div>
@@ -114,6 +119,16 @@
             var first = m[0].split(',')[0];
             document.getElementById('pageHelpName').textContent = m[1];
             document.getElementById('pageHelpFull').href = base + '#' + first;
+            // PDF : 화면별 절 PDF (MAP 에 있는 화면) / 전체 PDF
+            var pdfBase = base.replace(/index\.html.*$/, 'pdf/');
+            var menuKey = btn.getAttribute('data-menu');
+            var pdfHref = MAP[menuKey] ? pdfBase + encodeURIComponent(menuKey) + '.pdf' : pdfBase + 'manual.pdf';
+            var pdfName = '사용자매뉴얼_' + (MAP[menuKey] ? m[1].replace(/[\\/:*?"<>|·]/g, '_').replace(/\s+/g, '_') : '전체') + '.pdf';
+            ['pagePdfBtn', 'pageHelpPdf'].forEach(function (id) {
+                var a = document.getElementById(id);
+                if (a) { a.href = pdfHref; a.setAttribute('download', pdfName); }
+            });
+            document.getElementById('pageHelpPdfAll').href = pdfBase + 'manual.pdf';
             function set(open) {
                 if (open && !frame.getAttribute('src')) frame.setAttribute('src', base + '?section=' + encodeURIComponent(m[0]));
                 panel.classList.toggle('open', open);

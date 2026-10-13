@@ -1,6 +1,6 @@
 -- =============================================================
---  scb_mon_agent DDL for MySQL / MariaDB (DB 구조 v13)
---  신규 DB 구성 화면(시스템관리 › DB 초기 구성)이 만든 스키마 안에서 실행. 테이블 22개
+--  scb_mon_agent DDL for MySQL / MariaDB (DB 구조 v14)
+--  신규 DB 구성 화면(시스템관리 › DB 초기 구성)이 만든 스키마 안에서 실행. 테이블 23개
 --  자동 생성 파일 - 고치지 말고 schema-ansi.sql / schema-mysql.sql 을 고친 뒤 DbSetupScriptsTest 로 다시 쓰기
 -- =============================================================
 
@@ -313,6 +313,18 @@ CREATE TABLE tb_server_report (
     CONSTRAINT fk_srvrpt_server FOREIGN KEY (server_id) REFERENCES tb_server (server_id),
     CONSTRAINT ck_srvrpt_status CHECK (status_cd IN ('REQUESTED', 'SENT', 'DONE', 'ERROR'))
 ) ENGINE = InnoDB COMMENT = '서버 점검 리포트';
+
+CREATE TABLE tb_report_policy (
+    server_id       BIGINT       NOT NULL                COMMENT '서버 ID',
+    interval_hr     INT          NOT NULL DEFAULT 0      COMMENT '자동 요청 주기 (시간, 0 = 사용 안 함)',
+    sections        VARCHAR(30)  NOT NULL                COMMENT '분야 (sec,res,svc,chg)',
+    next_dt         TIMESTAMP        NULL                COMMENT '다음 자동 요청 일시',
+    last_req_dt     TIMESTAMP        NULL                COMMENT '마지막 자동 요청 일시',
+    upd_user        VARCHAR(30)      NULL                COMMENT '설정한 관리자',
+    upd_dt          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '변경 일시',
+    PRIMARY KEY (server_id),
+    CONSTRAINT fk_rptpol_server FOREIGN KEY (server_id) REFERENCES tb_server (server_id)
+) ENGINE = InnoDB COMMENT = '서버 점검 리포트 자동 요청 주기 (관리자 설정)';
 
 CREATE INDEX ix_srvrpt_server ON tb_server_report (server_id, req_dt);
 

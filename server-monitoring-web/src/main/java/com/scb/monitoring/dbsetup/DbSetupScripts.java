@@ -68,7 +68,7 @@ public final class DbSetupScripts {
         }
         StringBuilder sb = new StringBuilder();
         sb.append("-- =============================================================\n");
-        sb.append("--  scb_mon_agent DDL for ").append(kind.mysqlFamily() ? "MySQL / MariaDB" : kind.label()).append(" (DB 구조 v13)\n");
+        sb.append("--  scb_mon_agent DDL for ").append(kind.mysqlFamily() ? "MySQL / MariaDB" : kind.label()).append(" (DB 구조 v14)\n");
         sb.append("--  신규 DB 구성 화면(시스템관리 › DB 초기 구성)이 만든 스키마 안에서 실행. 테이블 ").append(countTables(stmts)).append("개\n");
         sb.append("--  자동 생성 파일 - 고치지 말고 schema-ansi.sql / schema-mysql.sql 을 고친 뒤 DbSetupScriptsTest 로 다시 쓰기\n");
         sb.append("-- =============================================================\n\n");

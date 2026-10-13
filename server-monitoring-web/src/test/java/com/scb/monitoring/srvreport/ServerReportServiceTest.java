@@ -79,6 +79,8 @@ class ServerReportServiceTest {
         assertEquals(body, d.getContent());
         assertTrue(d.getByteCnt() > body.length(), "UTF-8 바이트 수");
 
+        assertFalse(reports.ingest(11L, it.getId(), "OK", "#SCBRPT|1|other\n"), "이미 받은 리포트는 다시 받지 않음 (관리자 요청 1건에 1번)");
+        assertEquals(body, reports.getReport(11L, it.getId()).getContent());
         assertFalse(reports.ingest(12L, it.getId(), "OK", body), "다른 서버의 리포트는 무시");
         assertFalse(reports.ingest(11L, 999999L, "OK", body));
 
@@ -93,6 +95,46 @@ class ServerReportServiceTest {
         reports.delete(11L, id2, "admin");
         assertEquals(1, reports.getView(11L).getReports().size());
         assertThrows(TopologyException.class, () -> reports.getReport(11L, id2));
+    }
+
+    /** 자동 요청 주기 : 관리자가 정한 주기마다 요청을 만듦, 진행 중이면 건너뜀, 0 = 끔 */
+    @Test
+    void scheduledRequests() {
+        agent.issueToken(11L, "admin");
+        agent.pullCommands(11L, "RUNNING", 123, "1.12");
+        assertEquals(0, reports.getSchedule(11L).get("intervalHr"), "처음에는 사용 안 함");
+        assertThrows(TopologyException.class, () -> reports.saveSchedule(11L, 5, null, "admin"), "정한 주기만");
+
+        java.util.Map<String, Object> sc = reports.saveSchedule(11L, 6, Arrays.asList("res", "sec"), "admin");
+        assertEquals(6, sc.get("intervalHr"));
+        assertEquals("sec,res", sc.get("sections"));
+        long next = ((java.sql.Timestamp) sc.get("nextDt")).getTime();
+        assertTrue(Math.abs(next - System.currentTimeMillis() - 6 * 3_600_000L) < 120_000L, "첫 자동 요청은 한 주기 뒤");
+        assertEquals(0, reports.runSchedules(), "아직 때가 아님");
+
+        jdbc.update("UPDATE tb_report_policy SET next_dt = ? WHERE server_id = 11", new java.sql.Timestamp(System.currentTimeMillis() - 60_000L));
+        assertEquals(1, reports.runSchedules());
+        ServerReportView.Item it = reports.getView(11L).getReports().get(0);
+        assertEquals("REQUESTED", it.getStatus());
+        assertEquals("sec,res", it.getSections());
+        assertEquals("자동(admin)", jdbc.queryForObject("SELECT req_user FROM tb_server_report WHERE report_id = ?", String.class, it.getId()));
+        assertEquals(0, reports.runSchedules(), "다음 주기로 넘어감 - 두 번 만들지 않음");
+        assertTrue(reports.getSchedule(11L).get("lastReqDt") != null);
+
+        // 때가 됐는데 진행 중인 요청이 있으면 이번은 건너뛰고 다음 주기로
+        jdbc.update("UPDATE tb_report_policy SET next_dt = ? WHERE server_id = 11", new java.sql.Timestamp(System.currentTimeMillis() - 60_000L));
+        assertEquals(0, reports.runSchedules());
+        assertEquals(1, reports.getView(11L).getReports().size());
+        assertTrue(((java.sql.Timestamp) reports.getSchedule(11L).get("nextDt")).getTime() > System.currentTimeMillis());
+
+        // 끄기
+        reports.saveSchedule(11L, 0, null, "admin");
+        assertEquals(null, reports.getSchedule(11L).get("nextDt"));
+        jdbc.update("UPDATE tb_report_policy SET next_dt = ? WHERE server_id = 11", new java.sql.Timestamp(System.currentTimeMillis() - 60_000L));
+        assertEquals(0, reports.runSchedules(), "꺼진 주기는 요청하지 않음");
+
+        reports.deleteByServer(11L);
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM tb_report_policy", Integer.class), "서버 삭제 시 함께 삭제");
     }
 
     @Test

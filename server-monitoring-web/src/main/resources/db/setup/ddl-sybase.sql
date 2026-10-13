@@ -1,6 +1,6 @@
 -- =============================================================
---  scb_mon_agent DDL for Sybase ASE (DB 구조 v13)
---  신규 DB 구성 화면(시스템관리 › DB 초기 구성)이 만든 스키마 안에서 실행. 테이블 22개
+--  scb_mon_agent DDL for Sybase ASE (DB 구조 v14)
+--  신규 DB 구성 화면(시스템관리 › DB 초기 구성)이 만든 스키마 안에서 실행. 테이블 23개
 --  자동 생성 파일 - 고치지 말고 schema-ansi.sql / schema-mysql.sql 을 고친 뒤 DbSetupScriptsTest 로 다시 쓰기
 -- =============================================================
 
@@ -315,6 +315,18 @@ CREATE TABLE tb_server_report (
 );
 
 CREATE INDEX ix_srvrpt_server ON tb_server_report (server_id, req_dt);
+
+CREATE TABLE tb_report_policy (
+    server_id       BIGINT       NOT NULL,
+    interval_hr     INT          DEFAULT 0 NOT NULL,
+    sections        VARCHAR(90)  NOT NULL,
+    next_dt         DATETIME NULL,
+    last_req_dt     DATETIME NULL,
+    upd_user        VARCHAR(90) NULL,
+    upd_dt          DATETIME    DEFAULT getdate() NOT NULL,
+    PRIMARY KEY (server_id),
+    CONSTRAINT fk_rptpol_server FOREIGN KEY (server_id) REFERENCES tb_server (server_id)
+);
 
 CREATE TABLE tb_service_metric_hist (
     hist_id         BIGINT       IDENTITY,

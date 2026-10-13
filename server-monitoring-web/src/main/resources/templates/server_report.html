@@ -49,8 +49,26 @@
                             <button type="button" class="btn svc-btn-light" id="rpReload">새로고침</button>
                         </div>
                     </div>
+                    <!-- 자동 요청 주기 : 관리자가 정한 주기마다 웹이 [리포트 요청] 을 대신 만듦 (위에서 고른 점검 분야) -->
+                    <div class="rp-schedule">
+                        <label class="lg-field">
+                            <span>자동 요청 주기</span>
+                            <select id="rpEvery" class="lg-select">
+                                <option value="0">사용 안 함 (요청할 때만)</option>
+                                <option value="1">1시간마다</option>
+                                <option value="6">6시간마다</option>
+                                <option value="12">12시간마다</option>
+                                <option value="24">매일 (24시간)</option>
+                                <option value="168">매주 (7일)</option>
+                            </select>
+                        </label>
+                        <button type="button" class="btn svc-btn-light" id="rpEverySave">주기 저장</button>
+                        <span class="rp-schedule-info" id="rpEveryInfo" role="status"></span>
+                    </div>
                     <div class="lg-status" id="rpStatus" role="status">불러오는 중...</div>
                     <p class="svc-hint">
+                        · 리포트는 <b>관리자가 요청할 때만</b> 만들어집니다 : [리포트 요청] (바로) 또는 <b>자동 요청 주기</b> (관리자가 정한 주기마다 웹이 대신 요청, 위에서 고른 점검 분야).
+                          요청 없이 서버가 보낸 리포트는 받지 않습니다.<br>
                         · 에이전트 데몬은 10초마다 웹 서버를 확인하므로 요청이 서버에 전달되기까지 최대 10초, 점검에 10~30초 걸립니다. 진행 중에는 5초마다 자동으로 확인합니다.<br>
                         · 서버 직접 점검은 svr_collect_client <b>1.12 이상</b>에서 됩니다. 로그 대부분은 root 만 읽을 수 있으므로 클라이언트를 root 로 실행해야 전체 내용이 나옵니다.<br>
                         · 1.11 이하 서버는 웹에 이미 수집된 자료(자원, 서비스·프로세스 상태, 서버 로그 화면의 마지막 수집본, 알람, 제어 이력)로 <b>웹 기본 리포트</b>를 바로 만듭니다.<br>

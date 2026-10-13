@@ -4,6 +4,7 @@
 --  (화면의 "서버 목록 기본값으로 초기화" 버튼은 삭제됨 - API POST /api/topology/reset (ADMIN) 만 남음, 사용자 계정 users.sql 은 초기화 대상 아님)
 -- =============================================================
 DELETE FROM tb_retention;
+DELETE FROM tb_report_policy;
 DELETE FROM tb_server_report;
 DELETE FROM tb_proc_fallback;
 DELETE FROM tb_heartbeat_hist;

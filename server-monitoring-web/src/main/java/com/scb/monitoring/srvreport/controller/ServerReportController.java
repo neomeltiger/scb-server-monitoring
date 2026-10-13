@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
 
@@ -74,6 +75,36 @@ public class ServerReportController {
         }
         if (v != null && sections.isEmpty()) throw TopologyException.badRequest("분야를 하나 이상 고르세요.");
         return service.request(serverId, sections, auth.getName());
+    }
+
+    @Operation(summary = "자동 요청 주기 - ADMIN : {intervalHr (0 = 사용 안 함), sections, nextDt, lastReqDt}")
+    @GetMapping("/api/admin/server-report/{serverId}/schedule")
+    @ResponseBody
+    public Map<String, Object> schedule(@PathVariable("serverId") Long serverId) {
+        return service.getSchedule(serverId);
+    }
+
+    @Operation(summary = "자동 요청 주기 저장 - ADMIN : {intervalHr: 0|1|6|12|24|168, sections: [sec,res,svc,chg]}")
+    @PutMapping("/api/admin/server-report/{serverId}/schedule")
+    @ResponseBody
+    public Map<String, Object> saveSchedule(@PathVariable("serverId") Long serverId, @RequestBody Map<String, Object> req,
+                                            Authentication auth) {
+        Object hr = req == null ? null : req.get("intervalHr");
+        int interval;
+        try {
+            interval = hr == null ? -1 : Integer.parseInt(String.valueOf(hr));
+        } catch (NumberFormatException e) {
+            interval = -1;
+        }
+        List<String> sections = new ArrayList<>();
+        Object v = req == null ? null : req.get("sections");
+        if (v instanceof List) {
+            for (Object o : (List<?>) v) sections.add(String.valueOf(o));
+        } else if (v != null) {
+            for (String s : String.valueOf(v).split(",")) sections.add(s);
+        }
+        if (interval > 0 && v != null && sections.isEmpty()) throw TopologyException.badRequest("분야를 하나 이상 고르세요.");
+        return service.saveSchedule(serverId, interval, sections, auth.getName());
     }
 
     @Operation(summary = "리포트 내용 - ADMIN")

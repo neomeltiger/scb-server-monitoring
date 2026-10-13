@@ -267,6 +267,47 @@
         }
     }
 
+    // ---- 자동 요청 주기 (관리자 설정)
+    async function loadSchedule() {
+        if (!serverId) return;
+        try {
+            renderSchedule(await apiRequest('GET', API + serverId + '/schedule'));
+        } catch (e) {
+            $('rpEveryInfo').textContent = '';
+        }
+    }
+
+    function renderSchedule(s) {
+        $('rpEvery').value = String(s.intervalHr || 0);
+        const info = $('rpEveryInfo');
+        if (!s.intervalHr) {
+            info.textContent = '자동 요청 안 함 - [리포트 요청] 을 누를 때만 만듭니다.';
+            info.className = 'rp-schedule-info';
+            return;
+        }
+        info.textContent = '다음 자동 요청 ' + (s.nextDt ? String(s.nextDt).replace('T', ' ').substring(0, 16) : '-')
+            + ' · 분야 ' + secNames(s.sections)
+            + (s.lastReqDt ? ' · 마지막 자동 요청 ' + String(s.lastReqDt).replace('T', ' ').substring(0, 16) : '')
+            + (s.updUser ? ' · 설정 ' + s.updUser : '');
+        info.className = 'rp-schedule-info on';
+    }
+
+    async function saveSchedule() {
+        const hr = Number($('rpEvery').value);
+        const sections = Array.from(document.querySelectorAll('input[name="rpSec"]:checked')).map(c => c.value);
+        if (hr > 0 && !sections.length) { scbAlert('점검 분야를 하나 이상 고르세요.', 'warning'); return; }
+        const label = $('rpEvery').selectedOptions[0].textContent;
+        const name = data ? data.serverName : '';
+        if (hr > 0 && !(await scbConfirm('[' + name + '] 에 ' + label + ' 점검 리포트를 자동으로 요청합니다.\n분야 : ' + secNames(sections.join(','))
+            + '\n첫 자동 요청은 지금부터 한 주기 뒤입니다 (바로 받으려면 [리포트 요청]).', { type: 'info' }))) return;
+        try {
+            renderSchedule(await apiRequest('PUT', API + serverId + '/schedule', { intervalHr: hr, sections: sections }));
+            scbAlert(hr > 0 ? '자동 요청 주기를 저장했습니다 (' + label + ').' : '자동 요청을 껐습니다. 이제 [리포트 요청] 을 누를 때만 만듭니다.', 'success');
+        } catch (e) {
+            scbAlert(e.message, 'error');
+        }
+    }
+
     async function deleteReport(id) {
         if (!(await scbConfirm('리포트 #' + id + ' 를 삭제하시겠습니까?'))) return;
         try {
@@ -304,7 +345,10 @@
             serverId = sel.value; store('rpServer', serverId);
             selected = null; report = null;
             load(false);
+            loadSchedule();
         });
+        $('rpEverySave').addEventListener('click', saveSchedule);
+        loadSchedule();
         $('rpRequest').addEventListener('click', requestReport);
         $('rpReload').addEventListener('click', () => load(true));
         $('rpList').addEventListener('click', e => {

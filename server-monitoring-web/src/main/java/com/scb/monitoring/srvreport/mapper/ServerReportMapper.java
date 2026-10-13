@@ -15,6 +15,20 @@ public interface ServerReportMapper {
 
     int insertReport(ServerReport report);
 
+    // ---- 자동 요청 주기 (관리자 설정)
+    com.scb.monitoring.srvreport.domain.ReportPolicy selectPolicy(@Param("serverId") Long serverId);
+
+    List<com.scb.monitoring.srvreport.domain.ReportPolicy> selectDuePolicies(@Param("now") java.sql.Timestamp now);
+
+    int insertPolicy(com.scb.monitoring.srvreport.domain.ReportPolicy policy);
+
+    int updatePolicy(com.scb.monitoring.srvreport.domain.ReportPolicy policy);
+
+    int advancePolicy(@Param("serverId") Long serverId, @Param("prevDt") java.sql.Timestamp prevDt,
+                      @Param("nextDt") java.sql.Timestamp nextDt, @Param("lastReqDt") java.sql.Timestamp lastReqDt);
+
+    int deletePolicy(@Param("serverId") Long serverId);
+
     /** 내용 없이 목록 (최근 순) */
     List<ServerReport> selectReportList(@Param("serverId") Long serverId);
 
@@ -25,6 +39,10 @@ public interface ServerReportMapper {
     List<ServerReport> selectRequested(@Param("serverId") Long serverId);
 
     int markSent(@Param("reportId") Long reportId);
+
+    /** 에이전트 결과 - 관리자 요청이 진행 중(REQUESTED / SENT)일 때만 바뀜 (그 밖은 0) */
+    int updateAgentResult(@Param("reportId") Long reportId, @Param("serverId") Long serverId, @Param("statusCd") String statusCd,
+                          @Param("warnCnt") int warnCnt, @Param("byteCnt") int byteCnt, @Param("content") String content);
 
     int updateResult(@Param("reportId") Long reportId, @Param("statusCd") String statusCd, @Param("warnCnt") int warnCnt,
                      @Param("byteCnt") int byteCnt, @Param("content") String content);

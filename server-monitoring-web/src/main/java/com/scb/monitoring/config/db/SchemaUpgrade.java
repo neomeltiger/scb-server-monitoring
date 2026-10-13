@@ -18,6 +18,7 @@ import org.slf4j.LoggerFactory;
  *       tb_user_menu (사용자별 허용 메뉴)</li>
  *   <li>v12 : tb_server_report (서버 점검 리포트 - 웹 관리자 화면에서 요청할 때만)</li>
  *   <li>v13 : tb_retention (로그 · 이력 보관 기간 - 지난 행 자동 삭제)</li>
+ *   <li>v14 : tb_report_policy (서버 점검 리포트 자동 요청 주기 - 관리자가 정함)</li>
  * </ul>
  * 새로 만드는 테이블의 DDL 은 schema-ansi.sql 의 것을 DB 에 맞게 바꿔 씀 ({@link DbDialect#ddl}).
  * 처음 만드는 DB 는 schema-mysql.sql / schema-ansi.sql 에 이미 들어 있음.
@@ -54,6 +55,7 @@ public final class SchemaUpgrade {
         createTable(c, kind, "tb_user_menu", "사용자별 메뉴 권한");
         createTable(c, kind, "tb_server_report", "서버 점검 리포트");
         createTable(c, kind, "tb_retention", "로그 · 이력 보관 기간");
+        createTable(c, kind, "tb_report_policy", "서버 점검 리포트 자동 요청 주기");
     }
 
     /** schema-ansi.sql 에 있는 그 테이블의 CREATE TABLE 을 DB 에 맞게 바꿔 실행 */
