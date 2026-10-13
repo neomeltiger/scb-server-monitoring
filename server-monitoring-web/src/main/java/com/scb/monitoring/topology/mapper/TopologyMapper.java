@@ -62,6 +62,8 @@ public interface TopologyMapper {
 
     int deleteProcess(@Param("serverId") Long serverId, @Param("procId") Long procId);
 
+    int resetProcessesByServer(@Param("serverId") Long serverId);
+
     int deleteProcessesByServer(@Param("serverId") Long serverId);
 
     /** 에이전트가 수집한 프로세스 실행 상태 반영 */

@@ -33,6 +33,8 @@ public interface ServiceCtlMapper {
     int updateServiceState(@Param("serverId") Long serverId, @Param("svcNm") String svcNm,
                            @Param("stateCd") String stateCd, @Param("pid") Integer pid);
 
+    int resetServiceStatesByServer(@Param("serverId") Long serverId);
+
     int deleteServicesByServer(@Param("serverId") Long serverId);
 
     ServiceItem selectServiceById(@Param("svcId") Long svcId);

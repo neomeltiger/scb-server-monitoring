@@ -184,6 +184,41 @@ public class TopologyService {
         log.info("SERVER DELETE id={} name={}", serverId, s.getSystemNm());
     }
 
+    /**
+     * 서버 데이터 초기화 (ADMIN) : 서버 등록·주요 프로세스·service.list·로그 수집 설정은 두고
+     * 에이전트 토큰과 수집·운영 데이터(자원·프로세스·서비스 이력, 하트비트 이력, 대신 수집, 제어 명령, 수집 로그, 알람)를 지우고
+     * 현재 값(자원·프로세스·서비스 상태)을 처음 상태로 되돌림.
+     * activate=true 이고 등록 상태가 Down 이면 Active 로 바꿈 (메인 홈 "서버 장애" 항목 해소).
+     */
+    @Transactional
+    public ServerView resetServerData(Long serverId, boolean activate, String user) {
+        Server s = findServer(serverId);
+        serviceCtlMapper.deleteCommandsByServer(serverId);
+        serviceCtlMapper.deleteServiceHistByServer(serverId);
+        serviceCtlMapper.resetServiceStatesByServer(serverId);
+        alarmMapper.deleteAlarmsByServer(serverId);
+        serverLogMapper.deleteSnapshotsByServer(serverId);
+        agentMapper.deleteFallback(serverId);
+        agentMapper.deleteHbHistByServer(serverId);
+        agentMapper.deleteAgent(serverId);
+        mapper.deleteProcessHistByServer(serverId);
+        mapper.deleteMetricHistByServer(serverId);
+        mapper.resetProcessesByServer(serverId);
+        boolean statusChanged = false;
+        if (activate && s.isDown()) {
+            s.setStatusCd("Active");
+            s.setSyncStatus(syncStatusOf("Active"));
+            mapper.updateServer(s);
+            statusChanged = true;
+        }
+        ServerMetric metric = s.isDown() ? ServerMetric.down(serverId) : ServerMetric.initial(serverId);
+        if (mapper.updateMetric(metric) == 0) mapper.insertMetric(metric);
+        alarmService.checkAfterCommit(serverId);
+        log.info("SERVER DATA RESET id={} name={} by {} (token·이력·알람 삭제{})", serverId, s.getSystemNm(), user,
+                statusChanged ? ", 상태 Down → Active" : "");
+        return getServer(serverId);
+    }
+
     /** 기본 서버 목록으로 초기화 (db/data.sql 실행, 같은 트랜잭션) */
     @Transactional
     public List<ServerView> resetToDefaults() {

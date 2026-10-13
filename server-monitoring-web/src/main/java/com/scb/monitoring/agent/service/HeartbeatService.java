@@ -63,6 +63,11 @@ public class HeartbeatService {
     /** 서버 복구 후 데몬에 즉시 보고를 요청할 서버 (다음 웹 확인 응답 ctl|...|report=Y 로 한 번 전달) */
     private final Set<Long> reportNow = ConcurrentHashMap.newKeySet();
 
+    /** 토큰 제거·서버 데이터 초기화 뒤 메모리 상태 정리 */
+    public void forget(Long serverId) {
+        reportNow.remove(serverId);
+    }
+
     public HeartbeatService(AgentMapper mapper, TopologyMapper topologyMapper, ProcessStatusService processStatus,
                             AlarmService alarmService, AgentProperties props, PlatformTransactionManager txManager,
                             FallbackService fallback) {

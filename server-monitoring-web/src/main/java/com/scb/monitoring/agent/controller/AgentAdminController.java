@@ -9,6 +9,7 @@ import javax.servlet.http.HttpServletRequest;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -52,9 +53,13 @@ public class AgentAdminController {
     private final com.scb.monitoring.agent.service.HeartbeatService heartbeat;
     private final com.scb.monitoring.agent.service.FallbackService fallback;
 
+    private final com.scb.monitoring.topology.service.TopologyService topology;
+
     public AgentAdminController(AgentService service, AgentProperties props,
                                 com.scb.monitoring.agent.service.HeartbeatService heartbeat,
-                                com.scb.monitoring.agent.service.FallbackService fallback) {
+                                com.scb.monitoring.agent.service.FallbackService fallback,
+                                com.scb.monitoring.topology.service.TopologyService topology) {
+        this.topology = topology;
         this.fallback = fallback;
         this.heartbeat = heartbeat;
         this.service = service;
@@ -160,5 +165,30 @@ public class AgentAdminController {
         // 서버의 /shared/opt/agent/krcasmrx11_client/etc/client.env 에 넣을 값
         body.put("clientEnv", "SCB_WEB_URL=" + webUrl + "\nSCB_AGENT_TOKEN=" + token + "\n");
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body);
+    }
+
+    @Operation(summary = "토큰 제거 (회수) - ADMIN : 그 서버의 클라이언트는 더 이상 인증되지 않음, 수집 이력은 유지")
+    @DeleteMapping("/{serverId}/token")
+    public ResponseEntity<Map<String, Object>> revoke(@PathVariable("serverId") Long serverId, Authentication auth) {
+        boolean revoked = service.revokeToken(serverId, auth.getName());
+        heartbeat.forget(serverId);
+        fallback.forget(serverId);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("serverId", serverId);
+        body.put("revoked", revoked);
+        body.put("message", revoked ? "토큰을 제거했습니다. 서버의 클라이언트를 멈추거나(bin/scb_client.sh stopall) 새 토큰으로 바꾸세요."
+                : "발급된 토큰이 없습니다.");
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body);
+    }
+
+    @Operation(summary = "서버 데이터 초기화 - ADMIN : 토큰·수집 이력·하트비트·알람·제어 명령 삭제, 현재 값 초기화 (서버 등록·프로세스·서비스 설정은 유지). activate=true 면 Down → Active")
+    @PostMapping("/{serverId}/reset")
+    public com.scb.monitoring.topology.dto.ServerView reset(@PathVariable("serverId") Long serverId,
+                                                         @RequestParam(value = "activate", defaultValue = "false") boolean activate,
+                                                         Authentication auth) {
+        com.scb.monitoring.topology.dto.ServerView v = topology.resetServerData(serverId, activate, auth.getName());
+        heartbeat.forget(serverId);
+        fallback.forget(serverId);
+        return v;
     }
 }

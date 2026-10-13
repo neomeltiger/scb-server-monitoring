@@ -113,6 +113,19 @@ public class AgentService {
         return token;
     }
 
+    /**
+     * 토큰 제거 (회수) : tb_agent 행 삭제 - 그 서버의 클라이언트는 더 이상 인증되지 않음 (AGENT AUTH FAIL).
+     * 수집 이력은 그대로. 발급된 토큰이 없으면 false.
+     */
+    @Transactional
+    public boolean revokeToken(Long serverId, String user) {
+        findServer(serverId);
+        if (mapper.selectAgent(serverId) == null) return false;
+        mapper.deleteAgent(serverId);
+        log.info("AGENT TOKEN revoked server={} by {}", serverId, user);
+        return true;
+    }
+
     /** 토큰 → 서버 ID (없거나 틀리면 null) */
     public Long authenticate(String token) {
         if (token == null || !token.matches("^[0-9a-f]{64}$")) return null;

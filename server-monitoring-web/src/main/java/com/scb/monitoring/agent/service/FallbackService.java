@@ -48,6 +48,11 @@ public class FallbackService {
     /** 하트비트가 알린 감시자 버전 / 대신 수집 결과 (OK, WAIT, FAIL_코드, FAIL_TIMEOUT) - 서버 ID → {버전, 결과} */
     private final Map<Long, String[]> watchdog = new ConcurrentHashMap<>();
 
+    /** 토큰 제거·서버 데이터 초기화 뒤 메모리 상태 정리 */
+    public void forget(Long serverId) {
+        watchdog.remove(serverId);
+    }
+
     public FallbackService(AgentMapper mapper, TopologyMapper topologyMapper, ServiceCtlMapper serviceCtlMapper, AgentProperties props) {
         this.mapper = mapper;
         this.topologyMapper = topologyMapper;

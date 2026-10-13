@@ -455,6 +455,17 @@ bin/scb_client.sh stop       # 데몬 정지 (웹에 종료 보고)
 bin/scb_client.sh restart    # 다시 시작</pre>
 </section>
 
+<section id="srvreset">
+    <h3>토큰 제거 · 서버 데이터 초기화 <span class="chip blue">관리자</span></h3>
+    <p>메인 홈 <b>서버 장애 알람</b> 항목과 <b>에이전트 관리</b> 화면의 버튼으로 실행합니다.</p>
+    <table>
+        <tr><th>버튼</th><th>하는 일</th><th>남는 것</th></tr>
+        <tr><td><b>토큰 제거</b></td><td>그 서버 클라이언트에 발급한 에이전트 토큰을 지움 → 클라이언트는 더 이상 보고할 수 없음 (웹 로그 AGENT AUTH FAIL)</td><td>수집 이력 전부</td></tr>
+        <tr><td><b>데이터 초기화</b></td><td>토큰, 자원·프로세스·서비스 수집 이력, 하트비트 이력, 대신 수집, 제어 명령, 수집 로그, 알람을 지우고 현재 값을 처음 상태로. 등록 상태가 Down 이면 Active 로 바꿔 서버 장애 항목을 없앰</td><td>서버 등록 정보, 주요 프로세스 · service.list · 로그 수집 설정, 다른 서버 데이터</td></tr>
+    </table>
+    <div class="note warn">데이터 초기화는 되돌릴 수 없습니다. 실행할 때 서버 이름을 그대로 입력해야 진행됩니다. 다시 연결하려면 토큰을 새로 발급해 서버의 client.env 에 넣으세요.</div>
+</section>
+
 <!-- 11 -->
 <section id="process">
     <h2>11. 프로세스 관리</h2>

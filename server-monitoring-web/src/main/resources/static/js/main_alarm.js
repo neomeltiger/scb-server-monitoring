@@ -95,9 +95,52 @@ function renderAlarmBanner(data) {
             '<button type="button" class="alarm-act" onclick="jumpToProcessTab(' + sid + ')">프로세스 관리</button>' +
             (admin ? '<button type="button" class="alarm-act" onclick="openWebConsole({ serverId: ' + sid + ' })">웹 콘솔</button>' +
                 '<button type="button" class="alarm-act primary" onclick="openAlarmAck(' + Number(a.alarmId) + ')">' +
-                (a.stateCd === 'ACK' ? '조치 수정' : '확인 / 조치') + '</button>' : '') +
+                (a.stateCd === 'ACK' ? '조치 수정' : '확인 / 조치') + '</button>' +
+                '<button type="button" class="alarm-act danger" onclick="revokeAgentToken(' + sid + ')" title="이 서버 클라이언트에 발급한 토큰 제거">토큰 제거</button>' +
+                '<button type="button" class="alarm-act danger" onclick="resetServerData(' + sid + ')" title="토큰·수집 이력·알람 삭제, 등록 상태 Active">데이터 초기화</button>' : '') +
             '</div></li>';
     }).join('');
+}
+
+/** 토큰 제거 (ADMIN) : DELETE /api/agents/{id}/token */
+async function revokeAgentToken(serverId) {
+    const name = serverNameForAlarm(serverId);
+    if (!confirm('[' + name + '] 클라이언트에 발급한 에이전트 토큰을 제거하시겠습니까?\n\n'
+        + '제거하면 그 서버의 krcasmrx11_client 는 더 이상 보고할 수 없습니다 (수집 이력은 남음).\n다시 연결하려면 토큰을 새로 발급하세요.')) return false;
+    try {
+        const r = await apiRequest('DELETE', AGENT_API + '/' + serverId + '/token');
+        alert(r.message);
+    } catch (e) { alert(e.message); return false; }
+    loadAlarms();
+    if (typeof loadAgentRegistrations === 'function') loadAgentRegistrations();
+    return true;
+}
+
+/** 서버 데이터 초기화 (ADMIN) : POST /api/agents/{id}/reset?activate=true */
+async function resetServerData(serverId) {
+    const name = serverNameForAlarm(serverId);
+    const typed = prompt('[' + name + '] 서버 데이터를 초기화합니다.\n\n'
+        + '삭제 : 에이전트 토큰, 자원·프로세스·서비스 수집 이력, 하트비트 이력, 제어 명령, 수집 로그, 알람\n'
+        + '유지 : 서버 등록 정보, 주요 프로세스·service.list·로그 수집 설정\n'
+        + '등록 상태가 Down 이면 Active 로 바꿉니다 (서버 장애 항목 해소).\n\n'
+        + '계속하려면 서버 이름을 그대로 입력하세요 : ' + name);
+    if (typed === null) return false;
+    if (typed.trim() !== name) { alert('서버 이름이 일치하지 않아 취소했습니다.'); return false; }
+    try {
+        await apiRequest('POST', AGENT_API + '/' + serverId + '/reset?activate=true');
+        alert('[' + name + '] 서버 데이터를 초기화했습니다.');
+    } catch (e) { alert(e.message); return false; }
+    loadAlarms();
+    if (typeof loadAgentRegistrations === 'function') loadAgentRegistrations();
+    if (typeof loadServers === 'function') { try { await loadServers(); } catch (e) { /* 다음 갱신 때 반영 */ } }
+    return true;
+}
+
+function serverNameForAlarm(serverId) {
+    const a = (activeAlarms || []).find(x => Number(x.serverId) === Number(serverId));
+    if (a) return a.systemNm;
+    const s = (typeof serversData !== 'undefined' ? serversData : []).find(x => Number(x.id) === Number(serverId));
+    return s ? s.systemName : String(serverId);
 }
 
 async function restartFromAlarm(serverId) {

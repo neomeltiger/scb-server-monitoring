@@ -134,6 +134,16 @@
          WHERE svc_id = #{svcId}
     </delete>
 
+    <!-- 서버 데이터 초기화 : service.list 등록은 두고 상태만 UNKNOWN 으로 -->
+    <update id="resetServiceStatesByServer">
+        UPDATE tb_service
+           SET state_cd = 'UNKNOWN',
+               pid      = NULL,
+               state_dt = NULL,
+               upd_dt   = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+    </update>
+
     <delete id="deleteServicesByServer">
         DELETE FROM tb_service
          WHERE server_id = #{serverId}

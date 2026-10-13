@@ -44,6 +44,7 @@ class TopologyServiceTest {
 
     @Autowired TopologyService service;
     @Autowired TopologyMapper mapper;
+    @Autowired javax.sql.DataSource dataSource;
 
     private static ServerForm form(String name, String ip, int switchId, String status) {
         ServerForm f = new ServerForm();
@@ -181,5 +182,28 @@ class TopologyServiceTest {
         assertEquals(10, list.size());
         assertNotNull(find(list, 11));
         assertEquals(27, list.stream().mapToInt(s -> s.getProcesses().size()).sum());
+    }
+
+    /** 서버 데이터 초기화 : 토큰·이력·알람 삭제, 프로세스 설정 유지·값 초기화, Down → Active (서버 23 New GM NFS #2 = 기본 데이터에서 Down) */
+    @Test
+    void resetServerDataClearsTokenHistoryAlarmAndActivates() {
+        org.springframework.jdbc.core.JdbcTemplate j = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+        j.update("INSERT INTO tb_agent (server_id, token_hash, issue_user) VALUES (23, 'abc123', 'admin')");
+        j.update("INSERT INTO tb_alarm (server_id, alarm_type, alarm_level, message, state_cd, occur_dt) VALUES (23, 'SERVER_DOWN', 'CRITICAL', 'down', 'OPEN', CURRENT_TIMESTAMP)");
+        j.update("INSERT INTO tb_server_metric_hist (server_id, cpu_pct, mem_pct, collect_dt) VALUES (23, 1.0, 2.0, CURRENT_TIMESTAMP)");
+        int procs = j.queryForObject("SELECT COUNT(*) FROM tb_server_process WHERE server_id = 23", Integer.class);
+        assertEquals("Down", j.queryForObject("SELECT status_cd FROM tb_server WHERE server_id = 23", String.class));
+
+        ServerView v = service.resetServerData(23L, true, "admin");
+
+        assertEquals("Active", j.queryForObject("SELECT status_cd FROM tb_server WHERE server_id = 23", String.class));
+        assertEquals(0, j.queryForObject("SELECT COUNT(*) FROM tb_agent WHERE server_id = 23", Integer.class));
+        assertEquals(0, j.queryForObject("SELECT COUNT(*) FROM tb_alarm WHERE server_id = 23", Integer.class));
+        assertEquals(0, j.queryForObject("SELECT COUNT(*) FROM tb_server_metric_hist WHERE server_id = 23", Integer.class));
+        assertEquals(procs, j.queryForObject("SELECT COUNT(*) FROM tb_server_process WHERE server_id = 23", Integer.class));
+        assertEquals(0, j.queryForObject("SELECT COUNT(*) FROM tb_server_process WHERE server_id = 23 AND running_yn = 'Y'", Integer.class));
+        assertNotNull(v);
+        // 다른 서버는 그대로
+        assertTrue(j.queryForObject("SELECT COUNT(*) FROM tb_server_metric_hist WHERE server_id <> 23", Integer.class) > 0);
     }
 }

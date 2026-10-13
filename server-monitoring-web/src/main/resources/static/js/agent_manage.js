@@ -71,7 +71,8 @@
         if (a.state === 'NONE') {
             return '<tr class="am-none"><td class="ua-left">' + server + '</td>' +
                 '<td colspan="6"><span class="am-chip gray">토큰 미발급</span> <span class="ua-sub">네트워크 구성도 → 서버 선택 → [에이전트 토큰 발급] 후 서버에 설치</span></td>' +
-                '<td>' + (admin ? '<a class="svc-btn start" href="network?server=' + sid + '">토큰 발급</a>' : '-') + '</td></tr>';
+                '<td class="am-ctl">' + (admin ? '<a class="svc-btn start" href="network?server=' + sid + '">토큰 발급</a>' +
+                    '<button type="button" class="svc-btn kill" data-act="reset" data-id="' + sid + '" title="수집 이력·알람 삭제, 등록 상태 Active">데이터 초기화</button>' : '-') + '</td></tr>';
         }
         const d = DAEMON[a.daemonState] || [a.daemonState, 'gray', ''];
         const old = isOldClient(a.agentVer);
@@ -103,7 +104,9 @@
               btn('stop', 'stop', '중지', !a.collectOn, a.collectOn ? '자료 수집 중지 (데몬은 유지)' : '이미 중지됨') +
               btn('shutdown', 'kill', '종료', !alive || a.shutdownPending, alive ? '데몬 프로세스 종료' : '실행 중인 데몬이 없습니다') +
               (a.canRestart && a.daemonIssue ? btn('restart', 'daemon-restart', '재시작', a.restartPending,
-                  a.restartPending ? '재시작 요청 전달 중' : '하트비트 감시자가 서버에서 bin/scb_client.sh start') : '')
+                  a.restartPending ? '재시작 요청 전달 중' : '하트비트 감시자가 서버에서 bin/scb_client.sh start') : '') +
+              btn('revoke', 'kill', '토큰 제거', false, '이 서버 클라이언트에 발급한 토큰 제거 (수집 이력은 유지)') +
+              btn('reset', 'kill', '데이터 초기화', false, '토큰·수집 이력·하트비트·알람 삭제, 등록 상태 Active')
             : '-';
         return '<tr data-id="' + sid + '"><td class="ua-left">' + server + '</td><td>' + daemon + '</td><td>' + collect + collectSub + '</td>' +
             '<td>' + interval + '</td><td class="svc-time">' + pid + '</td><td class="svc-time">' + poll + '</td>' +
@@ -121,6 +124,30 @@
         if (action === 'restart') {
             const a = await restartDaemon(id);
             if (a && v) { v.agent = a; render(); }
+            return;
+        }
+        if (action === 'revoke') {
+            if (!confirm('[' + name + '] 클라이언트에 발급한 에이전트 토큰을 제거하시겠습니까?\n\n'
+                + '제거하면 그 서버의 krcasmrx11_client 는 더 이상 보고할 수 없습니다 (수집 이력은 남음).\n다시 연결하려면 토큰을 새로 발급하세요.')) return;
+            try {
+                const r = await apiRequest('DELETE', API + '/' + id + '/token');
+                alert(r.message);
+            } catch (e) { alert(e.message); }
+            load();
+            return;
+        }
+        if (action === 'reset') {
+            const typed = prompt('[' + name + '] 서버 데이터를 초기화합니다.\n\n'
+                + '삭제 : 에이전트 토큰, 자원·프로세스·서비스 수집 이력, 하트비트 이력, 제어 명령, 수집 로그, 알람\n'
+                + '유지 : 서버 등록 정보, 주요 프로세스·service.list·로그 수집 설정\n'
+                + '등록 상태가 Down 이면 Active 로 바꿉니다.\n\n계속하려면 서버 이름을 그대로 입력하세요 : ' + name);
+            if (typed === null) return;
+            if (typed.trim() !== String(name)) { alert('서버 이름이 일치하지 않아 취소했습니다.'); return; }
+            try {
+                await apiRequest('POST', API + '/' + id + '/reset?activate=true');
+                alert('[' + name + '] 서버 데이터를 초기화했습니다.');
+            } catch (e) { alert(e.message); }
+            load();
             return;
         }
         if (!confirm(msg)) return;

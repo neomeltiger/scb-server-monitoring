@@ -199,6 +199,17 @@
            AND proc_id   = #{procId}
     </delete>
 
+    <!-- 서버 데이터 초기화 : 주요 프로세스 설정은 두고 수집 값만 처음 상태로 -->
+    <update id="resetProcessesByServer">
+        UPDATE tb_server_process
+           SET pid        = NULL,
+               cpu_pct    = 0,
+               mem_pct    = 0,
+               running_yn = 'N',
+               upd_dt     = CURRENT_TIMESTAMP
+         WHERE server_id = #{serverId}
+    </update>
+
     <delete id="deleteProcessesByServer">
         DELETE FROM tb_server_process
          WHERE server_id = #{serverId}
