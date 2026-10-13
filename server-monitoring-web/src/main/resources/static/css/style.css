@@ -1715,3 +1715,6 @@ body.scb-dlg-open { overflow: hidden; }
     .rp-grid { display: block; }
     .rp-raw { white-space: pre-wrap; }
 }
+
+/* 서버 점검 리포트 - 클라이언트 1.11 이하 안내 (웹 기본 리포트) */
+.rp-basic-note { color: var(--st-info, #1d4ed8); }

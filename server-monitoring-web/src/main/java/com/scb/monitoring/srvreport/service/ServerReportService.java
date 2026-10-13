@@ -1,6 +1,7 @@
 package com.scb.monitoring.srvreport.service;
 
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -71,14 +72,19 @@ public class ServerReportService {
         return ServerReportView.of(serverId, s.getSystemNm(), s.getIpAddr(), av, supports(av.getAgentVer()), items);
     }
 
-    /** [리포트 요청] - 진행 중인 요청이 있으면 거절 */
+    /**
+     * [리포트 요청] - 진행 중인 요청이 있으면 거절.
+     * 클라이언트가 1.12 미만이면 서버 직접 점검을 못 하므로 웹에 이미 수집된 자료로 웹 기본 리포트를 바로 만듦 (DONE).
+     */
     @Transactional
     public ServerReportView request(Long serverId, List<String> sections, String user) {
-        findServer(serverId);
-        if (agentMapper.selectAgent(serverId) == null) {
+        Server server = findServer(serverId);
+        Agent agent = agentMapper.selectAgent(serverId);
+        if (agent == null) {
             throw TopologyException.badRequest("이 서버에는 에이전트(svr_collect_client)가 등록되지 않았습니다. 에이전트 관리에서 토큰을 발급·설치하세요.");
         }
         String sec = normalizeSections(sections);
+        if (!supports(agent.getAgentVer())) return basicReport(server, agent, sec, user);
         for (ServerReport r : mapper.selectReportList(serverId)) {
             if (r.isActive() && !ServerReportView.Item.of(r).isOverdue()) {
                 throw TopologyException.conflict("이미 진행 중인 리포트 요청이 있습니다. (#" + r.getReportId() + ") 결과를 받은 뒤 다시 요청하세요.");
@@ -106,6 +112,41 @@ public class ServerReportService {
         log.info("SERVER REPORT DELETE server={} id={} by {}", serverId, reportId, user);
     }
 
+    /** 웹 기본 리포트 (클라이언트 1.11 이하) - 요청과 동시에 완료 */
+    private ServerReportView basicReport(Server server, Agent agent, String sec, String user) {
+        Long serverId = server.getServerId();
+        Timestamp now = new Timestamp(System.currentTimeMillis());
+        BasicReportBuilder.Input in = new BasicReportBuilder.Input();
+        String host = agent.getAgentHost();
+        in.host = host == null || host.trim().isEmpty() || "unknown".equalsIgnoreCase(host.trim()) ? server.getSystemNm() : host;
+        in.os = agent.getAgentOs() != null ? agent.getAgentOs() : server.getOsType();
+        in.clientVer = agent.getAgentVer();
+        in.sections = Arrays.asList(sec.split(","));
+        in.now = now;
+        in.metric = mapper.selectBasicMetric(serverId);
+        in.peak = mapper.selectBasicPeak(serverId, new Timestamp(now.getTime() - 24L * 3600 * 1000));
+        in.services = mapper.selectBasicServices(serverId);
+        in.processes = mapper.selectBasicProcesses(serverId);
+        in.logs = mapper.selectBasicLogs(serverId);
+        Timestamp week = new Timestamp(now.getTime() - 7L * 24 * 3600 * 1000);
+        in.alarms = mapper.selectBasicAlarms(serverId, week);
+        in.cmds = mapper.selectBasicCmds(serverId, week);
+        String text = BasicReportBuilder.build(in);
+
+        ServerReport r = new ServerReport();
+        r.setServerId(serverId);
+        r.setSections(sec + "," + BasicReportBuilder.WEB_SECTION);
+        r.setStatusCd(ServerReport.REQUESTED);
+        r.setReqUser(user);
+        mapper.insertReport(r);
+        text = clip(text);
+        mapper.updateResult(r.getReportId(), ServerReport.DONE, countWarn(text), text.getBytes(StandardCharsets.UTF_8).length, text);
+        prune(serverId);
+        log.info("SERVER REPORT (web basic, client {}) server={} id={} sections={} warn={} by {}",
+                agent.getAgentVer(), serverId, r.getReportId(), sec, countWarn(text), user);
+        return getView(serverId);
+    }
+
     // ===================== 에이전트 =====================
 
     /**
@@ -128,8 +169,7 @@ public class ServerReportService {
     public boolean ingest(Long serverId, Long reportId, String status, String content) {
         ServerReport r = mapper.selectReport(reportId);
         if (r == null || !serverId.equals(r.getServerId())) return false;
-        String text = content == null ? "" : content;
-        if (text.length() > MAX_CONTENT_CHARS) text = text.substring(0, MAX_CONTENT_CHARS) + "\n#WARN|리포트가 너무 커서 뒷부분을 잘랐습니다.\n";
+        String text = clip(content == null ? "" : content);
         String st = "OK".equalsIgnoreCase(status) ? ServerReport.DONE : ServerReport.ERROR;
         mapper.updateResult(reportId, st, countWarn(text), text.getBytes(StandardCharsets.UTF_8).length, text);
         log.info("SERVER REPORT ← agent server={} id={} status={} warn={}", serverId, reportId, st, countWarn(text));
@@ -160,6 +200,12 @@ public class ServerReportService {
         List<String> out = new ArrayList<>();
         for (String s : SECTIONS) if (want.contains(s)) out.add(s);
         return String.join(",", out);
+    }
+
+    /** 저장 한도를 넘으면 자르고 경고 한 줄 */
+    static String clip(String text) {
+        if (text.length() <= MAX_CONTENT_CHARS) return text;
+        return text.substring(0, MAX_CONTENT_CHARS) + "\n#WARN|리포트가 너무 커서 뒷부분을 잘랐습니다.\n";
     }
 
     static int countWarn(String text) {

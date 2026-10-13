@@ -1,10 +1,12 @@
 package com.scb.monitoring.srvreport.mapper;
 
+import java.sql.Timestamp;
 import java.util.List;
 
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import com.scb.monitoring.srvreport.domain.BasicRow;
 import com.scb.monitoring.srvreport.domain.ServerReport;
 
 /** 서버 점검 리포트 Mapper. SQL: resources/mapper/srvreport/ServerReportMapper.xml (ANSI SQL) */
@@ -36,4 +38,26 @@ public interface ServerReportMapper {
 
     // ---- 서버 삭제 / 초기화 ----
     int deleteReportsByServer(@Param("serverId") Long serverId);
+
+    // ---- 웹 기본 리포트 (클라이언트 1.11 이하 : 웹에 이미 수집된 자료) ----
+    /** 최근 자원 (tb_server_metric) */
+    BasicRow selectBasicMetric(@Param("serverId") Long serverId);
+
+    /** since 이후 자원 최댓값과 건수 (tb_server_metric_hist) */
+    BasicRow selectBasicPeak(@Param("serverId") Long serverId, @Param("since") Timestamp since);
+
+    /** 웹이 관리하는 서비스 (tb_service, 프로세스 관리 화면) */
+    List<BasicRow> selectBasicServices(@Param("serverId") Long serverId);
+
+    /** 웹에 등록된 프로세스 (tb_server_process, 구성도 주요 프로세스) */
+    List<BasicRow> selectBasicProcesses(@Param("serverId") Long serverId);
+
+    /** 서버 로그 화면에 등록된 로그별 마지막 수집본 (내용 포함) */
+    List<BasicRow> selectBasicLogs(@Param("serverId") Long serverId);
+
+    /** since 이후 알람 (최근 순) */
+    List<BasicRow> selectBasicAlarms(@Param("serverId") Long serverId, @Param("since") Timestamp since);
+
+    /** since 이후 서비스 제어 명령 (최근 순) */
+    List<BasicRow> selectBasicCmds(@Param("serverId") Long serverId, @Param("since") Timestamp since);
 }

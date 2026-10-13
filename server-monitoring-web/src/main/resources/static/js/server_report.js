@@ -1,13 +1,14 @@
 // ================= 서버 점검 리포트 (/admin/server-report, 관리자 전용) =================
 // API : /api/admin/server-report/{serverId}[/{reportId}] (srvreport.controller.ServerReportController)
 // 관리자가 [리포트 요청] 을 누를 때만 svr_collect_client 1.12 의 bin/collect_report.sh 가 만들어 보냄
+// 클라이언트 1.11 이하는 웹에 이미 수집된 자료로 웹 기본 리포트를 바로 만듦 (분야 끝에 web)
 // 리포트 본문 형식 : #SCBRPT|ver|host|os|time|sections, #SEC|code|title, #ITEM|code|title|source,
 //                    #SUM|요약, #WARN|경고, #HL|강조(웹 관리 프로세스), #END|소요초, 그 밖의 줄 = 원문
 // apiRequest / escapeHtml 는 script.js, scbConfirm / scbAlert 는 scb_dialog.js
 (function () {
     const API = '../api/admin/server-report/';
     const POLL_MS = 5000;
-    const SECTION_NAMES = { sec: '보안·접근', res: '시스템 자원', svc: '서비스·스케줄러', chg: '패키지·변경' };
+    const SECTION_NAMES = { sec: '보안·접근', res: '시스템 자원', svc: '서비스·스케줄러', chg: '패키지·변경', web: '웹 기본 리포트' };
     const STATUS = {
         REQUESTED: ['요청됨 · 에이전트 확인 대기', 'info'],
         SENT: ['서버에서 점검 중', 'info'],
@@ -35,6 +36,10 @@
 
     function secNames(s) {
         return (s || '').split(',').map(c => SECTION_NAMES[c] || c).join(', ');
+    }
+
+    function isWeb(r) {
+        return (r.sections || '').split(',').includes('web');
     }
 
     function statusOf(r) {
@@ -97,13 +102,14 @@
             + '<span>클라이언트 <b>' + escapeHtml(data.agentVer || '-') + '</b></span>'
             + '<span>마지막 웹 확인 <b>' + escapeHtml(data.lastPollDt || '-') + '</b></span>';
         if (!data.clientSupported) {
-            html += '<span class="lg-bad">이 서버의 클라이언트는 리포트를 지원하지 않습니다 (1.12 이상 필요)</span>';
+            html += '<span class="rp-basic-note">클라이언트 ' + escapeHtml(data.agentVer || '') + ' : 서버 직접 점검은 1.12 이상에서 가능 → 지금은 웹에 수집된 자료(자원·서비스·프로세스·서버 로그·알람·제어 이력)로 <b>웹 기본 리포트</b>를 바로 만듭니다</span>';
         }
         if (data.agentState === 'NONE') {
             html += '<span class="lg-bad">에이전트가 등록되지 않은 서버입니다</span>';
         }
         $('rpStatus').innerHTML = html;
-        $('rpRequest').disabled = data.agentState === 'NONE' || !data.clientSupported;
+        $('rpRequest').disabled = data.agentState === 'NONE';
+        $('rpRequest').textContent = data.clientSupported ? '리포트 요청' : '웹 기본 리포트 만들기';
     }
 
     function renderList() {
@@ -197,7 +203,8 @@
         let html = '';
         if (doc.head) {
             html += '<div class="rp-head"><b>' + escapeHtml(doc.head.host || '') + '</b> · ' + escapeHtml(doc.head.os || '')
-                + ' · 점검 ' + escapeHtml(doc.head.time || '') + (doc.end ? ' · 소요 ' + escapeHtml(doc.end) + '초' : '') + '</div>';
+                + ' · 점검 ' + escapeHtml(doc.head.time || '') + (doc.end && doc.end !== '0' ? ' · 소요 ' + escapeHtml(doc.end) + '초' : '')
+                + (isWeb(r) ? ' · <span class="rp-badge" data-status="info">웹 수집 자료 기준</span>' : '') + '</div>';
         }
         // 경고 요약
         html += '<div class="rp-summary" data-status="' + (doc.warns.length ? 'warning' : 'success') + '">'

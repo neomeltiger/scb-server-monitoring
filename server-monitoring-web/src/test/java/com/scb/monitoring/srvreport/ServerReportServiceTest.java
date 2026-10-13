@@ -117,6 +117,44 @@ class ServerReportServiceTest {
     }
 
     @Test
+    void oldClientGetsWebBasicReport() {
+        agent.issueToken(11L, "admin");
+        agent.pullCommands(11L, "RUNNING", 1, "1.11");
+        jdbc.update("UPDATE tb_server_metric SET disk_pct = 93.0 WHERE server_id = 11");
+        jdbc.update("UPDATE tb_server_process SET running_yn = 'N' WHERE server_id = 11");
+        jdbc.update("INSERT INTO tb_log_source (server_id, log_nm, log_path, tail_lines, use_yn, sort_ord) VALUES (11, 'report-test', '/var/log/report_test.log', 200, 'Y', 0)");
+        Long logId = jdbc.queryForObject("SELECT log_id FROM tb_log_source WHERE server_id = 11 AND log_path = '/var/log/report_test.log'", Long.class);
+        StringBuilder log = new StringBuilder();
+        for (int i = 0; i < 12; i++) log.append("Oct 13 10:00:0").append(i % 10).append(" krcasmrx11 sshd[1]: Failed password for root from 10.1.2.3 port 22 ssh2\n");
+        log.append("Oct 13 10:01:00 krcasmrx11 su: 'su root' failed for kim on /dev/pts/1\n");
+        log.append("Oct 13 10:02:00 krcasmrx11 genunix: WARNING: /: file system full\n");
+        jdbc.update("INSERT INTO tb_log_snapshot (log_id, server_id, status_cd, line_cnt, byte_cnt, content) VALUES (?, 11, 'OK', 14, 100, ?)", logId, log.toString());
+
+        ServerReportView v = reports.request(11L, null, "admin");
+        ServerReportView.Item it = v.getReports().get(0);
+        assertEquals("DONE", it.getStatus(), "1.11 은 웹 기본 리포트를 바로 완료");
+        assertEquals("sec,res,svc,chg,web", it.getSections());
+        assertEquals("", rptLines(agent.pullCommands(11L, "RUNNING", 1, "1.11")), "에이전트에는 전달하지 않음");
+
+        String c = reports.getReport(11L, it.getId()).getContent();
+        assertTrue(c.startsWith("#SCBRPT|1|"), c);
+        assertTrue(c.contains("#WARN|SSH 로그인 실패 12건"), c);
+        assertTrue(c.contains("  12회  10.1.2.3"), c);
+        assertTrue(c.contains("#WARN|su / sudo 실패 1건"), c);
+        assertTrue(c.contains("#WARN|디스크 사용률 93% (위험 90% 이상)"), c);
+        assertTrue(c.contains("#WARN|커널·하드웨어 오류 메시지 1건"), c);
+        assertTrue(c.contains("#ITEM|scbproc|"), c);
+        assertTrue(c.contains("#WARN|등록 프로세스 실행 안 됨"), c);
+        assertTrue(c.contains("#END|0"), c);
+        assertTrue(reports.getReport(11L, it.getId()).getWarnCnt() >= 5);
+
+        // 분야 지정
+        ServerReportView v2 = reports.request(11L, Collections.singletonList("res"), "admin");
+        String c2 = reports.getReport(11L, v2.getReports().get(0).getId()).getContent();
+        assertTrue(c2.contains("#SEC|res|") && !c2.contains("#SEC|sec|") && !c2.contains("#SEC|svc|"), c2);
+    }
+
+    @Test
     void oldClientIsFlagged() {
         agent.issueToken(11L, "admin");
         agent.pullCommands(11L, "RUNNING", 1, "1.11");

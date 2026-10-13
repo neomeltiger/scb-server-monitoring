@@ -91,4 +91,58 @@
          WHERE server_id = #{serverId}
     </delete>
 
+    <!-- ===== 웹 기본 리포트 (클라이언트 1.11 이하) : 웹 DB 에 이미 있는 자료 ===== -->
+    <select id="selectBasicMetric" resultType="com.scb.monitoring.srvreport.domain.BasicRow">
+        SELECT m.cpu_pct, m.mem_pct, m.disk_pct, m.session_cnt, m.collect_dt AS dt
+          FROM tb_server_metric m
+         WHERE m.server_id = #{serverId}
+    </select>
+
+    <select id="selectBasicPeak" resultType="com.scb.monitoring.srvreport.domain.BasicRow">
+        SELECT MAX(h.cpu_pct) AS cpu_pct, MAX(h.mem_pct) AS mem_pct, MAX(h.disk_pct) AS disk_pct,
+               MAX(h.session_cnt) AS session_cnt, COUNT(*) AS cnt
+          FROM tb_server_metric_hist h
+         WHERE h.server_id = #{serverId}
+           AND h.collect_dt &gt;= #{since}
+    </select>
+
+    <select id="selectBasicServices" resultType="com.scb.monitoring.srvreport.domain.BasicRow">
+        SELECT s.svc_nm AS item_nm, s.script_path AS item_path, s.account_nm AS user_nm, s.state_cd, s.pid, s.state_dt AS dt
+          FROM tb_service s
+         WHERE s.server_id = #{serverId}
+         ORDER BY s.list_no, s.svc_id
+    </select>
+
+    <select id="selectBasicProcesses" resultType="com.scb.monitoring.srvreport.domain.BasicRow">
+        SELECT p.proc_nm AS item_nm, p.exec_path AS item_path, p.running_yn AS state_cd, p.pid, p.cpu_pct, p.mem_pct, p.upd_dt AS dt
+          FROM tb_server_process p
+         WHERE p.server_id = #{serverId}
+         ORDER BY p.sort_ord, p.proc_id
+    </select>
+
+    <select id="selectBasicLogs" resultType="com.scb.monitoring.srvreport.domain.BasicRow">
+        SELECT s.log_nm AS item_nm, s.log_path AS item_path, n.status_cd AS state_cd, n.line_cnt AS cnt, n.collect_dt AS dt, n.content
+          FROM tb_log_source s
+          JOIN tb_log_snapshot n ON n.log_id = s.log_id
+         WHERE s.server_id = #{serverId}
+           AND n.snap_id = (SELECT MAX(x.snap_id) FROM tb_log_snapshot x WHERE x.log_id = s.log_id)
+         ORDER BY s.sort_ord, s.log_id
+    </select>
+
+    <select id="selectBasicAlarms" resultType="com.scb.monitoring.srvreport.domain.BasicRow">
+        SELECT a.alarm_type AS item_nm, a.alarm_level AS level_cd, a.message AS msg, a.state_cd, a.occur_dt AS dt, a.close_dt AS end_dt
+          FROM tb_alarm a
+         WHERE a.server_id = #{serverId}
+           AND a.occur_dt &gt;= #{since}
+         ORDER BY a.occur_dt DESC, a.alarm_id DESC
+    </select>
+
+    <select id="selectBasicCmds" resultType="com.scb.monitoring.srvreport.domain.BasicRow">
+        SELECT c.target AS item_nm, c.cmd_cd, c.state_cd, c.req_user AS user_nm, c.req_dt AS dt, c.end_dt, c.exit_cd, c.result_msg AS msg
+          FROM tb_service_cmd c
+         WHERE c.server_id = #{serverId}
+           AND c.req_dt &gt;= #{since}
+         ORDER BY c.req_dt DESC, c.cmd_id DESC
+    </select>
+
 </mapper>
