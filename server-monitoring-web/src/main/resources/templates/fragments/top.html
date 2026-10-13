@@ -54,6 +54,35 @@
             <button type="submit" class="btn-logout">로그아웃</button>
         </form>
     </div>
+    <!-- 관리자 : 지금 DB 에 스키마 · 테이블이 없으면 알림 → [확인] 하면 DB 초기 구성 화면으로 (브라우저 세션당 한 번) -->
+    <span id="dbHealthCheck" hidden th:if="${#authorization.expression('hasRole(''ADMIN'')')}"
+          th:attr="data-api=@{/api/admin/db-setup/health},data-page=@{/admin/db-setup},data-menu=${menu}"></span>
+    <script th:if="${#authorization.expression('hasRole(''ADMIN'')')}">
+        (function () {
+            var el = document.getElementById('dbHealthCheck');
+            if (!el || el.getAttribute('data-menu') === 'dbsetup') return;   // 구성 화면에서는 그 화면이 직접 보여 줌
+            var KEY = 'scbDbHealthAsked';
+            try { if (sessionStorage.getItem(KEY)) return; } catch (e) { /* 저장 못 해도 점검 */ }
+            window.addEventListener('DOMContentLoaded', function () {
+                fetch(el.getAttribute('data-api'), { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (h) {
+                        if (!h || (h.connected && h.verdict === 'OK')) return;
+                        try { sessionStorage.setItem(KEY, '1'); } catch (e) { /* 무시 */ }
+                        var msg = !h.connected
+                            ? '현재 DB 에 연결할 수 없습니다.\nDB 초기 구성 화면에서 DB 를 확인 · 생성하시겠습니까?'
+                            : (!h.schemaExists ? '현재 DB 에 스키마가 없습니다.'
+                                : '현재 DB(' + (h.label || '') + ' · ' + (h.schema || '') + ')에 테이블 ' + h.missingCount + '개가 없습니다'
+                                  + (h.missingCount <= 6 ? ' (' + (h.missing || []).join(', ') + ')' : '') + '.')
+                              + '\n\n[확인] 을 누르면 스키마 · 테이블을 만드는 DB 초기 구성 화면으로 이동합니다.';
+                        var go = function (ok) { if (ok) location.href = el.getAttribute('data-page') + '?check=1'; };
+                        if (typeof scbConfirm === 'function') scbConfirm(msg, { type: 'warning' }).then(go);
+                        else go(window.confirm(msg));
+                    })
+                    .catch(function () { /* 점검 실패는 화면 사용에 영향 없음 */ });
+            });
+        })();
+    </script>
     <div class="help-backdrop" id="pageHelpBackdrop"></div>
     <aside class="help-panel" id="pageHelpPanel" aria-label="이 화면 매뉴얼" aria-hidden="true">
         <div class="help-head">
@@ -73,7 +102,7 @@
                 logs: ['serverlog', '서버 로그'], heartbeat: ['heartbeat', '하트비트 모니터링'], fallback: ['fallback', '데몬 중단 프로세스 현황'],
                 agents: ['agentmgr,srvreset', '에이전트 관리'], processes: ['process', '프로세스 관리'], users: ['users', '사용자 관리'],
                 menuauth: ['menuauth', '권한관리 · 메뉴 권한'], menuedit: ['menuauth', '권한관리 · 메뉴 이름·순서'], apiguide: ['apiguide,swagger', 'API 가이드'],
-                dbconn: ['dbconf', 'DB 연결 관리'], srvreport: ['srvreport', '서버 점검 리포트'], settings: ['settings', '환경 설정']
+                dbconn: ['dbconf', 'DB 연결 관리'], srvreport: ['srvreport', '서버 점검 리포트'], settings: ['settings', '환경 설정'], dbsetup: ['dbsetup,dbconf', 'DB 초기 구성']
             };
             var btn = document.getElementById('pageHelpBtn');
             var panel = document.getElementById('pageHelpPanel');

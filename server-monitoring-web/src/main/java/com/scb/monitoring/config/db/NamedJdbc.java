@@ -64,7 +64,7 @@ public class NamedJdbc {
         if (owned && dataSource instanceof HikariDataSource) ((HikariDataSource) dataSource).close();
     }
 
-    static String rootMessage(Throwable e) {
+    public static String rootMessage(Throwable e) {
         Throwable c = e;
         while (c.getCause() != null && c.getCause() != c) c = c.getCause();
         return c.getClass().getSimpleName() + ": " + c.getMessage();

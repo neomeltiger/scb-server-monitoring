@@ -134,6 +134,7 @@ footer { text-align: center; color: var(--sub); font-size: 12px; padding: 20px; 
         <li><a href="#faq">자주 묻는 질문 / 문제 해결</a></li>
         <li><a href="#ops">운영 담당자 참고</a></li>
         <li><a href="#dbconf">DB 구성 (MySQL · MariaDB · H2 · Sybase · Oracle)</a></li>
+        <li><a href="#dbsetup">DB 초기 구성 (신규 DB, 관리자)</a></li>
     </ol>
 </nav>
 
@@ -929,6 +930,35 @@ bin/scb_client.sh status</pre></li>
         <li><b>상태 확인</b> : <code>GET /api/db/status</code> - 지금 주 DB 와 선택 이유, DB 별 연결 상태·버전.</li>
     </ul>
     <div class="note warn">데이터를 옮기면 대상 DB 의 내용은 원본으로 바뀝니다. 운영 중인 웹은 먼저 멈추세요 (scb_web.bat 이 실행 중이면 거부합니다).</div>
+</section>
+
+<!-- 16-3 -->
+<section id="dbsetup">
+    <h2>16-3. DB 초기 구성 (신규 DB) <span class="chip blue">관리자</span></h2>
+    <p>좌측 메뉴 <b>시스템관리 › DB 초기 구성</b> (<code>/admin/db-setup</code>). 새 DB 에 <b>스키마 → 테이블 → 기초 데이터</b>를 만듭니다. 모든 단계는 버튼을 눌러야만 실행되고 자동으로 진행하지 않습니다.</p>
+    <ol class="steps">
+        <li><b>관리자 비밀번호 재확인</b> : 화면에 들어오면 로그인한 관리자 비밀번호를 한 번 더 입력합니다. 확인 후 10분 동안 사용, 5번 틀리면 5분 잠금. 확인 전에는 화면 · 기능이 모두 막힙니다.</li>
+        <li><b>현재 연결된 DB 확인</b> : 웹이 지금 쓰는 DB 에 스키마 · 테이블(22개) · 기초 데이터가 있는지 보여 줍니다 (읽기만).</li>
+        <li><b>접속 정보</b> : DB 종류 (Oracle / Sybase ASE / MySQL / MariaDB / H2), 호스트 · 포트 (Oracle 은 서비스 이름, H2 는 폴더), 필요하면 JDBC URL 직접 입력, <b>접속 아이디 · 비밀번호</b> (스키마를 만들 권한 - MySQL root, Oracle DBA, Sybase sa), 스키마 이름, 웹이 쓸 계정(선택).</li>
+        <li><b>[1. 연결 확인]</b> : 입력한 계정으로 접속해 DB 제품 · 버전, 스키마가 있는지, 이미 있는 테이블 · 기초 데이터를 확인합니다.</li>
+        <li><b>[2. 스키마 생성]</b> : 스키마가 없을 때만 켜집니다. <b>스키마가 이미 있으면 건너뛰고 [3. 테이블 생성] 으로</b> 진행합니다.
+            <ul><li>MySQL · MariaDB : CREATE DATABASE (utf8mb4) + 웹 계정(선택) 권한</li>
+                <li>Oracle : 스키마 = 사용자 → CREATE USER (스키마 사용자 비밀번호 필수) + 권한</li>
+                <li>Sybase : CREATE DATABASE (기본 장치) + 웹 로그인(선택)을 그 DB 소유자로</li>
+                <li>H2 : 폴더 아래 파일 DB 생성 (처음 입력한 계정이 관리자)</li></ul></li>
+        <li><b>[3. 테이블 생성]</b> : <code>ddl-*.sql</code> 을 실행. <b>없는 테이블만</b> 만들고 이미 있는 테이블은 건너뜁니다.</li>
+        <li><b>[4. 기초 데이터 입력]</b> : <code>base-data.sql</code> - 사용자(admin / admin 데모), 메뉴, 네트워크 노드, 서버, 주요 프로세스, 서비스, 서버 로그 설정, 보관 기간. <b>수집 데이터 · 이력은 넣지 않습니다.</b> 기초 테이블에 이미 행이 있으면 넣지 않습니다 (중복 방지, 실패하면 모두 되돌림).</li>
+        <li>다 만든 뒤 <a href="#dbconf">DB 연결 관리</a> 에서 이 DB 를 등록 → [연결 시험] → [전환] 하면 웹이 새 DB 를 씁니다. 처음 로그인 후 admin 비밀번호를 바꾸세요.</li>
+    </ol>
+    <h3>DDL · 기초 데이터 파일 (프로젝트 안)</h3>
+    <div class="tbl"><table>
+        <tr><th>파일 (src/main/resources/db/setup/)</th><th>내용</th></tr>
+        <tr><td><code>ddl-oracle.sql</code> · <code>ddl-sybase.sql</code> · <code>ddl-mysql.sql</code> (MySQL · MariaDB) · <code>ddl-h2.sql</code></td><td>DB 별 CREATE TABLE · CREATE INDEX (DROP 없음, 22개 테이블, DB 구조 v13)</td></tr>
+        <tr><td><code>base-data.sql</code></td><td>기초 데이터 (ANSI) - 실행할 때 Oracle · Sybase 문법으로 바꿈</td></tr>
+    </table></div>
+    <p>화면 아래 표에서 [보기] · [내려받기] 할 수 있습니다. 스키마를 바꾸면 <code>mvn test -Dtest=DbSetupScriptsTest -Dscb.setup.write=true</code> 로 다시 만듭니다 (테스트가 파일과 스키마가 다르면 알려 줌).</p>
+    <div class="note warn"><b>관리자 화면 알림</b> : 관리자로 화면을 열 때 지금 DB 에 스키마나 테이블이 없으면 알림창이 뜹니다. <b>[확인]</b> 을 누르면 이 DB 초기 구성 화면으로 이동해 지금 DB 의 종류 · 스키마가 입력 칸에 채워집니다 (브라우저 세션마다 한 번).</div>
+    <div class="note info">입력한 접속 비밀번호는 저장하지 않으며 웹 로그에도 남지 않습니다. 웹이 지금 쓰는 H2 파일을 대상으로 고르지 마세요.</div>
 </section>
 
 </main>

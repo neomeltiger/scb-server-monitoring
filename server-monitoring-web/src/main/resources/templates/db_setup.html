@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>DB 초기 구성 - 통합 서버 관리 및 모니터링 시스템</title>
+    <!-- API 변경 요청용 CSRF 토큰 (script.js apiRequest) -->
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <!--
+        DB 초기 구성 (dbsetup.DbSetupController / DbSetupService, js/db_setup.js) - 관리자 전용, 들어올 때 비밀번호 재확인
+        신규 DB 에 1) 연결 확인 2) 스키마 생성(없을 때만) 3) 테이블 생성(없는 것만) 4) 기초 데이터(비었을 때만) - 모두 버튼으로만 실행
+        스크립트 : src/main/resources/db/setup/ (ddl-oracle · ddl-sybase · ddl-mysql · ddl-h2 · base-data)
+    -->
+    <div class="app-layout">
+        <div th:replace="fragments/left :: left(${menu})"></div>
+
+        <div class="main-content-wrapper">
+            <div th:replace="fragments/top :: top"></div>
+
+            <p th:replace="fragments/left :: crumb(${menu})"></p>
+
+            <!-- 관리자 비밀번호 재확인 -->
+            <div class="spec-container ds-lock" id="dsLock">
+                <div class="ds-lock-box">
+                    <div class="ds-lock-icon" aria-hidden="true">🔒</div>
+                    <h3>관리자 비밀번호 확인</h3>
+                    <p>DB 초기 구성은 DB 에 스키마 · 테이블을 만드는 화면입니다. 계속하려면 로그인한 관리자 계정의 비밀번호를 한 번 더 입력하세요.
+                        <br><small>확인 후 10분 동안 사용할 수 있고, 5번 틀리면 5분 동안 잠깁니다.</small></p>
+                    <form id="dsVerifyForm" class="ds-verify" autocomplete="off">
+                        <label class="sr-only" for="dsVerifyPw">비밀번호</label>
+                        <input type="password" id="dsVerifyPw" class="proc-search-input" placeholder="비밀번호" autocomplete="current-password" required>
+                        <button type="submit" class="btn btn-primary">확인</button>
+                    </form>
+                    <div class="cc-error" id="dsVerifyError" role="alert"></div>
+                </div>
+            </div>
+
+            <div class="svc-page ds-page" id="dsPage" hidden>
+                <div class="spec-container">
+                    <div class="spec-header st-head">
+                        <h3>DB 초기 구성 <span class="svc-sub">신규 DB 에 스키마 · 테이블 · 기초 데이터를 만듭니다 - 단계마다 버튼을 눌러야만 실행</span></h3>
+                        <div class="st-head-tools"><span class="ds-left" id="dsLeft"></span>
+                            <a class="btn svc-btn-light" th:href="@{/admin/db}">DB 연결 관리 →</a></div>
+                    </div>
+                    <p class="svc-hint">· 기초 데이터 = 사용자(admin) · 메뉴 · 네트워크 노드 · 서버 · 주요 프로세스 · 서비스 · 서버 로그 설정 · 보관 기간. <b>수집 데이터와 이력은 넣지 않습니다.</b><br>
+                        · 다 만든 뒤 <b>DB 연결 관리</b>에서 이 DB 의 접속 정보를 등록하고 [연결 시험] → [전환] 하면 웹이 새 DB 를 씁니다. 입력한 비밀번호는 저장하지 않습니다.</p>
+                </div>
+
+                <!-- 지금 웹이 쓰는 DB 확인 (읽기만) -->
+                <div class="spec-container">
+                    <div class="spec-header st-head"><h3>현재 연결된 DB 확인 <span class="svc-sub">웹이 지금 쓰는 DB 에 스키마 · 테이블 · 기초 데이터가 있는지 (읽기만, 바꾸지 않음)</span></h3>
+                        <button type="button" class="btn svc-btn-light" id="dsCurBtn">다시 확인</button></div>
+                    <div id="dsCur" class="ds-cur">확인 중...</div>
+                </div>
+
+                <!-- 접속 정보 -->
+                <div class="spec-container">
+                    <div class="spec-header"><h3>접속 정보</h3></div>
+                    <div class="ds-form">
+                        <label class="ds-f"><span>DB 종류</span>
+                            <select id="dsKind" class="lg-select">
+                                <option value="oracle">Oracle</option>
+                                <option value="sybase">Sybase ASE</option>
+                                <option value="mysql" selected>MySQL</option>
+                                <option value="mariadb">MariaDB</option>
+                                <option value="h2">H2 (파일 DB)</option>
+                            </select></label>
+                        <label class="ds-f ds-net"><span>호스트</span><input type="text" id="dsHost" value="127.0.0.1" maxlength="100"></label>
+                        <label class="ds-f ds-net"><span>포트</span><input type="number" id="dsPort" min="1" max="65535"></label>
+                        <label class="ds-f ds-ora"><span>서비스 이름 (Oracle)</span><input type="text" id="dsService" value="ORCLPDB1" maxlength="64"></label>
+                        <label class="ds-f ds-h2"><span>H2 폴더</span><input type="text" id="dsH2Dir" value="./data/setup" maxlength="200"></label>
+                        <label class="ds-f ds-wide ds-net"><span>JDBC URL (선택 - 직접 입력, 스키마 없는 주소)</span><input type="text" id="dsUrl" placeholder="비우면 위 값으로 만듦" maxlength="300"></label>
+                        <label class="ds-f"><span>접속 아이디 <small id="dsUserHint">(스키마를 만들 권한)</small></span><input type="text" id="dsUser" autocomplete="off" maxlength="64"></label>
+                        <label class="ds-f"><span>접속 비밀번호</span><input type="password" id="dsPassword" autocomplete="new-password" maxlength="64"></label>
+                        <label class="ds-f"><span id="dsSchemaLabel">스키마(database) 이름</span><input type="text" id="dsSchema" value="scb_mon_agent" maxlength="30"></label>
+                        <label class="ds-f ds-app"><span id="dsAppUserLabel">웹이 쓸 계정 (선택)</span><input type="text" id="dsAppUser" autocomplete="off" maxlength="30"></label>
+                        <label class="ds-f"><span id="dsAppPwLabel">웹 계정 비밀번호 (선택)</span><input type="password" id="dsAppPassword" autocomplete="new-password" maxlength="64"></label>
+                    </div>
+                    <p class="svc-hint" id="dsKindHint"></p>
+                </div>
+
+                <!-- 단계 -->
+                <div class="spec-container">
+                    <div class="spec-header"><h3>실행 단계 <span class="svc-sub">앞 단계가 끝나야 다음 버튼이 켜집니다 · 스키마가 이미 있으면 2단계 없이 3단계로</span></h3></div>
+                    <ol class="ds-steps">
+                        <li><button type="button" class="btn btn-primary" id="dsTest">1. 연결 확인</button>
+                            <span class="ds-step-msg" id="dsTestMsg">입력한 계정으로 접속해 스키마 · 테이블이 있는지 확인합니다.</span></li>
+                        <li><button type="button" class="btn btn-primary" id="dsSchemaBtn" disabled>2. 스키마 생성</button>
+                            <span class="ds-step-msg" id="dsSchemaMsg">스키마가 없을 때만 만듭니다.</span></li>
+                        <li><button type="button" class="btn btn-primary" id="dsTablesBtn" disabled>3. 테이블 생성</button>
+                            <span class="ds-step-msg" id="dsTablesMsg">없는 테이블만 만듭니다 (이미 있는 테이블은 건너뜀).</span></li>
+                        <li><button type="button" class="btn btn-primary" id="dsDataBtn" disabled>4. 기초 데이터 입력</button>
+                            <span class="ds-step-msg" id="dsDataMsg">기초 테이블이 비어 있을 때만 넣습니다.</span></li>
+                    </ol>
+                    <pre class="ds-log" id="dsLog" aria-live="polite">실행 기록</pre>
+                </div>
+
+                <!-- 프로젝트 안 스크립트 -->
+                <div class="spec-container">
+                    <div class="spec-header"><h3>DDL · 기초 데이터 파일 <span class="svc-sub">프로젝트 src/main/resources/db/setup/ 에 저장된 파일을 그대로 실행</span></h3></div>
+                    <div class="svc-table-wrap">
+                        <table class="full-spec-table st-table">
+                            <thead><tr><th>파일</th><th>위치</th><th>크기</th><th>문장 수</th><th>보기</th></tr></thead>
+                            <tbody id="dsFiles"></tbody>
+                        </table>
+                    </div>
+                    <p class="svc-hint" id="dsTablesInfo"></p>
+                    <pre class="ds-log ds-view" id="dsView" hidden></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/js/scb_dialog.js}"></script>
+
+    <script th:src="@{/js/script.js}"></script>
+    <script th:src="@{/js/db_setup.js}"></script>
+</body>
+</html>

@@ -1987,6 +1987,37 @@ body.scb-dlg-open { overflow: hidden; }
 .st-ret-t code { font-size: 11px; }
 @media (max-width: 760px) { .st-dl { grid-template-columns: 1fr; gap: 2px; } .st-dl dd { margin-bottom: 6px; } }
 
+/* ===================== DB 초기 구성 (/admin/db-setup, db_setup.js) ===================== */
+.ds-lock { display: flex; justify-content: center; padding: 40px 16px; }
+.ds-lock[hidden] { display: none; }
+.ds-lock-box { max-width: 460px; text-align: center; display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.ds-lock-box h3 { margin: 0; color: #1f2937; }
+.ds-lock-box p { margin: 0; font-size: 14px; color: #475569; line-height: 1.6; }
+.ds-lock-icon { font-size: 40px; }
+.ds-verify { display: flex; gap: 8px; width: 100%; max-width: 360px; }
+.ds-verify input { flex: 1; }
+.ds-page { display: flex; flex-direction: column; gap: 20px; }
+.ds-page[hidden] { display: none; }
+.ds-left { font-size: 12px; color: #64748b; align-self: center; }
+.ds-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px 16px; }
+.ds-f { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #475569; }
+.ds-f[hidden] { display: none; }
+.ds-f input, .ds-f select { padding: 7px 9px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+.ds-f small { color: #94a3b8; }
+.ds-wide { grid-column: 1 / -1; }
+.ds-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.ds-steps li { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ds-steps .btn { min-width: 150px; }
+.ds-steps .btn:disabled { opacity: .45; cursor: not-allowed; }
+.ds-step-msg { font-size: 13px; color: #475569; flex: 1; min-width: 200px; }
+.ds-log { background: #0f172a; color: #e2e8f0; border-radius: 8px; padding: 10px 12px; font: 12px/1.6 Consolas, monospace; max-height: 260px; overflow: auto; white-space: pre-wrap; margin: 12px 0 0; }
+.ds-log .ok { color: #a7f3d0; }
+.ds-log .bad { color: #fca5a5; }
+.ds-view { max-height: 420px; }
+.ds-attn { box-shadow: 0 0 0 3px #f59f00; }
+.lg-ok { color: #2b8a3e; font-weight: bold; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
 /* ===================== 전체 화면 색 (상단 [화면 색] 드롭다운, fragments/top.html) ===================== */
 .pt-field { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #475569; }
 .pt-select { border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 6px; font-size: 13px; background: #fff; color: #1f2937; max-width: 150px; }

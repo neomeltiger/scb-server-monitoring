@@ -16,7 +16,8 @@ import com.scb.monitoring.topology.controller.TopologyPageController;
         ServiceCtlPageController.class, UserAdminController.class,
         com.scb.monitoring.serverlog.controller.ServerLogController.class,
         com.scb.monitoring.agent.controller.AgentPageController.class, ApiGuidePageController.class,
-        com.scb.monitoring.menu.web.MenuController.class, com.scb.monitoring.settings.SettingsController.class})
+        com.scb.monitoring.menu.web.MenuController.class, com.scb.monitoring.settings.SettingsController.class,
+        com.scb.monitoring.dbsetup.DbSetupController.class})
 public class LayoutModelAdvice {
 
     private final UserAdminService userAdminService;
