@@ -77,6 +77,20 @@ public class Menu {
         return defaultIcon(menuType);
     }
 
+    /** 이미지 양식 아이콘 (static/images/menu-icons.svg 의 symbol id) - 저장 값은 "i:" + id */
+    public static final java.util.List<String> IMAGE_ICONS = java.util.Collections.unmodifiableList(java.util.Arrays.asList(
+            "bars", "barsb", "barss", "grid", "gridf", "apps", "list", "align", "kebab", "menudoc", "book", "booko",
+            "home", "homef", "user", "userf", "users", "mail", "mailf", "phone", "phonef", "search", "searchb",
+            "check", "close", "pin", "pinf", "gear", "globe", "cart", "barsm", "edit", "heart"));
+    public static final String IMAGE_PREFIX = "i:";
+
+    /** 이미지 양식 아이콘이면 symbol id, 아니면 null */
+    public static String imageId(String icon) {
+        if (icon == null || !icon.startsWith(IMAGE_PREFIX)) return null;
+        String id = icon.substring(IMAGE_PREFIX.length());
+        return IMAGE_ICONS.contains(id) ? id : null;
+    }
+
     public static String defaultIcon(String menuType) {
         if (GROUP.equals(menuType)) return "📁";
         if (LINK.equals(menuType)) return "🔗";

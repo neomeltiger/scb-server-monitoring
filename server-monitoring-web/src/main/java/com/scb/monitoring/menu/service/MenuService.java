@@ -283,9 +283,32 @@ public class MenuService {
         public String parentId;
         public int sortOrd;
         public String name;
+        /** 메뉴 앞 아이콘 : null = 그대로, "" = 기본 아이콘 (맨 위 단계 📄 / 🔗 / 📁, 하위 ▪) */
+        public String icon;
     }
 
-    /** 메뉴 이름·순서·그룹 저장 (끌어서 놓기 결과) */
+    /** 아이콘 : 이미지 양식 "i:<id>" (Menu.IMAGE_ICONS) 또는 이모지·기호 1~4 글자 (화면을 깨는 문자 제외). 비우면 null (기본 아이콘) */
+    static String cleanIcon(String icon, String menuNm) {
+        String s = icon == null ? "" : icon.trim();
+        if (s.isEmpty()) return null;
+        if (s.startsWith(Menu.IMAGE_PREFIX)) {                                   // 이미지 양식 (i:bars 등)
+            if (Menu.imageId(s) == null) throw TopologyException.badRequest("없는 이미지 아이콘입니다 : " + s + " (" + menuNm + ")");
+            return s;
+        }
+        int n = s.codePointCount(0, s.length());
+        if (n > 4 || s.chars().anyMatch(ch -> ch < 0x20 || "<>&\"'`\\".indexOf(ch) >= 0 || Character.isWhitespace(ch))) {
+            throw TopologyException.badRequest("아이콘은 이모지·기호 1~4 글자로 입력하세요 : " + menuNm);
+        }
+        return s;
+    }
+
+    /** 코드에 정한 처음 아이콘 (없으면 null) */
+    public static String defaultIconOf(String menuId) {
+        for (Menu d : DEFAULTS) if (d.getMenuId().equals(menuId)) return d.getIcon();
+        return null;
+    }
+
+    /** 메뉴 이름·순서·그룹·아이콘 저장 (끌어서 놓기 결과) */
     @Transactional
     public List<Menu> saveLayout(List<LayoutItem> items, String user) {
         if (items == null || items.isEmpty()) throw TopologyException.badRequest("저장할 메뉴가 없습니다.");
@@ -303,11 +326,12 @@ public class MenuService {
             }
             it.parentId = pid;
             it.name = nm;
+            it.icon = it.icon == null ? m.getIcon() : cleanIcon(it.icon, nm);
             byId.put(m.getMenuId(), it);
         }
         if (byId.size() != cache.size()) throw TopologyException.badRequest("모든 메뉴를 함께 저장해야 합니다 (" + byId.size() + " / " + cache.size() + ")");
         for (LayoutItem it : byId.values()) {
-            mapper.updateLayout(it.id, it.parentId, it.sortOrd, it.name, user);
+            mapper.updateLayout(it.id, it.parentId, it.sortOrd, it.name, it.icon, user);
         }
         reload();
         log.info("MENU 이름·순서 저장 by {}", user);
@@ -334,6 +358,8 @@ public class MenuService {
         public final String id;
         public final String name;
         public final String icon;
+        /** 이미지 양식 아이콘이면 menu-icons.svg 의 symbol id (아니면 null - icon 글자를 그대로 표시) */
+        public final String image;
         public final String url;
         public final boolean group;
         public final boolean newWindow;
@@ -343,6 +369,7 @@ public class MenuService {
             this.id = m.getMenuId();
             this.name = m.getMenuNm();
             this.icon = m.getParentId() == null ? m.getDisplayIcon() : m.getIcon();     // 맨 위 단계는 기본 아이콘이라도
+            this.image = Menu.imageId(this.icon);
             this.url = m.getUrl();
             this.group = m.isGroup();
             this.newWindow = m.isNewWindowLink();
@@ -351,6 +378,7 @@ public class MenuService {
         public String getId() { return id; }
         public String getName() { return name; }
         public String getIcon() { return icon; }
+        public String getImage() { return image; }
         public String getUrl() { return url; }
         public boolean isGroup() { return group; }
         public boolean isNewWindow() { return newWindow; }

@@ -118,6 +118,7 @@ public class MenuController {
             v.put("defaultName", m.getDefaultNm());
             v.put("url", m.getUrl());
             v.put("icon", m.getIcon());
+            v.put("defaultIcon", MenuService.defaultIconOf(m.getMenuId()));
             v.put("sortOrd", m.getSortOrd());
             v.put("userAllowed", m.isUserAllowed());
             v.put("adminOnly", m.isAdminOnlyMenu());

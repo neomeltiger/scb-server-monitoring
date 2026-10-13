@@ -124,6 +124,48 @@ class MenuServiceTest {
         assertEquals(null, res.children.stream().filter(n -> "logs".equals(n.id)).findFirst().get().icon, "그룹 안에서는 아이콘 없음");
     }
 
+    private List<MenuService.LayoutItem> layout(String id, String icon) {
+        List<MenuService.LayoutItem> items = new ArrayList<>();
+        for (Menu m : service.all()) {
+            MenuService.LayoutItem it = new MenuService.LayoutItem();
+            it.id = m.getMenuId();
+            it.parentId = m.getParentId();
+            it.sortOrd = m.getSortOrd();
+            it.name = m.getMenuNm();
+            if (id.equals(it.id)) it.icon = icon;                    // 나머지는 null = 그대로
+            items.add(it);
+        }
+        return items;
+    }
+
+    private String iconOf(String id) {
+        return service.all().stream().filter(m -> id.equals(m.getMenuId())).findFirst().get().getIcon();
+    }
+
+    /** 아이콘 선택 : 이모지 · 이미지 양식(i:id) · 기본(빈 값), 잘못된 값 거부, 보내지 않으면 그대로 */
+    @Test
+    void chooseIcon() {
+        service.saveLayout(layout("logs", "🔍"), "admin");
+        assertEquals("🔍", iconOf("logs"));
+        assertEquals("🏠", iconOf("main"), "보내지 않은 아이콘은 그대로");
+        MenuService.Node res = service.visibleTree(true).stream().filter(n -> "g_resource".equals(n.id)).findFirst().get();
+        assertEquals("🔍", res.children.stream().filter(n -> "logs".equals(n.id)).findFirst().get().icon, "하위 메뉴도 고른 아이콘");
+
+        service.saveLayout(layout("main", "i:homef"), "admin");
+        MenuService.Node main = service.visibleTree(true).stream().filter(n -> "main".equals(n.id)).findFirst().get();
+        assertEquals("homef", main.image, "이미지 양식");
+
+        assertThrows(TopologyException.class, () -> service.saveLayout(layout("main", "i:nope"), "admin"));
+        assertThrows(TopologyException.class, () -> service.saveLayout(layout("main", "<b>"), "admin"));
+        assertThrows(TopologyException.class, () -> service.saveLayout(layout("main", "ABCDE"), "admin"), "5글자");
+
+        service.saveLayout(layout("logs", ""), "admin");
+        assertEquals(null, iconOf("logs"), "기본 = 아이콘 없음");
+        assertEquals("🏠", MenuService.defaultIconOf("main"));
+        service.resetDefaults("admin");
+        assertEquals("🏠", iconOf("main"), "처음 상태로 되돌리면 처음 아이콘");
+    }
+
     @Autowired javax.sql.DataSource dataSource;
 
     /** 사용자별 메뉴 권한 : 지정하면 그 메뉴만, 해제하면 기본 권한, 관리자 전용 메뉴는 줄 수 없음 */

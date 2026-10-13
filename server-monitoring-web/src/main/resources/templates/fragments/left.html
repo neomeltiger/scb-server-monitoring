@@ -27,7 +27,7 @@
                 th:with="hasActive=${#lists.contains(m.children.![id], menu)}"
                 th:classappend="${hasActive} ? 'has-active'" th:attr="data-menu-id=${m.id}">
                 <button type="button" class="tree-category snb-head" th:attr="aria-controls='snb-' + ${m.id},title=${m.name}" aria-expanded="true">
-                    <span class="icon" th:text="${m.icon}" aria-hidden="true"></span>
+                    <span class="icon" aria-hidden="true"><svg th:if="${m.image}" class="mi" focusable="false"><use th:attr="href=@{/images/menu-icons.svg} + '#' + ${m.image}"></use></svg><th:block th:unless="${m.image}" th:text="${m.icon}"></th:block></span>
                     <span class="snb-label" th:text="${m.name}">그룹</span>
                     <span class="snb-caret" aria-hidden="true">▾</span>
                 </button>
@@ -36,7 +36,7 @@
                     <li th:each="c : ${m.children}">
                         <a th:href="@{${c.url}}" class="tree-link" th:classappend="${menu == c.id} ? 'active'"
                            th:attr="data-menu-id=${c.id},target=${c.newWindow} ? '_blank' : null,rel=${c.newWindow} ? 'noopener' : null,aria-current=${menu == c.id} ? 'page' : null">
-                            <span class="bullet">▪</span> <span th:text="${c.name}">메뉴</span>
+                            <span class="bullet" aria-hidden="true"><svg th:if="${c.image}" class="mi" focusable="false"><use th:attr="href=@{/images/menu-icons.svg} + '#' + ${c.image}"></use></svg><th:block th:unless="${c.image}" th:text="${c.icon != null ? c.icon : '▪'}">▪</th:block></span> <span th:text="${c.name}">메뉴</span>
                             <span th:if="${c.id == 'users'}" class="nav-count" id="navPendingCount" th:text="${pendingUserCount}"
                                   th:hidden="${pendingUserCount == null or pendingUserCount == 0}">0</span>
                         </a>
@@ -46,7 +46,7 @@
             <li th:unless="${m.group}" class="tree-item">
                 <a th:href="@{${m.url}}" class="tree-link snb-top" th:classappend="${menu == m.id} ? 'active'"
                    th:attr="data-menu-id=${m.id},title=${m.name},target=${m.newWindow} ? '_blank' : null,rel=${m.newWindow} ? 'noopener' : null,aria-current=${menu == m.id} ? 'page' : null">
-                    <span class="icon" th:text="${m.icon}" aria-hidden="true"></span> <span class="snb-label" th:text="${m.name}">메뉴</span>
+                    <span class="icon" aria-hidden="true"><svg th:if="${m.image}" class="mi" focusable="false"><use th:attr="href=@{/images/menu-icons.svg} + '#' + ${m.image}"></use></svg><th:block th:unless="${m.image}" th:text="${m.icon}"></th:block></span> <span class="snb-label" th:text="${m.name}">메뉴</span>
                 </a>
             </li>
         </th:block>

@@ -19,9 +19,9 @@ public interface MenuMapper {
     /** 일반 사용자 접근 허용 여부 */
     int updateUserYn(@Param("menuId") String menuId, @Param("userYn") String userYn, @Param("updUser") String updUser);
 
-    /** 위치·순서·이름 */
+    /** 위치·순서·이름·아이콘 */
     int updateLayout(@Param("menuId") String menuId, @Param("parentId") String parentId, @Param("sortOrd") int sortOrd,
-                     @Param("menuNm") String menuNm, @Param("updUser") String updUser);
+                     @Param("menuNm") String menuNm, @Param("icon") String icon, @Param("updUser") String updUser);
 
     /** 처음 위치·순서·이름·권한으로 (코드의 기본값) */
     int resetMenu(Menu menu);

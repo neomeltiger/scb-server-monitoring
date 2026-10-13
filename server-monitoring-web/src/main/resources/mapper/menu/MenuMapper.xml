@@ -30,6 +30,7 @@
            SET parent_id = #{parentId},
                sort_ord  = #{sortOrd},
                menu_nm   = #{menuNm},
+               icon      = #{icon, jdbcType=VARCHAR},
                upd_user  = #{updUser},
                upd_dt    = CURRENT_TIMESTAMP
          WHERE menu_id = #{menuId}

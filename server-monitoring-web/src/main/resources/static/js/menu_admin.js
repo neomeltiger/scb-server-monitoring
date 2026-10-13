@@ -9,6 +9,22 @@
     const esc = v => escapeHtml(v == null ? '' : String(v));
     /** 맨 위 단계 메뉴 아이콘 : 지정 아이콘, 없으면 기본 (그룹 📁 / 화면 📄 / 새 창 링크 🔗) - 서버 Menu.getDisplayIcon 과 같음 */
     const iconOf = m => m.icon || (m.type === 'GROUP' ? '📁' : m.type === 'LINK' ? '🔗' : '📄');
+    /** 이미지 양식 아이콘 (images/menu-icons.svg, 값 i:<id>) - 서버 Menu.IMAGE_ICONS 와 같은 목록 */
+    const IMG_MENU = ['bars', 'barsb', 'barss', 'barsm', 'grid', 'gridf', 'apps', 'list', 'align', 'kebab', 'menudoc', 'book', 'booko'];
+    const IMG_UI = ['home', 'homef', 'user', 'userf', 'users', 'mail', 'mailf', 'phone', 'phonef', 'search', 'searchb',
+        'check', 'close', 'pin', 'pinf', 'gear', 'globe', 'cart', 'edit', 'heart'];
+    const EMOJI = ['🏠', '💻', '🖥️', '🗄️', '🌐', '📡', '🔌', '⚙️', '🛠️', '🔧', '🔐', '🔒', '🔑', '👤', '👥', '🛡️',
+        '📊', '📈', '📉', '📋', '📄', '📁', '📂', '🗂️', '📝', '📖', '📚', '🔗', '🔔', '🚨', '⚠️', '✅', '⏱️', '💾', '☁️', '🧩', '🔍', '📦', '⭐'];
+    const SPRITE = (function () {           // 웹 경로(컨텍스트) 기준 아이콘 파일
+        const css = document.querySelector('link[href*="css/style.css"]');
+        return css ? css.getAttribute('href').replace(/css\/style\.css.*$/, 'images/menu-icons.svg') : '/images/menu-icons.svg';
+    })();
+    /** 아이콘 값 → HTML (이미지 양식이면 SVG, 아니면 글자) */
+    function iconHtml(v) {
+        const s = v == null ? '' : String(v);
+        if (s.indexOf('i:') === 0) return '<svg class="mi" aria-hidden="true" focusable="false"><use href="' + SPRITE + '#' + esc(s.substring(2)) + '"></use></svg>';
+        return esc(s);
+    }
 
     function status(id, msg, bad) {
         const el = $(id);
@@ -88,7 +104,7 @@
                 : '<label class="mn-check"><input type="checkbox" data-id="' + esc(m.id) + '"' + (userAllowed(m) ? ' checked' : '') + (editable() ? '' : ' disabled') +
                   ' aria-label="' + esc(m.name) + ' 일반 사용자 허용"> 허용</label>';
             return '<tr class="' + (child ? 'mn-child' : 'mn-top') + (locked ? ' mn-locked' : '') + '">' +
-                '<td class="ua-left">' + (child ? '<span class="mn-indent">└</span> ' : esc(iconOf(m)) + ' ') + '<b>' + esc(m.name) + '</b>' +
+                '<td class="ua-left">' + (child ? '<span class="mn-indent">└</span> ' + (m.icon ? iconHtml(m.icon) + ' ' : '') : iconHtml(iconOf(m)) + ' ') + '<b>' + esc(m.name) + '</b>' +
                 (m.type === 'LINK' ? ' <span class="am-chip gray">새 창</span>' : '') + '</td>' +
                 '<td class="svc-time"><code>' + esc(m.url || '') + '</code></td>' +
                 '<td><span class="mn-ok">✔ 접근</span></td>' +
@@ -100,7 +116,7 @@
             let html = '';
             toTree(list).forEach(m => {
                 if (m.type === 'GROUP') {
-                    html += '<tr class="mn-group-row"><td colspan="5">' + esc(iconOf(m)) + ' <b>' + esc(m.name) + '</b>' +
+                    html += '<tr class="mn-group-row"><td colspan="5">' + iconHtml(iconOf(m)) + ' <b>' + esc(m.name) + '</b>' +
                         (m.adminOnly ? ' <span class="mn-lock">🔒 관리자 전용 그룹</span>' : '') + '</td></tr>';
                     (m.children || []).forEach(c => { html += row(c, true); });
                 } else {
@@ -213,7 +229,9 @@
             let html = '<li class="mn-item' + (isGroup ? ' group' : '') + '" draggable="true" data-id="' + esc(m.id) + '">' +
                 '<div class="mn-row">' +
                 '<span class="mn-handle" title="끌어서 이동" aria-hidden="true">⠿</span>' +
-                '<span class="mn-icon" aria-hidden="true">' + esc(isGroup || !parentId ? iconOf(m) : '▪') + '</span>' +
+                '<button type="button" class="mn-icon-btn" data-act="icon" data-id="' + esc(m.id) + '" aria-haspopup="dialog" ' +
+                'title="아이콘 선택" aria-label="' + esc(m.name) + ' 아이콘 선택 (지금 : ' + esc(m.icon ? m.icon : '기본') + ')">' +
+                iconHtml(isGroup || !parentId ? iconOf(m) : (m.icon || '▪')) + '</button>' +
                 '<input type="text" class="mn-name' + (renamed ? ' renamed' : '') + '" maxlength="50" value="' + esc(m.name) + '" data-id="' + esc(m.id) + '" aria-label="' + esc(m.defaultName) + ' 메뉴 이름">' +
                 '<button type="button" class="mn-btn" data-act="default" data-id="' + esc(m.id) + '" title="처음 이름 : ' + esc(m.defaultName) + '"' + (renamed ? '' : ' disabled') + '>↺</button>' +
                 '<span class="mn-meta">' + (isGroup ? '그룹' : esc(m.url || '')) + (m.adminOnly ? ' · 🔒 관리자 전용' : '') + (renamed ? ' · 처음 : ' + esc(m.defaultName) : '') + '</span>' +
@@ -230,6 +248,101 @@
             return html + '</li>';
         }
 
+        // ---- 아이콘 선택 (이미지 양식 · 이모지 · 직접 입력 · 기본)
+        let pickFor = null;
+        const picker = document.createElement('div');
+        picker.className = 'mn-picker';
+        picker.id = 'meIconPicker';
+        picker.setAttribute('role', 'dialog');
+        picker.setAttribute('aria-label', '메뉴 아이콘 선택');
+        picker.hidden = true;
+        const cell = (v, label) => '<button type="button" class="mn-pick" data-icon="' + esc(v) + '" title="' + esc(label || v) + '" aria-label="' + esc(label || v) + '">' + iconHtml(v) + '</button>';
+        picker.innerHTML =
+            '<div class="mn-picker-head"><b id="mePickTitle">아이콘 선택</b><button type="button" class="mn-btn" data-pick="close" aria-label="닫기">✕</button></div>' +
+            '<div class="mn-picker-body">' +
+            '<div class="mn-picker-sec">메뉴 모양</div><div class="mn-picker-grid">' + IMG_MENU.map(id => cell('i:' + id, '이미지 ' + id)).join('') + '</div>' +
+            '<div class="mn-picker-sec">기본 UI</div><div class="mn-picker-grid">' + IMG_UI.map(id => cell('i:' + id, '이미지 ' + id)).join('') + '</div>' +
+            '<div class="mn-picker-sec">이모지</div><div class="mn-picker-grid">' + EMOJI.map(v => cell(v)).join('') + '</div></div>' +
+            '<div class="mn-picker-foot">' +
+            '<input type="text" class="ua-input mn-pick-input" id="mePickInput" maxlength="8" placeholder="직접 입력 (이모지·기호 1~4자)" aria-label="아이콘 직접 입력">' +
+            '<button type="button" class="btn svc-btn-light" data-pick="input">적용</button>' +
+            '<button type="button" class="btn svc-btn-light" data-pick="default" title="처음 아이콘으로">처음 아이콘</button>' +
+            '<button type="button" class="btn svc-btn-light" data-pick="none" title="아이콘을 지우면 맨 위 단계는 📄 / 🔗 / 📁, 그룹 안은 ▪">기본</button></div>';
+        document.body.appendChild(picker);
+
+        function openPicker(btn) {
+            const l = locate(btn.getAttribute('data-id'));
+            if (!l) return;
+            pickFor = { id: btn.getAttribute('data-id') };
+            const m = l.arr[l.idx];
+            $('mePickTitle').textContent = '\'' + m.name + '\' 아이콘';
+            $('mePickInput').value = m.icon && m.icon.indexOf('i:') !== 0 ? m.icon : '';
+            picker.querySelectorAll('.mn-pick').forEach(b => b.classList.toggle('on', b.getAttribute('data-icon') === (m.icon || '')));
+            picker.hidden = false;
+            if (window.matchMedia('(max-width: 600px)').matches) {
+                picker.style.left = picker.style.top = '';
+            } else {
+                const r = btn.getBoundingClientRect();
+                const w = picker.offsetWidth, h = picker.offsetHeight;
+                picker.style.left = Math.max(8, Math.min(r.left, document.documentElement.clientWidth - w - 8)) + window.scrollX + 'px';
+                const below = r.bottom + 6 + h < window.innerHeight;
+                picker.style.top = (below ? r.bottom + 6 : Math.max(8, r.top - h - 6)) + window.scrollY + 'px';
+            }
+            (picker.querySelector('.mn-pick.on') || picker.querySelector('.mn-pick')).focus();
+        }
+
+        function closePicker(back) {
+            if (picker.hidden) return;
+            picker.hidden = true;
+            const id = pickFor && pickFor.id;
+            pickFor = null;
+            if (back && id) focusItem(id, '.mn-icon-btn');
+        }
+
+        function setIcon(v) {
+            const l = pickFor && locate(pickFor.id);
+            if (!l) return;
+            const m = l.arr[l.idx];
+            m.icon = v || null;
+            const id = pickFor.id;
+            closePicker(false);
+            changed('\'' + m.name + '\' 아이콘 ' + (v ? '변경' : '기본'));
+            focusItem(id, '.mn-icon-btn');
+        }
+
+        picker.addEventListener('click', e => {
+            const p = e.target.closest('.mn-pick');
+            if (p) { setIcon(p.getAttribute('data-icon')); return; }
+            const a = e.target.closest('[data-pick]');
+            if (!a) return;
+            const act = a.getAttribute('data-pick');
+            if (act === 'close') closePicker(true);
+            else if (act === 'none') setIcon('');
+            else if (act === 'default') {
+                const l = locate(pickFor.id);
+                setIcon(l ? l.arr[l.idx].defaultIcon || '' : '');
+            } else if (act === 'input') {
+                const v = $('mePickInput').value.trim();
+                if (!v) { $('mePickInput').focus(); return; }
+                if (/[<>&"'`\\\s]/.test(v) || Array.from(v).length > 4) { status('meStatus', '아이콘은 이모지·기호 1~4 글자로 입력하세요', true); return; }
+                setIcon(v);
+            }
+        });
+        $('mePickInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); picker.querySelector('[data-pick="input"]').click(); } });
+        document.addEventListener('keydown', e => { if (e.key === 'Escape' && !picker.hidden) { e.preventDefault(); closePicker(true); } });
+        document.addEventListener('mousedown', e => { if (!picker.hidden && !picker.contains(e.target) && !e.target.closest('.mn-icon-btn')) closePicker(false); });
+        // 화살표로 칸 이동
+        picker.addEventListener('keydown', e => {
+            if (!e.target.matches('.mn-pick') || !/^Arrow/.test(e.key)) return;
+            const grid = e.target.parentElement;
+            const all = Array.from(grid.querySelectorAll('.mn-pick'));
+            const i = all.indexOf(e.target);
+            const cols = Math.max(1, Math.floor(grid.clientWidth / e.target.offsetWidth));
+            const d = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -cols, ArrowDown: cols }[e.key];
+            const n = all[i + d];
+            if (n) { e.preventDefault(); n.focus(); }
+        });
+
         function render() {
             $('meTree').innerHTML = tree.map((m, i) => itemHtml(m, null, i, tree.length)).join('');
             renderPreview();
@@ -237,8 +350,8 @@
 
         function renderPreview() {
             $('mePreview').innerHTML = tree.map(m => m.type === 'GROUP'
-                ? '<li class="pv-group">' + esc(iconOf(m)) + ' ' + esc(m.name) + '<ul>' + (m.children || []).map(c => '<li>▪ ' + esc(c.name) + '</li>').join('') + '</ul></li>'
-                : '<li class="pv-top">' + esc(iconOf(m)) + ' ' + esc(m.name) + '</li>').join('');
+                ? '<li class="pv-group">' + iconHtml(iconOf(m)) + ' ' + esc(m.name) + '<ul>' + (m.children || []).map(c => '<li>' + iconHtml(c.icon || '▪') + ' ' + esc(c.name) + '</li>').join('') + '</ul></li>'
+                : '<li class="pv-top">' + iconHtml(iconOf(m)) + ' ' + esc(m.name) + '</li>').join('');
         }
 
         // ---- 이름
@@ -263,6 +376,8 @@
 
         // ---- 버튼 (▲ ▼ ↺)
         $('meTree').addEventListener('click', e => {
+            const ib = e.target.closest('.mn-icon-btn');
+            if (ib) { openPicker(ib); return; }
             const b = e.target.closest('.mn-btn');
             if (!b || b.disabled) return;
             const id = b.getAttribute('data-id');
@@ -367,10 +482,10 @@
             const items = [];
             let blank = null;
             tree.forEach((m, i) => {
-                items.push({ id: m.id, parentId: null, sortOrd: (i + 1) * 10, name: (m.name || '').trim() });
+                items.push({ id: m.id, parentId: null, sortOrd: (i + 1) * 10, name: (m.name || '').trim(), icon: m.icon || '' });
                 if (!(m.name || '').trim()) blank = blank || m;
                 (m.children || []).forEach((c, j) => {
-                    items.push({ id: c.id, parentId: m.id, sortOrd: (j + 1) * 10, name: (c.name || '').trim() });
+                    items.push({ id: c.id, parentId: m.id, sortOrd: (j + 1) * 10, name: (c.name || '').trim(), icon: c.icon || '' });
                     if (!(c.name || '').trim()) blank = blank || c;
                 });
             });
