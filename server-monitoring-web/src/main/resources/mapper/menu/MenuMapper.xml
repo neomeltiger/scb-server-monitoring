@@ -51,4 +51,27 @@
                upd_dt     = CURRENT_TIMESTAMP
          WHERE menu_id = #{menuId}
     </update>
+
+    <!-- =========================== 사용자별 메뉴 권한 (v11) =========================== -->
+
+    <!-- 사용자별 메뉴 권한 사용 여부 (Y/N), 사용자가 없으면 NULL -->
+    <select id="selectUserMenuCustom" resultType="string">
+        SELECT menu_custom_yn FROM tb_user WHERE user_id = #{userId}
+    </select>
+
+    <select id="selectUserMenuIds" resultType="string">
+        SELECT menu_id FROM tb_user_menu WHERE user_id = #{userId} ORDER BY menu_id
+    </select>
+
+    <update id="updateUserMenuCustom">
+        UPDATE tb_user SET menu_custom_yn = #{yn}, upd_dt = CURRENT_TIMESTAMP WHERE user_id = #{userId}
+    </update>
+
+    <delete id="deleteUserMenus">
+        DELETE FROM tb_user_menu WHERE user_id = #{userId}
+    </delete>
+
+    <insert id="insertUserMenu">
+        INSERT INTO tb_user_menu (user_id, menu_id, reg_user, reg_dt) VALUES (#{userId}, #{menuId}, #{regUser}, CURRENT_TIMESTAMP)
+    </insert>
 </mapper>

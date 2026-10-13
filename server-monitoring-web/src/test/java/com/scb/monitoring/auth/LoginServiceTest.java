@@ -163,4 +163,32 @@ class LoginServiceTest {
         assertEquals(Integer.valueOf(1), jdbc.queryForObject("SELECT COUNT(*) FROM tb_login_hist WHERE user_id = 'ghost'", Integer.class));
         assertNull(jdbc.queryForObject("SELECT MAX(user_id) FROM tb_user WHERE user_id = 'ghost'", String.class));
     }
+
+    @Autowired PasswordEncoder passwordEncoder;
+
+    /** 관리자 계정 생성 : 바로 승인, 임시 비밀번호(규칙 충족) → 첫 로그인 변경 필요 → 바꾸면 해제, 다시 발급하면 또 필요 */
+    @Test
+    void adminCreatesAccountWithTempPassword() {
+        com.scb.monitoring.auth.dto.UserCreateForm f = new com.scb.monitoring.auth.dto.UserCreateForm();
+        f.setUserId("kim01");
+        f.setUserNm("김운영");
+        f.setRoleCd("USER");
+        String temp = admin.createByAdmin(f, "admin");
+        assertTrue(temp.length() == 12 && temp.matches(".*[A-Z].*") && temp.matches(".*[a-z].*") && temp.matches(".*[0-9].*")
+                && temp.matches(".*[^A-Za-z0-9].*"), temp);
+        AppUser u = service.loadUserByUsername("kim01");
+        assertTrue(u.isEnabled(), "관리자가 만들면 바로 승인");
+        assertTrue(u.isPwChangeRequired(), "첫 로그인 때 변경 필요");
+        assertTrue(passwordEncoder.matches(temp, u.getPassword()));
+        org.junit.jupiter.api.Assertions.assertThrows(com.scb.monitoring.topology.service.TopologyException.class,
+                () -> admin.createByAdmin(f, "admin"), "같은 아이디는 거부");
+
+        assertEquals(null, service.changePassword("kim01", temp, "New#Pass2026", "127.0.0.1"));
+        assertFalse(service.loadUserByUsername("kim01").isPwChangeRequired(), "바꾸면 해제");
+
+        String temp2 = admin.resetTempPassword("kim01", "admin");
+        AppUser u2 = service.loadUserByUsername("kim01");
+        assertTrue(u2.isPwChangeRequired());
+        assertTrue(passwordEncoder.matches(temp2, u2.getPassword()));
+    }
 }

@@ -95,4 +95,26 @@ class MenuServiceTest {
         service.resetDefaults("admin");
         assertEquals("서버 로그", service.all().stream().filter(m -> "logs".equals(m.getMenuId())).findFirst().get().getMenuNm());
     }
+
+    @Autowired javax.sql.DataSource dataSource;
+
+    /** 사용자별 메뉴 권한 : 지정하면 그 메뉴만, 해제하면 기본 권한, 관리자 전용 메뉴는 줄 수 없음 */
+    @Test
+    void perUserMenus() {
+        org.springframework.jdbc.core.JdbcTemplate j = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+        j.update("INSERT INTO tb_user (user_id, user_nm, password_hash, role_cd) VALUES ('lee01', '이', 'x', 'USER')");
+        assertTrue(service.isAllowedFor("lee01", false, "servers"), "지정 전 = 기본 권한");
+
+        service.saveUserMenus("lee01", true, Arrays.asList("logs", "users"), "admin");
+        assertTrue(service.isAllowedFor("lee01", false, "logs"));
+        assertFalse(service.isAllowedFor("lee01", false, "servers"));
+        assertFalse(service.isAllowedFor("lee01", false, "users"), "관리자 전용은 줄 수 없음");
+        assertTrue(service.isAllowedFor("lee01", false, "main"));
+        assertEquals(Arrays.asList("main", "g_resource", "logs"), ids(service.visibleTreeFor("lee01", false)));
+        assertTrue(service.isAllowedFor("other", false, "servers"), "다른 사용자는 기본 권한");
+
+        service.saveUserMenus("lee01", false, null, "admin");
+        assertTrue(service.isAllowedFor("lee01", false, "servers"), "해제하면 기본 권한");
+        assertThrows(TopologyException.class, () -> service.saveUserMenus("nobody", true, Arrays.asList("logs"), "admin"));
+    }
 }

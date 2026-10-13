@@ -1,21 +1,38 @@
 <!DOCTYPE html>
 <html lang="ko" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <body>
-<!-- ===== LEFT : 좌측 트리 메뉴 ===== -->
+<!-- ===== LEFT : 좌측 메뉴 - 접이식 SNB (Collapsible Side Navigation Bar) ===== -->
 <!-- 사용: <div th:replace="fragments/left :: left(${menu})"></div>  (menu = tb_menu 의 메뉴 ID : main | network | servers | ... | users | menuauth | menuedit)
-     메뉴 이름·순서·그룹·일반 사용자 권한은 DB(tb_menu) - 권한관리 > [메뉴 권한] / [메뉴 이름·순서] (menu.service.MenuService)
-     관리자는 전체, 일반 사용자는 허용된 메뉴만 보임. 승인 대기 건수 : pendingUserCount (web.LayoutModelAdvice) -->
+     메뉴 이름·순서·그룹·권한은 DB(tb_menu, tb_user_menu) - 권한관리 > [메뉴 권한] / [메뉴 이름·순서] (menu.service.MenuService)
+     관리자는 전체, 일반 사용자는 허용된 메뉴만. 승인 대기 건수 : pendingUserCount (web.LayoutModelAdvice)
+     접이식 :
+       - 그룹 머리글을 누르면 하위 메뉴 펼치기 / 접기 (지금 화면이 있는 그룹은 항상 펼침), 접은 그룹은 브라우저에 기억
+       - PC(1025px 이상) : 위쪽 « 버튼으로 메뉴 전체를 아이콘만 보이게 접기 (») - 접힌 상태에서 아이콘에 마우스·키보드 초점을 두면 하위 메뉴가 옆에 뜸
+       - 태블릿·휴대폰 : 기존처럼 위쪽 ☰ 버튼으로 여닫는 메뉴 (fragments/top.html) -->
 <div class="sidebar-menu" id="sidebarMenu" th:fragment="left(menu)"
      th:with="isAdmin=${#authorization.expression('hasRole(''ADMIN'')')}">
+    <script>try { if (localStorage.getItem('snbCollapsed') === 'Y') document.documentElement.classList.add('snb-collapsed'); } catch (e) { }</script>
     <div class="sidebar-header">
-        <h3>통합 서버 모니터링</h3>
-        <p>Murex Group System</p>
+        <div class="snb-title">
+            <h3>통합 서버 모니터링</h3>
+            <p>Murex Group System</p>
+        </div>
+        <button type="button" class="snb-collapse" id="snbCollapse" aria-controls="sidebarMenu" aria-expanded="true"
+                aria-label="왼쪽 메뉴 접기" title="왼쪽 메뉴 접기">«</button>
     </div>
+    <nav aria-label="주 메뉴">
     <ul class="tree-menu">
-        <th:block th:each="m : ${@menuService.visibleTree(isAdmin)}">
-            <li th:if="${m.group}" class="tree-item has-submenu" th:attr="data-menu-id=${m.id}">
-                <div class="tree-category"><span class="icon" th:text="${m.icon}"></span> <span th:text="${m.name}">그룹</span></div>
-                <ul class="submenu">
+        <th:block th:each="m : ${@menuService.visibleTreeFor(#authentication == null ? null : #authentication.name, isAdmin)}">
+            <li th:if="${m.group}" class="tree-item has-submenu snb-group"
+                th:with="hasActive=${#lists.contains(m.children.![id], menu)}"
+                th:classappend="${hasActive} ? 'has-active'" th:attr="data-menu-id=${m.id}">
+                <button type="button" class="tree-category snb-head" th:attr="aria-controls='snb-' + ${m.id},title=${m.name}" aria-expanded="true">
+                    <span class="icon" th:text="${m.icon}" aria-hidden="true"></span>
+                    <span class="snb-label" th:text="${m.name}">그룹</span>
+                    <span class="snb-caret" aria-hidden="true">▾</span>
+                </button>
+                <ul class="submenu" th:id="'snb-' + ${m.id}">
+                    <li class="snb-flyout-title" aria-hidden="true" th:text="${m.name}">그룹</li>
                     <li th:each="c : ${m.children}">
                         <a th:href="@{${c.url}}" class="tree-link" th:classappend="${menu == c.id} ? 'active'"
                            th:attr="data-menu-id=${c.id},target=${c.newWindow} ? '_blank' : null,rel=${c.newWindow} ? 'noopener' : null,aria-current=${menu == c.id} ? 'page' : null">
@@ -27,13 +44,62 @@
                 </ul>
             </li>
             <li th:unless="${m.group}" class="tree-item">
-                <a th:href="@{${m.url}}" class="tree-link" th:classappend="${menu == m.id} ? 'active'"
-                   th:attr="data-menu-id=${m.id},target=${m.newWindow} ? '_blank' : null,rel=${m.newWindow} ? 'noopener' : null,aria-current=${menu == m.id} ? 'page' : null">
-                    <span class="icon" th:text="${m.icon}"></span> <span th:text="${m.name}">메뉴</span>
+                <a th:href="@{${m.url}}" class="tree-link snb-top" th:classappend="${menu == m.id} ? 'active'"
+                   th:attr="data-menu-id=${m.id},title=${m.name},target=${m.newWindow} ? '_blank' : null,rel=${m.newWindow} ? 'noopener' : null,aria-current=${menu == m.id} ? 'page' : null">
+                    <span class="icon" th:text="${m.icon}" aria-hidden="true"></span> <span class="snb-label" th:text="${m.name}">메뉴</span>
                 </a>
             </li>
         </th:block>
     </ul>
+    </nav>
+    <script>
+    (function () {
+        var KEY_CLOSED = 'snbClosed', KEY_RAIL = 'snbCollapsed';
+        var root = document.documentElement;
+        var side = document.getElementById('sidebarMenu');
+        function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+        function save(k, v) { try { localStorage.setItem(k, v); } catch (e) { } }
+        var closed = [];
+        try { closed = JSON.parse(load(KEY_CLOSED) || '[]'); } catch (e) { closed = []; }
+
+        // 그룹 펼치기 / 접기
+        function setOpen(li, open) {
+            li.classList.toggle('snb-closed', !open);
+            li.querySelector('.snb-head').setAttribute('aria-expanded', String(open));
+        }
+        side.querySelectorAll('.snb-group').forEach(function (li) {
+            var id = li.getAttribute('data-menu-id');
+            setOpen(li, li.classList.contains('has-active') || closed.indexOf(id) === -1);
+            li.querySelector('.snb-head').addEventListener('click', function () {
+                if (root.classList.contains('snb-collapsed') && window.matchMedia('(min-width: 1025px)').matches) {
+                    // 아이콘 모드 : 누르면 메뉴를 다시 펼치고 그 그룹을 엶
+                    rail(false);
+                    setOpen(li, true);
+                    return;
+                }
+                var open = li.classList.contains('snb-closed');
+                setOpen(li, open);
+                closed = closed.filter(function (x) { return x !== id; });
+                if (!open) closed.push(id);
+                save(KEY_CLOSED, JSON.stringify(closed));
+            });
+        });
+
+        // 메뉴 전체 접기 (PC 아이콘 모드)
+        var btn = document.getElementById('snbCollapse');
+        function rail(on) {
+            root.classList.toggle('snb-collapsed', on);
+            btn.setAttribute('aria-expanded', String(!on));
+            btn.setAttribute('aria-label', on ? '왼쪽 메뉴 펼치기' : '왼쪽 메뉴 접기');
+            btn.title = on ? '왼쪽 메뉴 펼치기' : '왼쪽 메뉴 접기';
+            btn.textContent = on ? '»' : '«';
+            save(KEY_RAIL, on ? 'Y' : 'N');
+            window.dispatchEvent(new Event('resize'));      // 구성도·그래프가 넓어진 폭에 맞게 다시 그리도록
+        }
+        rail(root.classList.contains('snb-collapsed'));
+        btn.addEventListener('click', function () { rail(!root.classList.contains('snb-collapsed')); });
+    })();
+    </script>
 </div>
 
 <!-- 화면 위 경로 (메뉴 이름을 바꾸면 함께 바뀜) : <p th:replace="fragments/left :: crumb(${menu})"></p> -->

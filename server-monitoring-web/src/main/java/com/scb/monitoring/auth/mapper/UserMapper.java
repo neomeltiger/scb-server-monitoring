@@ -51,4 +51,10 @@ public interface UserMapper {
     int updateRole(@Param("userId") String userId, @Param("roleCd") String roleCd);
 
     int deleteUser(@Param("userId") String userId);
+
+    /** 관리자 계정 생성 (승인됨, 임시 비밀번호) */
+    int insertByAdmin(AppUser user);
+
+    /** 임시 비밀번호 다시 발급 (첫 로그인 변경 필요, 잠금 해제) */
+    int updateTempPassword(@Param("userId") String userId, @Param("passwordHash") String passwordHash);
 }

@@ -31,7 +31,14 @@ public class UserAdminService {
     private final UserMapper mapper;
     private final PasswordEncoder passwordEncoder;
 
-    public UserAdminService(UserMapper mapper, PasswordEncoder passwordEncoder) {
+    private final com.scb.monitoring.menu.mapper.MenuMapper menuMapper;
+    private final org.springframework.beans.factory.ObjectProvider<com.scb.monitoring.menu.service.MenuService> menuService;
+
+    public UserAdminService(UserMapper mapper, PasswordEncoder passwordEncoder,
+                            com.scb.monitoring.menu.mapper.MenuMapper menuMapper,
+                            org.springframework.beans.factory.ObjectProvider<com.scb.monitoring.menu.service.MenuService> menuService) {
+        this.menuMapper = menuMapper;
+        this.menuService = menuService;
         this.mapper = mapper;
         this.passwordEncoder = passwordEncoder;
     }
@@ -125,6 +132,7 @@ public class UserAdminService {
             guardLastAdmin(u, "권한 변경");
         }
         mapper.updateRole(userId, roleCd);
+        forgetMenus(userId);
         log.info("USER ROLE {} -> {} by {}", userId, roleCd, adminId);
     }
 
@@ -133,8 +141,72 @@ public class UserAdminService {
         AppUser u = require(userId);
         if (userId.equals(adminId)) throw TopologyException.badRequest("자기 자신은 삭제할 수 없습니다.");
         guardLastAdmin(u, "삭제");
+        menuMapper.deleteUserMenus(userId);
         mapper.deleteUser(userId);
+        forgetMenus(userId);
         log.info("USER DELETED {} by {}", userId, adminId);
+    }
+
+    /**
+     * 관리자 계정 생성 : 바로 승인, 웹이 만든 임시 비밀번호 (화면에 한 번만 보여 줌) - 그 사용자는 첫 로그인 때 바꿔야 함.
+     * @return 임시 비밀번호
+     */
+    @Transactional
+    public String createByAdmin(com.scb.monitoring.auth.dto.UserCreateForm form, String adminId) {
+        String role = AppUser.ROLE_ADMIN.equals(form.getRoleCd()) ? AppUser.ROLE_ADMIN : AppUser.ROLE_USER;
+        if (exists(form.getUserId())) throw TopologyException.badRequest("이미 사용 중인 아이디입니다 : " + form.getUserId());
+        String temp = tempPassword(form.getUserId());
+        AppUser u = new AppUser();
+        u.setUserId(form.getUserId());
+        u.setUserNm(form.getUserNm());
+        u.setPasswordHash(passwordEncoder.encode(temp));
+        u.setRoleCd(role);
+        u.setEmail(form.getEmail());
+        u.setDeptNm(form.getDeptNm());
+        u.setReqReason("관리자 생성 (" + adminId + ")");
+        u.setApprUser(adminId);
+        mapper.insertByAdmin(u);
+        log.info("USER CREATED {} role={} by {} (임시 비밀번호, 첫 로그인 변경)", u.getUserId(), role, adminId);
+        return temp;
+    }
+
+    /** 임시 비밀번호 다시 발급 (잊었을 때) - 잠금도 풀고 첫 로그인 변경 필요로 */
+    @Transactional
+    public String resetTempPassword(String userId, String adminId) {
+        AppUser u = require(userId);
+        if (!AppUser.APPR_APPROVED.equals(u.getApprStatus())) throw TopologyException.badRequest("승인된 계정만 임시 비밀번호를 발급할 수 있습니다.");
+        String temp = tempPassword(userId);
+        mapper.updateTempPassword(userId, passwordEncoder.encode(temp));
+        log.info("USER TEMP PASSWORD {} by {}", userId, adminId);
+        return temp;
+    }
+
+    /** 임시 비밀번호 : 12자 - 대·소문자·숫자·특수문자 각 1자 이상, 헷갈리는 글자(0 O 1 l I) 제외, 아이디 포함 안 함 */
+    static String tempPassword(String userId) {
+        java.security.SecureRandom r = new java.security.SecureRandom();
+        String up = "ABCDEFGHJKLMNPQRSTUVWXYZ", lo = "abcdefghijkmnpqrstuvwxyz", dg = "23456789", sp = "!@#$%^*-_+";
+        String all = up + lo + dg + sp;
+        while (true) {
+            char[] c = new char[12];
+            c[0] = up.charAt(r.nextInt(up.length()));
+            c[1] = lo.charAt(r.nextInt(lo.length()));
+            c[2] = dg.charAt(r.nextInt(dg.length()));
+            c[3] = sp.charAt(r.nextInt(sp.length()));
+            for (int i = 4; i < c.length; i++) c[i] = all.charAt(r.nextInt(all.length()));
+            for (int i = c.length - 1; i > 0; i--) {
+                int j = r.nextInt(i + 1);
+                char t = c[i];
+                c[i] = c[j];
+                c[j] = t;
+            }
+            String p = new String(c);
+            if (userId == null || !p.toLowerCase().contains(userId.toLowerCase())) return p;
+        }
+    }
+
+    private void forgetMenus(String userId) {
+        com.scb.monitoring.menu.service.MenuService m = menuService.getIfAvailable();
+        if (m != null) m.forgetUser(userId);
     }
 
     private AppUser require(String userId) {

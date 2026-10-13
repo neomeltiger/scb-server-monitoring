@@ -40,6 +40,7 @@ public class DbConfig {
     @Bean
     @Primary
     public DataSource dataSource(DbSelection selection) {
+        SchemaUpgrade.apply(selection.getDataSource());     // v11 등 빠진 컬럼·테이블 보완 (있으면 그대로)
         return selection.getDataSource();
     }
 

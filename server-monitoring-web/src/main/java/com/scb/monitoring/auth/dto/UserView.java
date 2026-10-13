@@ -27,6 +27,8 @@ public class UserView {
     private String lastLoginDt;
     private String lastLoginIp;
     private boolean me;
+    private boolean pwChangeRequired;
+    private boolean menuCustom;
 
     public static UserView of(AppUser u, String currentUserId) {
         UserView v = new UserView();
@@ -50,6 +52,8 @@ public class UserView {
         v.lastLoginDt = dateTime(u.getLastLoginDt());
         v.lastLoginIp = u.getLastLoginIp();
         v.me = u.getUserId().equals(currentUserId);
+        v.pwChangeRequired = u.isPwChangeRequired();
+        v.menuCustom = "Y".equals(u.getMenuCustomYn());
         return v;
     }
 
@@ -76,4 +80,6 @@ public class UserView {
     public String getLastLoginDt() { return lastLoginDt; }
     public String getLastLoginIp() { return lastLoginIp; }
     public boolean isMe() { return me; }
+    public boolean isPwChangeRequired() { return pwChangeRequired; }
+    public boolean isMenuCustom() { return menuCustom; }
 }

@@ -37,6 +37,17 @@
                         <div class="mn-role user"><b>일반 사용자 (USER)</b><span>아래에서 체크한 메뉴만 좌측 메뉴에 보이고 열 수 있음 · 사용자별 권한은
                             <a th:href="@{/admin/users}">사용자 관리</a>에서 관리자 / 일반으로 지정</span></div>
                     </div>
+                    <div class="mn-target">
+                        <label class="ua-label" for="maTarget">권한을 정할 대상</label>
+                        <select id="maTarget" class="ua-select">
+                            <option value="">일반 사용자 기본 권한 (개별 지정이 없는 모든 일반 사용자)</option>
+                        </select>
+                        <div class="mn-mode" id="maMode" hidden role="radiogroup" aria-label="이 사용자의 메뉴 권한 방식">
+                            <label><input type="radio" name="maMode" value="default"> 기본 권한 따름</label>
+                            <label><input type="radio" name="maMode" value="custom"> 이 사용자만 따로 지정</label>
+                        </div>
+                        <p class="ua-sub" id="maTargetNote"></p>
+                    </div>
                     <div class="data-error" id="maError" hidden></div>
                     <p class="mn-status" id="maStatus" role="status" aria-live="polite"></p>
                     <div class="svc-table-wrap">

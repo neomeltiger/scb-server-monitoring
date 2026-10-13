@@ -35,6 +35,7 @@
                             </div>
                             <input type="text" id="userSearch" class="search-box" placeholder="아이디, 이름, 부서 검색...">
                             <button type="button" class="btn svc-btn-light" id="reloadBtn">새로고침</button>
+                            <button type="button" class="btn btn-primary" id="createBtn">+ 계정 생성</button>
                         </div>
                     </div>
                     <div class="data-error" id="userError" hidden></div>
@@ -62,7 +63,9 @@
                     <p class="svc-hint">
                         · 가입 신청자는 <b>승인</b> 전에는 로그인할 수 없습니다. 승인 시 권한(일반 사용자 / 관리자)을 선택합니다.<br>
                         · 일반 사용자(USER)는 조회만 가능하며, 수정·삭제·제어·웹 콘솔·사용자 관리는 관리자(ADMIN)만 가능합니다.<br>
-                        · 자기 자신과 마지막 관리자는 사용 중지 / 권한 내림 / 삭제할 수 없습니다.
+                        · 자기 자신과 마지막 관리자는 사용 중지 / 권한 내림 / 삭제할 수 없습니다.<br>
+                        · <b>계정 생성</b> : 관리자가 바로 만든 계정은 임시 비밀번호가 한 번만 표시되고, 그 사용자는 첫 로그인 때 비밀번호를 바꿔야 합니다.
+                        만든 뒤 <b>[메뉴 권한 부여]</b> 로 그 사용자가 볼 메뉴를 정합니다 (지정하지 않으면 일반 사용자 기본 권한).
                     </p>
                 </div>
             </div>
@@ -89,6 +92,43 @@
             <div class="cc-btns">
                 <button type="button" class="btn svc-btn-light" id="decisionCancel">취소</button>
                 <button type="button" class="btn btn-primary" id="decisionOk">승인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 계정 생성 / 임시 비밀번호 결과 -->
+    <div class="modal-overlay" id="createModal">
+        <div class="modal-card ua-modal" role="dialog" aria-modal="true" aria-labelledby="createTitle">
+            <h3 id="createTitle">계정 생성</h3>
+            <div id="createForm">
+                <div class="uc-grid">
+                    <label class="ua-label" for="cUserId">아이디 <span class="ua-sub">영문으로 시작 4~30자</span></label>
+                    <input type="text" id="cUserId" class="ua-input" maxlength="30" autocomplete="off" required>
+                    <label class="ua-label" for="cUserNm">이름</label>
+                    <input type="text" id="cUserNm" class="ua-input" maxlength="50" autocomplete="off" required>
+                    <label class="ua-label" for="cDeptNm">부서 <span class="ua-sub">선택</span></label>
+                    <input type="text" id="cDeptNm" class="ua-input" maxlength="50" autocomplete="off">
+                    <label class="ua-label" for="cEmail">이메일 <span class="ua-sub">선택</span></label>
+                    <input type="email" id="cEmail" class="ua-input" maxlength="100" autocomplete="off">
+                    <label class="ua-label" for="cRole">권한</label>
+                    <select id="cRole" class="ua-select">
+                        <option value="USER">일반 사용자 (메뉴 권한으로 볼 메뉴 지정)</option>
+                        <option value="ADMIN">관리자 (전체 메뉴 · 수정/삭제/제어)</option>
+                    </select>
+                </div>
+                <p class="ua-sub">비밀번호는 웹이 임시로 만듭니다. 그 사용자는 첫 로그인 때 새 비밀번호로 바꿔야 다른 화면을 쓸 수 있습니다.</p>
+            </div>
+            <div id="createResult" hidden>
+                <p class="uc-done" id="createDone"></p>
+                <label class="ua-label" for="tempPw">임시 비밀번호 <span class="ua-sub">이 창을 닫으면 다시 볼 수 없습니다 - 사용자에게 안전하게 전달하세요</span></label>
+                <div class="uc-pw"><input type="text" id="tempPw" class="ua-input" readonly><button type="button" class="btn svc-btn-light" id="copyPw">복사</button></div>
+                <p class="ua-sub">사용자는 이 아이디와 임시 비밀번호로 로그인하면 비밀번호 변경 화면으로 이동합니다.</p>
+            </div>
+            <div class="cc-error" id="createError"></div>
+            <div class="cc-btns">
+                <button type="button" class="btn svc-btn-light" id="createCancel">취소</button>
+                <button type="button" class="btn btn-primary" id="createOk">계정 생성</button>
+                <a class="btn btn-primary" id="goMenuAuth" hidden>메뉴 권한 부여 →</a>
             </div>
         </div>
     </div>

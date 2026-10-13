@@ -29,7 +29,8 @@ import com.scb.monitoring.topology.service.TopologyException;
  * 좌측 메뉴 · 메뉴 권한 (권한관리).
  * <ul>
  *   <li>관리자(ADMIN) : 모든 메뉴·화면 접근</li>
- *   <li>일반 사용자(USER) : 관리자가 [메뉴 권한] 화면에서 고른 메뉴만 (메인 홈은 항상, 권한관리·시스템관리는 관리자 전용 고정)</li>
+ *   <li>일반 사용자(USER) : 관리자가 [메뉴 권한] 화면에서 고른 메뉴만 (메인 홈은 항상, 권한관리·시스템관리는 관리자 전용 고정)
+ *       - 기본 권한 (tb_menu.user_yn, 일반 사용자 공통) 또는 사용자별 권한 (tb_user.menu_custom_yn = Y 이면 tb_user_menu)</li>
  *   <li>메뉴 이름 · 순서 · 그룹 이동 : [메뉴 관리] 화면 (끌어서 놓기)</li>
  *   <li>tb_menu 가 없으면 시작할 때 만들고, 코드의 기본 메뉴 중 없는 것만 넣음 (관리자가 바꾼 이름·순서·권한은 유지)</li>
  *   <li>메뉴는 메모리에 두고 바꿀 때마다 다시 읽음 (좌측 메뉴 : fragments/left.html 이 ${@menuService...} 로 호출)</li>
@@ -69,6 +70,8 @@ public class MenuService {
     private final MenuMapper mapper;
     private final JdbcTemplate jdbc;
     private volatile List<Menu> cache = Collections.emptyList();
+    /** 사용자별 허용 메뉴 (사용자별 권한이 아니면 빈 Optional) - 바꿀 때 지움 */
+    private final Map<String, java.util.Optional<Set<String>>> userMenus = new java.util.concurrent.ConcurrentHashMap<>();
 
     @Value("${app.api-docs.enabled:true}")
     private boolean apiDocsEnabled = true;
@@ -151,6 +154,68 @@ public class MenuService {
         return p == null || !p.isAdminOnlyMenu();
     }
 
+    // ---------------------------------------------------------------- 사용자별 권한
+
+    /** 사용자별 권한을 쓰는 사용자면 허용 메뉴 집합, 아니면 null (기본 권한) */
+    public Set<String> userMenuSet(String userId) {
+        if (userId == null) return null;
+        return userMenus.computeIfAbsent(userId, id -> {
+            if (!"Y".equals(mapper.selectUserMenuCustom(id))) return java.util.Optional.empty();
+            return java.util.Optional.of(Collections.unmodifiableSet(new HashSet<>(mapper.selectUserMenuIds(id))));
+        }).orElse(null);
+    }
+
+    /** 사용자 삭제·권한 변경 뒤 */
+    public void forgetUser(String userId) {
+        if (userId != null) userMenus.remove(userId);
+    }
+
+    /** 이 사용자가 메뉴를 볼 수 있는지 : 관리자 전체 / 사용자별 권한 / 일반 사용자 기본 권한 */
+    public boolean isAllowedFor(String userId, boolean admin, String menuId) {
+        if (admin) return isAllowed(true, menuId);
+        Set<String> custom = userMenuSet(userId);
+        if (custom == null) return isAllowed(false, menuId);
+        Menu m = find(menuId);
+        if (m == null) return true;
+        if (hidden(m)) return false;
+        if (MAIN.equals(menuId)) return true;
+        if (m.isAdminOnlyMenu() || !custom.contains(menuId)) return false;
+        Menu p = m.getParentId() == null ? null : find(m.getParentId());
+        return p == null || !p.isAdminOnlyMenu();
+    }
+
+    /** 이 사용자의 좌측 메뉴 */
+    public List<Node> visibleTreeFor(String userId, boolean admin) {
+        return tree(admin, id -> isAllowedFor(userId, admin, id));
+    }
+
+    /** 일반 사용자에게 줄 수 있는 메뉴 (그룹·관리자 전용·메인 홈 제외) */
+    public boolean grantable(String menuId) {
+        Menu m = find(menuId);
+        if (m == null || m.isGroup() || m.isAdminOnlyMenu() || MAIN.equals(menuId)) return false;
+        Menu p = m.getParentId() == null ? null : find(m.getParentId());
+        return p == null || !p.isAdminOnlyMenu();
+    }
+
+    /** 사용자별 메뉴 권한 저장 : custom=false 면 기본 권한(일반 사용자 공통)을 따름 */
+    @Transactional
+    public Set<String> saveUserMenus(String userId, boolean custom, Collection<String> allowed, String admin) {
+        if (mapper.selectUserMenuCustom(userId) == null) throw TopologyException.notFound("사용자를 찾을 수 없습니다 : " + userId);
+        Set<String> ok = new HashSet<>();
+        for (String id : allowed == null ? Collections.<String>emptyList() : allowed) {
+            if (find(id) == null) throw TopologyException.badRequest("알 수 없는 메뉴입니다 : " + id);
+            if (grantable(id)) ok.add(id);
+        }
+        mapper.deleteUserMenus(userId);
+        if (custom) {
+            for (String id : ok) mapper.insertUserMenu(userId, id, admin);
+        }
+        mapper.updateUserMenuCustom(userId, custom ? "Y" : "N");
+        forgetUser(userId);
+        log.info("MENU 사용자별 권한 저장 user={} by {} : {}", userId, admin, custom ? "개별 " + ok : "기본 권한 따름");
+        return custom ? ok : null;
+    }
+
     /** 화면 주소 → 메뉴 (PAGE 만, 정확히 같은 주소) */
     public Menu findPage(String path) {
         for (Menu m : cache) {
@@ -159,8 +224,12 @@ public class MenuService {
         return null;
     }
 
-    /** 좌측 메뉴 트리 (보이는 것만) */
+    /** 좌측 메뉴 트리 (보이는 것만, 역할 기본 권한) */
     public List<Node> visibleTree(boolean admin) {
+        return tree(admin, id -> isAllowed(admin, id));
+    }
+
+    private List<Node> tree(boolean admin, java.util.function.Predicate<String> allowed) {
         List<Node> top = new ArrayList<>();
         Map<String, Node> groups = new HashMap<>();
         for (Menu m : cache) {
@@ -170,14 +239,14 @@ public class MenuService {
                 Node g = new Node(m);
                 groups.put(m.getMenuId(), g);
                 top.add(g);
-            } else if (isAllowed(admin, m.getMenuId())) {
+            } else if (allowed.test(m.getMenuId())) {
                 top.add(new Node(m));
             }
         }
         for (Menu m : cache) {
             if (m.getParentId() == null) continue;
             Node g = groups.get(m.getParentId());
-            if (g != null && isAllowed(admin, m.getMenuId())) g.children.add(new Node(m));
+            if (g != null && allowed.test(m.getMenuId())) g.children.add(new Node(m));
         }
         top.removeIf(n -> n.group && n.children.isEmpty());
         return top;

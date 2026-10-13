@@ -6,7 +6,7 @@
     <sql id="userColumns">
         u.user_id, u.user_nm, u.password_hash, u.role_cd, u.use_yn, u.lock_yn, u.fail_cnt,
         u.last_login_dt, u.last_login_ip, u.appr_status, u.email, u.dept_nm, u.req_reason,
-        u.appr_user, u.appr_dt, u.reject_reason, u.reg_dt
+        u.appr_user, u.appr_dt, u.reject_reason, u.reg_dt, u.pw_change_yn, u.menu_custom_yn
     </sql>
 
     <!-- =========================== 로그인 =========================== -->
@@ -47,6 +47,7 @@
         UPDATE tb_user
            SET password_hash = #{passwordHash},
                fail_cnt      = 0,
+               pw_change_yn  = 'N',
                upd_dt        = CURRENT_TIMESTAMP
          WHERE user_id = #{userId}
     </update>
@@ -70,6 +71,29 @@
     </insert>
 
     <!-- =========================== 사용자 관리 (관리자) =========================== -->
+
+    <!-- 관리자 계정 생성 : 바로 승인, 임시 비밀번호 (첫 로그인 때 변경) -->
+    <insert id="insertByAdmin" parameterType="com.scb.monitoring.auth.domain.AppUser">
+        INSERT INTO tb_user (
+               user_id, user_nm, password_hash, role_cd, use_yn, lock_yn, fail_cnt,
+               appr_status, email, dept_nm, req_reason, appr_user, appr_dt, pw_change_yn, menu_custom_yn, reg_dt, upd_dt
+        ) VALUES (
+               #{userId}, #{userNm}, #{passwordHash}, #{roleCd}, 'Y', 'N', 0,
+               'APPROVED', #{email, jdbcType=VARCHAR}, #{deptNm, jdbcType=VARCHAR}, #{reqReason}, #{apprUser}, CURRENT_TIMESTAMP,
+               'Y', 'N', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+    </insert>
+
+    <!-- 임시 비밀번호 다시 발급 : 잠금·실패 횟수도 풀고 첫 로그인 변경 필요로 -->
+    <update id="updateTempPassword">
+        UPDATE tb_user
+           SET password_hash = #{passwordHash},
+               pw_change_yn  = 'Y',
+               fail_cnt      = 0,
+               lock_yn       = 'N',
+               upd_dt        = CURRENT_TIMESTAMP
+         WHERE user_id = #{userId}
+    </update>
 
     <!-- 승인 대기 먼저, 그다음 최근 신청 순 -->
     <select id="selectUserList" resultType="com.scb.monitoring.auth.domain.AppUser">

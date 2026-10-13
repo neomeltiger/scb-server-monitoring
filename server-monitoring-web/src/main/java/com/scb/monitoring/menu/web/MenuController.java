@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.core.Authentication;
@@ -63,6 +64,35 @@ public class MenuController {
         return view(service.saveUserAccess(body.get("allowed"), auth.getName()));
     }
 
+    @Operation(summary = "사용자별 메뉴 권한 조회 - ADMIN : custom=false 면 일반 사용자 기본 권한을 따름")
+    @GetMapping("/api/admin/menus/access/{userId}")
+    @ResponseBody
+    public Map<String, Object> userAccess(@org.springframework.web.bind.annotation.PathVariable String userId) {
+        Set<String> custom = service.userMenuSet(userId);
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("userId", userId);
+        m.put("custom", custom != null);
+        List<String> allowed = new ArrayList<>();
+        for (Menu x : service.all()) {
+            if (service.grantable(x.getMenuId()) && (custom != null ? custom.contains(x.getMenuId()) : x.isUserAllowed())) allowed.add(x.getMenuId());
+        }
+        m.put("allowed", allowed);
+        return m;
+    }
+
+    @Operation(summary = "사용자별 메뉴 권한 저장 - ADMIN : {custom: true/false, allowed: [메뉴 ID]}")
+    @PutMapping("/api/admin/menus/access/{userId}")
+    @ResponseBody
+    public Map<String, Object> saveUserAccess(@org.springframework.web.bind.annotation.PathVariable String userId,
+                                              @RequestBody Map<String, Object> body, Authentication auth) {
+        boolean custom = Boolean.TRUE.equals(body.get("custom"));
+        List<String> allowed = new ArrayList<>();
+        Object a = body.get("allowed");
+        if (a instanceof List) for (Object o : (List<?>) a) allowed.add(String.valueOf(o));
+        service.saveUserMenus(userId, custom, allowed, auth.getName());
+        return userAccess(userId);
+    }
+
     @Operation(summary = "메뉴 이름·순서·그룹 저장 - ADMIN : 전체 메뉴 [{id, parentId, sortOrd, name}]")
     @PutMapping("/api/admin/menus/layout")
     @ResponseBody
@@ -111,6 +141,11 @@ public class MenuController {
 
         @Override
         public void addInterceptors(InterceptorRegistry registry) {
+            // 임시 비밀번호 로그인 : 비밀번호를 바꾸기 전에는 비밀번호 변경 화면만 (API 포함)
+            registry.addInterceptor(new com.scb.monitoring.config.PasswordChangeInterceptor())
+                    .addPathPatterns("/**")
+                    .excludePathPatterns("/password", "/login", "/logout", "/signup", "/error", "/css/**", "/js/**", "/images/**",
+                            "/vendor/**", "/favicon.ico", "/agent-api/**");
             registry.addInterceptor(new MenuAccessInterceptor(service))
                     .addPathPatterns("/**")
                     .excludePathPatterns("/api/**", "/agent-api/**", "/css/**", "/js/**", "/images/**", "/vendor/**",

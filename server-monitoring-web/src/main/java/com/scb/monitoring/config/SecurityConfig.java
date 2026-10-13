@@ -122,6 +122,14 @@ public class SecurityConfig {
             request.getSession().setAttribute(SESSION_LOGIN_TIME,
                     new SimpleDateFormat("yyyy. M. d. HH:mm:ss").format(new Date()));
             loginService.loginSucceeded(authentication.getName(), request.getRemoteAddr());
+            Object p = authentication.getPrincipal();
+            if (p instanceof com.scb.monitoring.auth.domain.AppUser && ((com.scb.monitoring.auth.domain.AppUser) p).isPwChangeRequired()) {
+                // 관리자가 만든 임시 비밀번호 : 바꾸기 전에는 다른 화면을 쓸 수 없음 (PasswordChangeInterceptor)
+                request.getSession().setAttribute(PasswordChangeInterceptor.SESSION_KEY, Boolean.TRUE);
+                clearAuthenticationAttributes(request);
+                getRedirectStrategy().sendRedirect(request, response, "/password?temp");
+                return;
+            }
             super.onAuthenticationSuccess(request, response, authentication);
         }
     }

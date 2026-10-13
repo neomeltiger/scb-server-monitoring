@@ -41,7 +41,7 @@ public class MenuAccessInterceptor implements HandlerInterceptor {
         Menu m = menus.findPage(path);
         if (m == null) return true;
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (menus.isAllowed(isAdmin(auth), m.getMenuId())) return true;
+        if (menus.isAllowedFor(auth == null ? null : auth.getName(), isAdmin(auth), m.getMenuId())) return true;
         log.info("MENU 접근 거부 user={} menu={} ({})", auth == null ? "-" : auth.getName(), m.getMenuId(), path);
         res.sendRedirect(req.getContextPath() + "/?denied=" + URLEncoder.encode(m.getMenuNm(), StandardCharsets.UTF_8.name()));
         return false;

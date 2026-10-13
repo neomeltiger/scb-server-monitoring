@@ -42,6 +42,10 @@ public class AppUser implements UserDetails, CredentialsContainer {
     private Timestamp apprDt;
     private String rejectReason;
     private Timestamp regDt;
+    /** Y = 관리자가 만든 임시 비밀번호 - 첫 로그인 때 바꿔야 다른 화면 사용 */
+    private String pwChangeYn = "N";
+    /** Y = 사용자별 메뉴 권한 (tb_user_menu) 사용 */
+    private String menuCustomYn = "N";
 
     /** 상단 사용자 표시 : 관리자 / 사용자 */
     public String getRoleLabel() { return ROLE_ADMIN.equals(roleCd) ? "관리자" : "사용자"; }
@@ -101,4 +105,10 @@ public class AppUser implements UserDetails, CredentialsContainer {
     public void setRejectReason(String rejectReason) { this.rejectReason = rejectReason; }
     public Timestamp getRegDt() { return regDt; }
     public void setRegDt(Timestamp regDt) { this.regDt = regDt; }
+
+    public boolean isPwChangeRequired() { return "Y".equals(pwChangeYn); }
+    public String getPwChangeYn() { return pwChangeYn; }
+    public void setPwChangeYn(String pwChangeYn) { this.pwChangeYn = pwChangeYn; }
+    public String getMenuCustomYn() { return menuCustomYn; }
+    public void setMenuCustomYn(String menuCustomYn) { this.menuCustomYn = menuCustomYn; }
 }

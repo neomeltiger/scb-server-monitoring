@@ -21,6 +21,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import com.scb.monitoring.auth.dto.UserView;
+import com.scb.monitoring.auth.domain.AppUser;
 import com.scb.monitoring.auth.service.UserAdminService;
 
 /**
@@ -105,6 +106,30 @@ public class UserAdminController {
     public Map<String, Object> role(@PathVariable String userId, @RequestBody Map<String, Object> req, Authentication auth) {
         service.changeRole(userId, str(req, "roleCd"), auth.getName());
         return ok("권한이 변경되었습니다.");
+    }
+
+    @Operation(summary = "계정 생성 (관리자) - 바로 승인, 임시 비밀번호를 한 번만 돌려줌 (그 사용자는 첫 로그인 때 변경)")
+    @PostMapping("/api/admin/users")
+    @ResponseBody
+    public Map<String, Object> create(@javax.validation.Valid @RequestBody com.scb.monitoring.auth.dto.UserCreateForm form,
+                                      Authentication auth) {
+        String temp = service.createByAdmin(form, auth.getName());
+        Map<String, Object> m = ok("계정을 만들었습니다.");
+        m.put("userId", form.getUserId());
+        m.put("roleCd", AppUser.ROLE_ADMIN.equals(form.getRoleCd()) ? AppUser.ROLE_ADMIN : AppUser.ROLE_USER);
+        m.put("tempPassword", temp);
+        return m;
+    }
+
+    @Operation(summary = "임시 비밀번호 다시 발급 (관리자) - 잠금 해제, 첫 로그인 때 변경")
+    @PostMapping("/api/admin/users/{userId}/temp-password")
+    @ResponseBody
+    public Map<String, Object> tempPassword(@PathVariable String userId, Authentication auth) {
+        String temp = service.resetTempPassword(userId, auth.getName());
+        Map<String, Object> m = ok("임시 비밀번호를 발급했습니다.");
+        m.put("userId", userId);
+        m.put("tempPassword", temp);
+        return m;
     }
 
     @Operation(summary = "사용자 삭제")

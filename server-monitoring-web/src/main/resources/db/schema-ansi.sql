@@ -1,5 +1,6 @@
 -- H2 (실행 : 임베디드 파일 DB, 테스트 : 메모리 DB) : schema-mysql.sql 과 같은 테이블을 ANSI SQL DDL 로 정의
 -- (MySQL 전용 옵션 ENGINE / COMMENT / AUTO_INCREMENT 대신 표준 IDENTITY 사용)
+DROP TABLE IF EXISTS tb_user_menu;
 DROP TABLE IF EXISTS tb_menu;
 DROP TABLE IF EXISTS tb_proc_fallback;
 DROP TABLE IF EXISTS tb_heartbeat_hist;
@@ -112,6 +113,8 @@ CREATE TABLE tb_user (
     last_login_ip   VARCHAR(45),
     reg_dt          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
     upd_dt          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    pw_change_yn    CHAR(1)      DEFAULT 'N' NOT NULL,
+    menu_custom_yn  CHAR(1)      DEFAULT 'N' NOT NULL,
     PRIMARY KEY (user_id),
     CONSTRAINT ck_user_role CHECK (role_cd IN ('ADMIN', 'USER')),
     CONSTRAINT ck_user_use  CHECK (use_yn IN ('Y', 'N')),
@@ -410,4 +413,13 @@ CREATE TABLE tb_menu (
     upd_user        VARCHAR(30),
     upd_dt          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
     PRIMARY KEY (menu_id)
+);
+
+-- 사용자별 메뉴 권한 (v11) : tb_user.menu_custom_yn = 'Y' 인 일반 사용자는 여기 있는 메뉴만
+CREATE TABLE tb_user_menu (
+    user_id         VARCHAR(30)  NOT NULL,
+    menu_id         VARCHAR(30)  NOT NULL,
+    reg_user        VARCHAR(30),
+    reg_dt          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    PRIMARY KEY (user_id, menu_id)
 );

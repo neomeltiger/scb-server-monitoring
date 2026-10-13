@@ -79,13 +79,13 @@
 
                 <!-- Quick Links: small icon sub-menu -->
                 <nav class="quick-links" aria-label="하위 메뉴 바로가기">
-                    <a th:if="${@menuService.isAllowed(#authorization.expression('hasRole(''ADMIN'')'), 'network')}" th:href="@{/network}" class="quick-link ql-blue" title="네트워크 구성도">
+                    <a th:if="${@menuService.isAllowedFor(#authentication.name, #authorization.expression('hasRole(''ADMIN'')'), 'network')}" th:href="@{/network}" class="quick-link ql-blue" title="네트워크 구성도">
                         <span class="quick-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.8 3 2.8 15 0 18"/><path d="M12 3c-2.8 3-2.8 15 0 18"/></svg></span><span class="quick-label">네트워크 구성도</span>
                     </a>
-                    <a th:if="${@menuService.isAllowed(#authorization.expression('hasRole(''ADMIN'')'), 'servers')}" th:href="@{/servers}" class="quick-link ql-green" title="서버 상세스펙 전체 목록">
+                    <a th:if="${@menuService.isAllowedFor(#authentication.name, #authorization.expression('hasRole(''ADMIN'')'), 'servers')}" th:href="@{/servers}" class="quick-link ql-green" title="서버 상세스펙 전체 목록">
                         <span class="quick-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg></span><span class="quick-label">서버 상세스펙</span>
                     </a>
-                    <a th:if="${@menuService.isAllowed(#authorization.expression('hasRole(''ADMIN'')'), 'processes')}" th:href="@{/processes}" class="quick-link ql-teal" title="개발프로세스 모니터링 및 관리">
+                    <a th:if="${@menuService.isAllowedFor(#authentication.name, #authorization.expression('hasRole(''ADMIN'')'), 'processes')}" th:href="@{/processes}" class="quick-link ql-teal" title="개발프로세스 모니터링 및 관리">
                         <span class="quick-icon"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/><path d="M4.9 4.9l2.1 2.1"/><path d="M17 17l2.1 2.1"/><path d="M4.9 19.1L7 17"/><path d="M17 7l2.1-2.1"/></svg></span><span class="quick-label">개발프로세스 관리</span>
                     </a>
                 </nav>

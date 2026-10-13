@@ -25,4 +25,16 @@ public interface MenuMapper {
 
     /** 처음 위치·순서·이름·권한으로 (코드의 기본값) */
     int resetMenu(Menu menu);
+
+    // ---- 사용자별 메뉴 권한 (v11) ----
+    /** Y / N, 사용자가 없으면 null */
+    String selectUserMenuCustom(@Param("userId") String userId);
+
+    List<String> selectUserMenuIds(@Param("userId") String userId);
+
+    int updateUserMenuCustom(@Param("userId") String userId, @Param("yn") String yn);
+
+    int deleteUserMenus(@Param("userId") String userId);
+
+    int insertUserMenu(@Param("userId") String userId, @Param("menuId") String menuId, @Param("regUser") String regUser);
 }

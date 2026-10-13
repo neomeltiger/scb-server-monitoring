@@ -33,20 +33,57 @@
     function initAuth() {
         let list = [];
         let dirty = false;
+        let target = '';            // '' = 일반 사용자 기본 권한, 아니면 사용자 ID
+        let access = null;          // 사용자별 : {custom, allowed}
+        let users = [];
+
+        async function loadUsers() {
+            try {
+                const d = await apiRequest('GET', '../api/admin/users?status=APPROVED');
+                users = (d.users || []).filter(u => u.roleCd !== 'ADMIN');
+            } catch (e) { users = []; }
+            const sel = $('maTarget');
+            sel.innerHTML = '<option value="">일반 사용자 기본 권한 (개별 지정이 없는 모든 일반 사용자)</option>' +
+                users.map(u => '<option value="' + esc(u.userId) + '">' + esc(u.userId) + ' · ' + esc(u.userNm) + (u.menuCustom ? ' (개별 지정)' : '') +
+                    (u.pwChangeRequired ? ' · 임시 비밀번호' : '') + '</option>').join('');
+            const want = new URLSearchParams(location.search).get('user');
+            if (want && users.some(u => u.userId === want)) target = want;
+            else if (want) showError('maError', '[' + want + '] 는 승인된 일반 사용자가 아닙니다. (관리자는 항상 전체 메뉴)');
+            sel.value = target;
+        }
 
         async function load() {
             showError('maError', '');
-            try { list = await apiRequest('GET', API); } catch (e) { showError('maError', '메뉴를 읽지 못했습니다 : ' + e.message); return; }
+            try {
+                list = await apiRequest('GET', API);
+                access = target ? await apiRequest('GET', API + '/access/' + encodeURIComponent(target)) : null;
+            } catch (e) { showError('maError', '메뉴를 읽지 못했습니다 : ' + e.message); return; }
             dirty = false;
+            const mode = $('maMode');
+            mode.hidden = !target;
+            if (target) mode.querySelector('input[value="' + (access.custom ? 'custom' : 'default') + '"]').checked = true;
+            const u = users.find(x => x.userId === target);
+            $('maTargetNote').textContent = !target ? '사용자별 지정이 없는 일반 사용자는 이 권한을 따릅니다. 관리자는 항상 전체 메뉴입니다.'
+                : (access.custom ? '[' + target + '] 는 아래에서 체크한 메뉴만 봅니다.' : '[' + target + '] 는 지금 일반 사용자 기본 권한을 따릅니다 (아래는 기본 권한). "이 사용자만 따로 지정" 을 고르면 바꿀 수 있습니다.')
+                + (u && u.pwChangeRequired ? ' · 이 사용자는 아직 임시 비밀번호를 바꾸지 않았습니다.' : '');
             render();
             status('maStatus', '');
+        }
+
+        function userAllowed(m) {
+            if (!target) return m.userAllowed;
+            return access.allowed.indexOf(m.id) !== -1;
+        }
+
+        function editable() {
+            return !target || (document.querySelector('input[name="maMode"]:checked') || {}).value === 'custom';
         }
 
         function row(m, child) {
             const locked = m.adminOnly || m.fixed;
             const userCell = m.fixed ? '<span class="mn-fixed">항상 허용</span>'
                 : m.adminOnly ? '<span class="mn-lock" title="권한관리·시스템관리 메뉴는 일반 사용자에게 줄 수 없습니다">🔒 관리자 전용</span>'
-                : '<label class="mn-check"><input type="checkbox" data-id="' + esc(m.id) + '"' + (m.userAllowed ? ' checked' : '') +
+                : '<label class="mn-check"><input type="checkbox" data-id="' + esc(m.id) + '"' + (userAllowed(m) ? ' checked' : '') + (editable() ? '' : ' disabled') +
                   ' aria-label="' + esc(m.name) + ' 일반 사용자 허용"> 허용</label>';
             return '<tr class="' + (child ? 'mn-child' : 'mn-top') + (locked ? ' mn-locked' : '') + '">' +
                 '<td class="ua-left">' + (child ? '<span class="mn-indent">└</span> ' : (m.icon ? esc(m.icon) + ' ' : '')) + '<b>' + esc(m.name) + '</b>' +
@@ -75,33 +112,48 @@
         function count() {
             const boxes = Array.from(document.querySelectorAll('#maBody input[type=checkbox]'));
             const on = boxes.filter(b => b.checked).length;
-            status('maStatus', '일반 사용자 허용 ' + on + ' / ' + boxes.length + '개 메뉴' + (dirty ? ' · 저장하지 않은 변경 있음' : ''));
+            status('maStatus', (target ? '[' + target + '] ' : '일반 사용자 기본 ') + '허용 ' + on + ' / ' + boxes.length + '개 메뉴' + (dirty ? ' · 저장하지 않은 변경 있음' : ''));
         }
 
         $('maBody').addEventListener('change', e => {
             if (e.target.matches('input[type=checkbox]')) { dirty = true; count(); }
         });
         $('maAll').addEventListener('click', () => {
-            document.querySelectorAll('#maBody input[type=checkbox]').forEach(b => { b.checked = true; });
+            document.querySelectorAll('#maBody input[type=checkbox]:not(:disabled)').forEach(b => { b.checked = true; });
             dirty = true; count();
         });
         $('maNone').addEventListener('click', () => {
-            document.querySelectorAll('#maBody input[type=checkbox]').forEach(b => { b.checked = false; });
+            document.querySelectorAll('#maBody input[type=checkbox]:not(:disabled)').forEach(b => { b.checked = false; });
             dirty = true; count();
         });
         $('maReload').addEventListener('click', () => { if (!dirty || confirm('저장하지 않은 변경을 버리고 다시 읽을까요?')) load(); });
         $('maSave').addEventListener('click', async () => {
             const allowed = Array.from(document.querySelectorAll('#maBody input[type=checkbox]:checked')).map(b => b.getAttribute('data-id'));
-            if (!confirm('일반 사용자 메뉴 권한을 저장하시겠습니까?\n허용 ' + allowed.length + '개 메뉴 - 일반 사용자의 좌측 메뉴에 바로 반영됩니다.')) return;
             try {
-                list = await apiRequest('PUT', API + '/access', { allowed: allowed });
+                if (!target) {
+                    if (!confirm('일반 사용자 기본 메뉴 권한을 저장하시겠습니까?\n허용 ' + allowed.length + '개 메뉴 - 개별 지정이 없는 일반 사용자의 좌측 메뉴에 바로 반영됩니다.')) return;
+                    list = await apiRequest('PUT', API + '/access', { allowed: allowed });
+                    status('maStatus', '저장했습니다. (기본 권한 허용 ' + allowed.length + '개 메뉴)');
+                } else {
+                    const custom = editable();
+                    if (!confirm('[' + target + '] 의 메뉴 권한을 저장하시겠습니까?\n' + (custom ? '허용 ' + allowed.length + '개 메뉴 (이 사용자만)' : '일반 사용자 기본 권한을 따름'))) return;
+                    access = await apiRequest('PUT', API + '/access/' + encodeURIComponent(target), { custom: custom, allowed: allowed });
+                    status('maStatus', '저장했습니다. [' + target + '] ' + (custom ? '허용 ' + allowed.length + '개 메뉴' : '기본 권한 따름') + ' - 그 사용자가 다음 화면을 열 때 반영됩니다.');
+                    await loadUsers();
+                }
                 dirty = false;
                 render();
-                status('maStatus', '저장했습니다. (허용 ' + allowed.length + '개 메뉴)');
             } catch (e) { showError('maError', '저장 실패 : ' + e.message); }
         });
+        $('maTarget').addEventListener('change', async e => {
+            if (dirty && !confirm('저장하지 않은 변경을 버리고 대상을 바꿀까요?')) { e.target.value = target; return; }
+            target = e.target.value;
+            history.replaceState(null, '', target ? '?user=' + encodeURIComponent(target) : location.pathname);
+            await load();
+        });
+        $('maMode').addEventListener('change', () => { dirty = true; render(); count(); });
         window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
-        load();
+        loadUsers().then(load);
     }
 
     // =========================================================== 메뉴 이름·순서 (끌어서 놓기)

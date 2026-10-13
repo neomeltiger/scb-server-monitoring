@@ -18,13 +18,14 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 import com.scb.monitoring.topology.service.TopologyException;
 
-/** /api/topology, /api/services, /api/agents, /api/alarms, /api/admin/users 오류 응답 : {"message": "..."} (화면에서 alert 로 표시) */
+/** /api/topology, /api/services, /api/agents, /api/alarms, /api/admin/users, /api/admin/menus 오류 응답 : {"message": "..."} (화면에서 alert 로 표시) */
 @RestControllerAdvice(assignableTypes = {TopologyApiController.class,
         com.scb.monitoring.auth.controller.UserAdminController.class,
         com.scb.monitoring.alarm.controller.AlarmApiController.class,
         com.scb.monitoring.serverlog.controller.ServerLogController.class,
         com.scb.monitoring.svcctl.controller.ServiceCtlApiController.class,
-        com.scb.monitoring.agent.controller.AgentAdminController.class})
+        com.scb.monitoring.agent.controller.AgentAdminController.class,
+        com.scb.monitoring.menu.web.MenuController.class})
 public class TopologyApiExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(TopologyApiExceptionHandler.class);

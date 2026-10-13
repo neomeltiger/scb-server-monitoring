@@ -146,6 +146,8 @@ CREATE TABLE tb_user (
     last_login_ip   VARCHAR(45)      NULL                COMMENT '마지막 로그인 IP',
     reg_dt          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '등록 일시',
     upd_dt          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '수정 일시',
+    pw_change_yn    CHAR(1)      NOT NULL DEFAULT 'N' COMMENT '임시 비밀번호 - 첫 로그인 때 변경 필요',
+    menu_custom_yn  CHAR(1)      NOT NULL DEFAULT 'N' COMMENT '사용자별 메뉴 권한 사용 (tb_user_menu)',
     PRIMARY KEY (user_id),
     CONSTRAINT ck_user_role CHECK (role_cd IN ('ADMIN', 'USER')),
     CONSTRAINT ck_user_use  CHECK (use_yn IN ('Y', 'N')),
