@@ -1,6 +1,7 @@
 -- H2 (실행 : 임베디드 파일 DB, 테스트 : 메모리 DB) : schema-mysql.sql 과 같은 테이블을 ANSI SQL DDL 로 정의
 -- (MySQL 전용 옵션 ENGINE / COMMENT / AUTO_INCREMENT 대신 표준 IDENTITY 사용)
 DROP TABLE IF EXISTS tb_server_report;
+DROP TABLE IF EXISTS tb_retention;
 DROP TABLE IF EXISTS tb_user_menu;
 DROP TABLE IF EXISTS tb_menu;
 DROP TABLE IF EXISTS tb_proc_fallback;
@@ -443,4 +444,15 @@ CREATE TABLE tb_user_menu (
     reg_user        VARCHAR(30),
     reg_dt          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
     PRIMARY KEY (user_id, menu_id)
+);
+
+-- 로그 · 이력 보관 기간 (v13) : 분류별 최장 보관 일수 - 지난 행은 retention.service.RetentionService 가 주기적으로 삭제 (DB 용량 초과 방지)
+--   category_cd : METRIC 수집 이력 / LOG 서버 로그 수집본 / HEARTBEAT 하트비트 이벤트 / ALARM 해소 알람 / COMMAND 제어 명령 / LOGIN 로그인 이력 / REPORT 점검 리포트
+CREATE TABLE tb_retention (
+    category_cd     VARCHAR(20)  NOT NULL,
+    keep_days       INT          NOT NULL,
+    upd_user        VARCHAR(30),
+    upd_dt          TIMESTAMP    DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    PRIMARY KEY (category_cd),
+    CONSTRAINT ck_retention_days CHECK (keep_days BETWEEN 1 AND 3650)
 );

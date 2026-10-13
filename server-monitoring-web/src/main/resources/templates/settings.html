@@ -85,9 +85,31 @@
                     </div>
                 </div>
 
-                <!-- 5. 설정 파일 -->
+                <!-- 5. 로그 · 이력 보관 기간 -->
+                <div class="spec-container" id="stRet">
+                    <div class="spec-header st-head"><h3>5. 로그 · 이력 최장 보관 기간 <span class="svc-sub">DB 저장 용량 초과 방지 - 보관 기간이 지난 행은 자동으로 삭제</span></h3>
+                        <div class="st-head-tools">
+                            <label class="lg-field"><span>모두</span>
+                                <select id="stRetAll" class="lg-select" aria-label="모든 분류 보관 기간"></select></label>
+                            <input type="number" id="stRetAllDays" class="st-days" min="1" max="3650" placeholder="일" aria-label="모든 분류 사용자 정의 일수" hidden>
+                            <button type="button" class="btn svc-btn-light" id="stRetAllBtn">모두 적용</button>
+                            <button type="button" class="btn btn-primary" id="stRetPurge">지금 정리</button>
+                        </div>
+                    </div>
+                    <div class="lg-status" id="stRetStatus" role="status"></div>
+                    <div class="svc-table-wrap">
+                        <table class="full-spec-table st-table m-cards">
+                            <thead><tr><th data-m="key">분류</th><th>대상 (행 수 · 가장 오래된 기록)</th><th>최장 보관 기간</th><th data-m="act">저장</th></tr></thead>
+                            <tbody id="stRetBody"></tbody>
+                        </table>
+                    </div>
+                    <p class="svc-hint">· 1주일 / 1개월(30일) / 6개월(180일) / 1년(365일) / 사용자 정의(1 ~ 3650일). 바꾸면 다음 자동 정리(1시간마다) 때 적용되고, [지금 정리] 로 바로 지울 수 있습니다.<br>
+                        · 진행 중인 알람 · 처리 중인 제어 명령 · 진행 중인 점검 리포트는 지우지 않습니다. 지운 기록은 되돌릴 수 없습니다.</p>
+                </div>
+
+                <!-- 6. 설정 파일 -->
                 <div class="spec-container">
-                    <div class="spec-header"><h3>5. 설정 파일 위치 · 용도</h3></div>
+                    <div class="spec-header"><h3>6. 설정 파일 위치 · 용도</h3></div>
                     <div class="svc-table-wrap">
                         <table class="full-spec-table st-table m-cards">
                             <thead><tr><th>위치</th><th data-m="key">파일</th><th>내용</th><th>바꾸는 방법</th><th>이 웹 서버</th></tr></thead>

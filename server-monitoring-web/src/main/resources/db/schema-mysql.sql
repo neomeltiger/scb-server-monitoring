@@ -24,6 +24,7 @@ CREATE DATABASE IF NOT EXISTS scb_mon_agent
 
 USE scb_mon_agent;
 
+DROP TABLE IF EXISTS tb_retention;
 DROP TABLE IF EXISTS tb_user_menu;
 DROP TABLE IF EXISTS tb_menu;
 DROP TABLE IF EXISTS tb_proc_fallback;
@@ -491,3 +492,15 @@ CREATE TABLE tb_user_menu (
     reg_dt          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '지정 일시',
     PRIMARY KEY (user_id, menu_id)
 ) ENGINE = InnoDB COMMENT = '사용자별 메뉴 권한';
+
+-- -------------------------------------------------------------
+-- 로그 · 이력 보관 기간 (v13) : 분류별 최장 보관 일수, 지난 행은 웹이 주기적으로 삭제 (retention.service.RetentionService)
+-- -------------------------------------------------------------
+CREATE TABLE tb_retention (
+    category_cd     VARCHAR(20)  NOT NULL COMMENT '분류 (METRIC / LOG / HEARTBEAT / ALARM / COMMAND / LOGIN / REPORT)',
+    keep_days       INT          NOT NULL COMMENT '최장 보관 일수 (1 ~ 3650)',
+    upd_user        VARCHAR(30)           COMMENT '변경자',
+    upd_dt          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '변경 일시',
+    PRIMARY KEY (category_cd),
+    CONSTRAINT ck_retention_days CHECK (keep_days BETWEEN 1 AND 3650)
+) ENGINE = InnoDB COMMENT = '로그 · 이력 보관 기간';

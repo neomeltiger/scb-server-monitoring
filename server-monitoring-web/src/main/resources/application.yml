@@ -91,6 +91,11 @@ app:
     load-throttle-pct: ${SCB_LOAD_THROTTLE_PCT:90}
     load-throttle-min-sec: ${SCB_LOAD_THROTTLE_MIN_SEC:60}
 
+  # 로그 · 이력 보관 기간 (tb_retention, 환경 설정 화면) : 보관 기간이 지난 행을 이 주기로 삭제 - DB 용량 초과 방지
+  retention:
+    purge-interval-ms: 3600000                  # 자동 삭제 주기 (1시간)
+    initial-delay-ms: 120000                    # 웹 시작 후 첫 삭제 (2분)
+
   # 서버 장애 알람 (tb_alarm) : 서버 Down → CRITICAL, 에이전트 보고 끊김 → WARNING
   alarm:
     check-interval-ms: 60000                    # 점검 주기 (서버 수정/에이전트 보고 직후에도 점검)

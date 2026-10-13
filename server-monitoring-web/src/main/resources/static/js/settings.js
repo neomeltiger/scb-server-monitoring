@@ -144,6 +144,105 @@
         }
     }
 
+    // ---- 5. 로그 · 이력 보관 기간 (../api/admin/retention) ----------------------------------
+    const DAY_LABEL = { 7: '1주일', 30: '1개월', 180: '6개월', 365: '1년' };
+    const dayText = d => DAY_LABEL[d] || d + '일 (사용자 정의)';
+    let ret = null;
+
+    async function loadRet() {
+        try {
+            ret = await apiRequest('GET', API + 'admin/retention');
+        } catch (e) {
+            $('stRetStatus').innerHTML = '<span class="lg-bad">' + escapeHtml(e.message) + '</span>';
+            return;
+        }
+        renderRet();
+    }
+
+    function retSelect(cls, cur, label) {
+        const presets = ret.presets || [7, 30, 180, 365];
+        const custom = cur !== null && presets.indexOf(cur) < 0;
+        return '<select class="lg-select ' + cls + '" aria-label="' + escapeHtml(label) + '">' +
+            presets.map(d => '<option value="' + d + '"' + (d === cur ? ' selected' : '') + '>' + DAY_LABEL[d] + ' (' + d + '일)</option>').join('') +
+            '<option value="custom"' + (custom ? ' selected' : '') + '>사용자 정의</option></select>';
+    }
+
+    function renderRet() {
+        if (!ret) return;
+        const lp = ret.lastPurge;
+        $('stRetStatus').innerHTML = '보관 대상 전체 <b>' + Number(ret.totalRows || 0).toLocaleString() + '</b>행 · 자동 정리 ' + ret.purgeIntervalMin + '분마다' +
+            (lp ? ' · 마지막 정리 ' + escapeHtml(lp.at) + ' (' + escapeHtml(lp.by) + ', ' + Number(lp.total).toLocaleString() + '행 삭제)' : ' · 아직 정리 안 함 (웹 시작 2분 뒤 첫 정리)');
+        $('stRetBody').innerHTML = (ret.categories || []).map(c => {
+            const tables = c.tables.map(t => '<div class="st-ret-t"><code>' + escapeHtml(t.table) + '</code> ' + Number(t.rows).toLocaleString() + '행' +
+                (t.oldest ? ' · ' + escapeHtml(t.oldest) + ' 부터' : '') + '</div>').join('');
+            return '<tr data-code="' + escapeHtml(c.code) + '"><td class="ua-left"><b>' + escapeHtml(c.name) + '</b><span class="ua-sub">' + escapeHtml(c.desc) + '</span></td>' +
+                '<td class="ua-left">' + tables + '</td>' +
+                '<td>' + retSelect('st-ret-sel', c.keepDays, c.name + ' 보관 기간') +
+                '<input type="number" class="st-days" min="' + ret.minDays + '" max="' + ret.maxDays + '" value="' + c.keepDays + '"' + (c.custom ? '' : ' hidden') +
+                ' aria-label="' + escapeHtml(c.name) + ' 사용자 정의 일수"> <span class="st-days-unit"' + (c.custom ? '' : ' hidden') + '>일</span>' +
+                '<span class="ua-sub">지금 ' + escapeHtml(dayText(c.keepDays)) + (c.updUser ? ' · ' + escapeHtml(c.updUser) + ' ' + escapeHtml(c.updDt || '') : ' · 기본값') + '</span></td>' +
+                '<td class="am-ctl"><button type="button" class="svc-btn start st-ret-save">저장</button></td></tr>';
+        }).join('');
+        $('stRetAll').innerHTML = '<option value="">선택...</option>' + (ret.presets || []).map(d => '<option value="' + d + '">' + DAY_LABEL[d] + ' (' + d + '일)</option>').join('') +
+            '<option value="custom">사용자 정의</option>';
+        if (typeof mobileCards === 'function') mobileCards($('stRet'));
+    }
+
+    function readDays(sel, input) {
+        const v = sel.value === 'custom' ? Number(input.value) : Number(sel.value);
+        if (!Number.isInteger(v) || v < ret.minDays || v > ret.maxDays) {
+            scbAlert('보관 기간은 ' + ret.minDays + ' ~ ' + ret.maxDays + '일 사이 정수로 입력하세요.', 'warning');
+            return null;
+        }
+        return v;
+    }
+
+    async function saveRet(tr) {
+        const c = (ret.categories || []).find(x => x.code === tr.dataset.code);
+        const days = readDays(tr.querySelector('.st-ret-sel'), tr.querySelector('.st-days'));
+        if (days === null) return;
+        if (days < c.keepDays && !(await scbConfirm('[' + c.name + '] 보관 기간을 ' + dayText(c.keepDays) + ' → ' + dayText(days) +
+            '로 줄입니다.\n다음 정리 때 ' + days + '일보다 오래된 기록이 삭제되며 되돌릴 수 없습니다. 계속할까요?', { type: 'warning' }))) return;
+        try {
+            ret = await apiRequest('PUT', API + 'admin/retention/' + encodeURIComponent(c.code), { days: days });
+            renderRet();
+            scbAlert('[' + c.name + '] 최장 보관 기간을 저장했습니다 → ' + dayText(days), 'success');
+        } catch (e) {
+            scbAlert(e.message, 'error');
+        }
+    }
+
+    async function saveRetAll() {
+        if (!$('stRetAll').value) { scbAlert('적용할 보관 기간을 고르세요.', 'warning'); return; }
+        const days = readDays($('stRetAll'), $('stRetAllDays'));
+        if (days === null) return;
+        if (!(await scbConfirm('모든 분류의 최장 보관 기간을 ' + dayText(days) + '(으)로 바꿉니다.\n줄어드는 분류는 다음 정리 때 오래된 기록이 삭제됩니다. 계속할까요?', { type: 'warning' }))) return;
+        try {
+            ret = await apiRequest('PUT', API + 'admin/retention', { days: days });
+            renderRet();
+            scbAlert('모든 분류의 최장 보관 기간을 저장했습니다 → ' + dayText(days), 'success');
+        } catch (e) {
+            scbAlert(e.message, 'error');
+        }
+    }
+
+    async function purgeRet() {
+        if (!(await scbConfirm('보관 기간이 지난 로그 · 이력을 지금 삭제합니다. 삭제한 기록은 되돌릴 수 없습니다. 계속할까요?', { type: 'warning' }))) return;
+        const btn = $('stRetPurge');
+        btn.disabled = true;
+        try {
+            ret = await apiRequest('POST', API + 'admin/retention/purge');
+            renderRet();
+            const p = ret.purged || {};
+            const parts = Object.keys(p.deleted || {}).filter(k => p.deleted[k] > 0).map(k => k + ' ' + p.deleted[k].toLocaleString() + '행');
+            scbAlert('정리했습니다 : ' + Number(p.total || 0).toLocaleString() + '행 삭제' + (parts.length ? '\n' + parts.join(', ') : ' (지난 기록 없음)'), 'success');
+        } catch (e) {
+            scbAlert(e.message, 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
     // ---- 요약본 (지금 값으로 텍스트 만들어 내려받기)
     function summary() {
         if (!data) return;
@@ -175,7 +274,12 @@
             if (r.group !== g) { o.push('  [' + r.group + ']'); g = r.group; }
             o.push('    ' + r.key + ' = ' + r.value + (r.env ? '   (' + r.env + ')' : '') + '   - ' + r.desc);
         });
-        o.push('', '5. 설정 파일', line);
+        o.push('', '5. 로그 · 이력 최장 보관 기간', line);
+        if (ret) {
+            (ret.categories || []).forEach(c => o.push('  ' + c.name + ' : ' + dayText(c.keepDays) + ' (' + c.tables.map(t => t.table + ' ' + t.rows + '행').join(', ') + ')'));
+            o.push('  자동 정리 ' + ret.purgeIntervalMin + '분마다' + (ret.lastPurge ? ' · 마지막 ' + ret.lastPurge.at + ' ' + ret.lastPurge.total + '행 삭제' : ''));
+        }
+        o.push('', '6. 설정 파일', line);
         g = null;
         (data.files || []).forEach(f => {
             if (f.where !== g) { o.push('  [' + f.where + ']'); g = f.where; }
@@ -197,6 +301,28 @@
             const sel = e.target.closest('.st-sel');
             if (sel) change(sel);
         });
+        // 보관 기간 : 사용자 정의를 고르면 일수 입력 칸 표시
+        $('stRetBody').addEventListener('change', e => {
+            const sel = e.target.closest('.st-ret-sel');
+            if (!sel) return;
+            const tr = sel.closest('tr');
+            const custom = sel.value === 'custom';
+            tr.querySelector('.st-days').hidden = !custom;
+            tr.querySelector('.st-days-unit').hidden = !custom;
+            if (custom) tr.querySelector('.st-days').focus();
+        });
+        $('stRetBody').addEventListener('click', e => {
+            const b = e.target.closest('.st-ret-save');
+            if (b) saveRet(b.closest('tr'));
+        });
+        $('stRetAll').addEventListener('change', () => {
+            $('stRetAllDays').hidden = $('stRetAll').value !== 'custom';
+            if ($('stRetAll').value === 'custom') $('stRetAllDays').focus();
+        });
+        $('stRetAllBtn').addEventListener('click', saveRetAll);
+        $('stRetPurge').addEventListener('click', purgeRet);
+        $('stReload').addEventListener('click', loadRet);
         load();
+        loadRet();
     });
 })();

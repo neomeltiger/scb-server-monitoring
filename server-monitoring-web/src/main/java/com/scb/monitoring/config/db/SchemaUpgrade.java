@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
  *   <li>v11 : tb_user.pw_change_yn (임시 비밀번호 → 첫 로그인 변경), tb_user.menu_custom_yn (사용자별 메뉴 권한 사용),
  *       tb_user_menu (사용자별 허용 메뉴)</li>
  *   <li>v12 : tb_server_report (서버 점검 리포트 - 웹 관리자 화면에서 요청할 때만)</li>
+ *   <li>v13 : tb_retention (로그 · 이력 보관 기간 - 지난 행 자동 삭제)</li>
  * </ul>
  * 새로 만드는 테이블의 DDL 은 schema-ansi.sql 의 것을 DB 에 맞게 바꿔 씀 ({@link DbDialect#ddl}).
  * 처음 만드는 DB 는 schema-mysql.sql / schema-ansi.sql 에 이미 들어 있음.
@@ -52,6 +53,7 @@ public final class SchemaUpgrade {
         addColumn(c, kind, "tb_user", "menu_custom_yn", "CHAR(1) DEFAULT 'N' NOT NULL");
         createTable(c, kind, "tb_user_menu", "사용자별 메뉴 권한");
         createTable(c, kind, "tb_server_report", "서버 점검 리포트");
+        createTable(c, kind, "tb_retention", "로그 · 이력 보관 기간");
     }
 
     /** schema-ansi.sql 에 있는 그 테이블의 CREATE TABLE 을 DB 에 맞게 바꿔 실행 */

@@ -25,7 +25,8 @@ import com.scb.monitoring.topology.service.TopologyException;
         com.scb.monitoring.serverlog.controller.ServerLogController.class,
         com.scb.monitoring.svcctl.controller.ServiceCtlApiController.class,
         com.scb.monitoring.agent.controller.AgentAdminController.class,
-        com.scb.monitoring.menu.web.MenuController.class})
+        com.scb.monitoring.menu.web.MenuController.class,
+        com.scb.monitoring.settings.SettingsController.class})
 public class TopologyApiExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(TopologyApiExceptionHandler.class);

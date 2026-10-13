@@ -62,13 +62,16 @@ public class AgentService {
     private final HeartbeatService heartbeat;
     private final FallbackService fallback;
     private final com.scb.monitoring.srvreport.mapper.ServerReportMapper reportMapper;
+    private final com.scb.monitoring.retention.mapper.RetentionMapper retentionMapper;
 
     public AgentService(AgentMapper mapper, TopologyMapper topologyMapper, ServiceCtlService serviceCtl, AgentProperties props,
                         AlarmService alarmService, ServerLogService serverLogService,
                         com.scb.monitoring.svcctl.mapper.ServiceCtlMapper serviceCtlMapper,
                         ProcessStatusService processStatus, HeartbeatService heartbeat, FallbackService fallback,
-                        com.scb.monitoring.srvreport.mapper.ServerReportMapper reportMapper) {
+                        com.scb.monitoring.srvreport.mapper.ServerReportMapper reportMapper,
+                        com.scb.monitoring.retention.mapper.RetentionMapper retentionMapper) {
         this.reportMapper = reportMapper;
+        this.retentionMapper = retentionMapper;
         this.fallback = fallback;
         this.processStatus = processStatus;
         this.heartbeat = heartbeat;
@@ -269,12 +272,13 @@ public class AgentService {
         // 보고가 들어왔으니 "보고 끊김" 알람은 커밋 후 바로 해소
         alarmService.checkAfterCommit(serverId);
 
-        // 보관 기간 지난 이력 정리
-        Timestamp before = new Timestamp(System.currentTimeMillis() - props.getHistoryKeepDays() * 86400000L);
+        // 보관 기간 지난 이력 정리 - 환경 설정의 보관 기간 (tb_retention METRIC / HEARTBEAT, 없으면 기본값)
+        long now = System.currentTimeMillis();
+        Timestamp before = new Timestamp(now - com.scb.monitoring.retention.service.RetentionService.keepDays(retentionMapper, "METRIC", props.getHistoryKeepDays()) * 86400000L);
         topologyMapper.deleteMetricHistBefore(serverId, before);
         topologyMapper.deleteProcessHistBefore(serverId, before);
         serviceCtlMapper.deleteServiceHistBefore(serverId, before);
-        heartbeat.cleanup(serverId, before);
+        heartbeat.cleanup(serverId, new Timestamp(now - com.scb.monitoring.retention.service.RetentionService.keepDays(retentionMapper, "HEARTBEAT", 180) * 86400000L));
         return applied;
     }
 

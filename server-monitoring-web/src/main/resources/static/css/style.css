@@ -1981,6 +1981,10 @@ body.scb-dlg-open { overflow: hidden; }
 .st-dl dt { color: #64748b; }
 .st-dl dd { margin: 0; word-break: break-all; }
 .st-runtime { margin-bottom: 10px; }
+.st-days { width: 84px; padding: 5px 6px; border: 1px solid #cbd5e1; border-radius: 6px; margin-top: 4px; font-size: 13px; }
+.st-days[hidden], .st-days-unit[hidden] { display: none; }
+.st-ret-t { font-size: 12px; color: #475569; white-space: nowrap; }
+.st-ret-t code { font-size: 11px; }
 @media (max-width: 760px) { .st-dl { grid-template-columns: 1fr; gap: 2px; } .st-dl dd { margin-bottom: 6px; } }
 
 /* ===================== 전체 화면 색 (상단 [화면 색] 드롭다운, fragments/top.html) ===================== */

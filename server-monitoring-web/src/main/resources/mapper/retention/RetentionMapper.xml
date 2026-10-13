@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 로그 · 이력 보관 기간 (ANSI SQL). ${table} / ${dtCol} / ${cond} 는 RetentionService 의 고정 목록 값만 들어옴 -->
+<mapper namespace="com.scb.monitoring.retention.mapper.RetentionMapper">
+
+    <select id="selectAll" resultType="com.scb.monitoring.retention.domain.Retention">
+        SELECT r.category_cd, r.keep_days, r.upd_user, r.upd_dt
+          FROM tb_retention r
+         ORDER BY r.category_cd
+    </select>
+
+    <select id="selectOne" resultType="com.scb.monitoring.retention.domain.Retention">
+        SELECT r.category_cd, r.keep_days, r.upd_user, r.upd_dt
+          FROM tb_retention r
+         WHERE r.category_cd = #{categoryCd}
+    </select>
+
+    <update id="update">
+        UPDATE tb_retention
+           SET keep_days = #{keepDays},
+               upd_user  = #{updUser, jdbcType=VARCHAR},
+               upd_dt    = CURRENT_TIMESTAMP
+         WHERE category_cd = #{categoryCd}
+    </update>
+
+    <insert id="insert">
+        INSERT INTO tb_retention (category_cd, keep_days, upd_user, upd_dt)
+        VALUES (#{categoryCd}, #{keepDays}, #{updUser, jdbcType=VARCHAR}, CURRENT_TIMESTAMP)
+    </insert>
+
+    <select id="selectStat" resultType="com.scb.monitoring.retention.domain.RetentionStat">
+        SELECT COUNT(*) AS cnt, MIN(${dtCol}) AS oldest
+          FROM ${table}
+        <if test="cond != null">
+         WHERE ${cond}
+        </if>
+    </select>
+
+    <delete id="deleteBefore">
+        DELETE FROM ${table}
+         WHERE ${dtCol} &lt; #{before}
+        <if test="cond != null">
+           AND ${cond}
+        </if>
+    </delete>
+
+</mapper>

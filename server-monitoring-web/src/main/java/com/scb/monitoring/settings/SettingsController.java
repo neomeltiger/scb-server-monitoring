@@ -13,15 +13,22 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import com.scb.monitoring.agent.AgentProperties;
 import com.scb.monitoring.agent.domain.Agent;
+import com.scb.monitoring.retention.service.RetentionService;
 import com.scb.monitoring.serverlog.domain.LogPolicy;
 import com.scb.monitoring.serverlog.mapper.ServerLogMapper;
 import com.scb.monitoring.topology.domain.Server;
 import com.scb.monitoring.topology.mapper.TopologyMapper;
+import com.scb.monitoring.topology.service.TopologyException;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,6 +41,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
  *  DB 연결 : 요약 + DB 연결 관리 화면(/admin/db) 링크
  *  애플리케이션 설정 : application.yml 의 현재 값 (읽기 전용 - 바꾸는 곳 안내), 비밀번호는 감춤
  *  설정 파일 : 웹 서버 · 서버(에이전트) 쪽 파일 위치와 용도
+ *  로그 · 이력 보관 기간 : 분류별 1주일 / 1개월 / 6개월 / 1년 / 사용자 정의 → 지난 행 자동 삭제 (retention.service.RetentionService)
  * </pre>
  */
 @Tag(name = "7. 기타", description = "웹 콘솔·DB 상태")
@@ -44,8 +52,11 @@ public class SettingsController {
     private final AgentProperties agentProps;
     private final TopologyMapper topologyMapper;
     private final ServerLogMapper logMapper;
+    private final RetentionService retention;
 
-    public SettingsController(Environment env, AgentProperties agentProps, TopologyMapper topologyMapper, ServerLogMapper logMapper) {
+    public SettingsController(Environment env, AgentProperties agentProps, TopologyMapper topologyMapper, ServerLogMapper logMapper,
+                              RetentionService retention) {
+        this.retention = retention;
         this.env = env;
         this.agentProps = agentProps;
         this.topologyMapper = topologyMapper;
@@ -95,6 +106,47 @@ public class SettingsController {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(body);
     }
 
+    // ===================== 로그 · 이력 보관 기간 =====================
+
+    @Operation(summary = "로그 · 이력 보관 기간 : 분류별 보관 일수, 대상 테이블 행 수 · 가장 오래된 일시, 마지막 정리 (ADMIN)")
+    @GetMapping("/api/admin/retention")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> retention() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(retention.getView());
+    }
+
+    @Operation(summary = "분류 하나의 보관 일수 변경 {days} (1 ~ 3650) - ADMIN")
+    @PutMapping("/api/admin/retention/{code}")
+    @ResponseBody
+    public Map<String, Object> retentionChange(@PathVariable("code") String code, @RequestBody Map<String, Object> body, Authentication auth) {
+        return retention.change(code, days(body), auth.getName());
+    }
+
+    @Operation(summary = "모든 분류의 보관 일수를 한 번에 {days} - ADMIN")
+    @PutMapping("/api/admin/retention")
+    @ResponseBody
+    public Map<String, Object> retentionAll(@RequestBody Map<String, Object> body, Authentication auth) {
+        return retention.changeAll(days(body), auth.getName());
+    }
+
+    @Operation(summary = "지금 정리 : 보관 기간이 지난 행 삭제 - ADMIN")
+    @PostMapping("/api/admin/retention/purge")
+    @ResponseBody
+    public Map<String, Object> retentionPurge(Authentication auth) {
+        Map<String, Object> m = retention.purgeNow(auth.getName());
+        Map<String, Object> body = retention.getView();
+        body.put("purged", m);
+        return body;
+    }
+
+    private static int days(Map<String, Object> body) {
+        try {
+            return Integer.parseInt(String.valueOf(body.get("days")).trim());
+        } catch (NumberFormatException e) {
+            throw TopologyException.badRequest("보관 기간(일) 값이 올바르지 않습니다.");
+        }
+    }
+
     // ===================== application.yml 현재 값 =====================
 
     /** {group, key, value, env, desc} - 비밀번호는 값 대신 설정 여부만 */
@@ -111,11 +163,15 @@ public class SettingsController {
         add(out, g, "app.agent.report-interval-sec", null, "에이전트 기본 보고 주기 (초, 서버별 수집 주기를 정하기 전)");
         add(out, g, "app.agent.stale-after-sec", null, "이 시간 이상 보고가 없으면 '보고 끊김' (초)");
         add(out, g, "app.agent.heartbeat-check-ms", null, "하트비트 감시 주기 (밀리초) - 3회 연속 미수신이면 서버 Down");
-        add(out, g, "app.agent.history-keep-days", null, "수집 이력 보관 일수");
+        add(out, g, "app.agent.history-keep-days", null, "수집 이력 보관 일수 기본값 (환경 설정 5. 보관 기간을 저장하면 그 값을 씀)");
         add(out, g, "app.agent.command-request-timeout-min", null, "에이전트가 가져가지 않은 제어 명령 만료 (분)");
         add(out, g, "app.agent.command-result-timeout-min", null, "결과가 오지 않은 제어 명령 만료 (분)");
         add(out, g, "app.agent.load-throttle-pct", "SCB_LOAD_THROTTLE_PCT", "서버 부하 기준 (%) - CPU 또는 메모리가 넘으면 수집 주기 연장");
         add(out, g, "app.agent.load-throttle-min-sec", "SCB_LOAD_THROTTLE_MIN_SEC", "부하일 때 수집 주기 최소값 (초)");
+
+        g = "로그 · 이력 보관";
+        add(out, g, "app.retention.purge-interval-ms", null, "보관 기간 지난 행 자동 삭제 주기 (밀리초, 기본 3600000 = 1시간)");
+        add(out, g, "app.retention.initial-delay-ms", null, "웹 시작 후 첫 자동 삭제 (밀리초, 기본 120000)");
 
         g = "장애 알람";
         add(out, g, "app.alarm.check-interval-ms", null, "알람 점검 주기 (밀리초)");
@@ -183,6 +239,7 @@ public class SettingsController {
         String d = "웹 DB (화면에서 바꾸는 값)";
         file(out, d, "tb_agent (서버별)", "수집 시작/중지, 수집 주기, 하트비트 주기, 토큰(해시)", "이 화면 · 에이전트 관리 · 네트워크 구성도", false);
         file(out, d, "tb_log_policy / tb_log_source", "서버 로그 요청 주기, 수집할 로그 파일", "이 화면 · 서버 로그", false);
+        file(out, d, "tb_retention", "로그 · 이력 분류별 최장 보관 기간 (지난 행 자동 삭제)", "이 화면 5. 로그 · 이력 보관 기간", false);
         file(out, d, "tb_menu / tb_user_menu", "메뉴 이름·순서, 메뉴 권한, 사용자별 메뉴", "권한관리 › 메뉴 권한 / 메뉴 이름·순서", false);
         return out;
     }
